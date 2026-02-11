@@ -67,6 +67,8 @@ import {
 import { format } from 'date-fns';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
+import { fi } from '@faker-js/faker/.';
+import { set } from 'zod';
 
 const priorities: Record<string, string> = {
   Alta: 'bg-red-500/10 text-red-700',
@@ -87,7 +89,6 @@ type Activity = {
   priority: keyof typeof priorities;
   description: string;
   updates?: ActivityUpdate[];
-
 };
 
 type ActivityFirestore = Omit<Activity, 'issuedAt' | 'dueAt'> & {
@@ -132,7 +133,9 @@ const normalizePriority = (value?: string): Activity['priority'] => {
   return 'Média';
 };
 
-const normalizeActivityForUi = (activity: Partial<ActivityFirestore>): Activity => ({
+const normalizeActivityForUi = (
+  activity: Partial<ActivityFirestore>
+): Activity => ({
   id: activity.id ?? '',
   name: activity.name ?? '',
   issuedAt: firestoreDateToLabel(activity.issuedAt),
@@ -164,10 +167,13 @@ const formatProjectValue = (value?: string | number) => {
   if (Number.isNaN(numericValue)) {
     return 'R$ --';
   }
-  return 'R$ ' + new Intl.NumberFormat('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(numericValue);
+  return (
+    'R$ ' +
+    new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(numericValue)
+  );
 };
 
 export default function ProjetoPage() {
@@ -188,6 +194,9 @@ export default function ProjetoPage() {
     manager: ''
   });
   const [isSavingActivity, setIsSavingActivity] = React.useState(false);
+  const [isDeletingActivity, setIsDeletingActivity] = React.useState(false);
+  const [isDeletingActivityOpen, setIsDeletingActivityOpen] =
+    React.useState(false);
   const [memberOptions, setMemberOptions] = React.useState<MemberOption[]>([]);
   const [isMembersLoading, setIsMembersLoading] = React.useState(false);
   const [isEditOpen, setIsEditOpen] = React.useState(false);
@@ -364,8 +373,15 @@ export default function ProjetoPage() {
     member.name.toLowerCase().includes(editActivity.owner.toLowerCase().trim())
   );
 
-
-  const checkMemberConflicts = async (ownerId: string, dueDate: string): Promise<{ hasConflict: boolean; message: string; tasksCount: number; tasks: ConflictingTask[] }> => {
+  const checkMemberConflicts = async (
+    ownerId: string,
+    dueDate: string
+  ): Promise<{
+    hasConflict: boolean;
+    message: string;
+    tasksCount: number;
+    tasks: ConflictingTask[];
+  }> => {
     if (!firebaseDb || !ownerId || !dueDate) {
       return { hasConflict: false, message: '', tasksCount: 0, tasks: [] };
     }
@@ -387,22 +403,32 @@ export default function ProjetoPage() {
 
       // Carregar tarefas da agenda do membro
       const memberDoc = await getDoc(doc(firebaseDb, 'members', ownerId));
-      const agendaTasks: Array<{ title: string; due: string; source: string }> = [];
+      const agendaTasks: Array<{ title: string; due: string; source: string }> =
+        [];
       if (memberDoc.exists()) {
-        const memberData = memberDoc.data() as { agendaTasks?: Array<{ title: string; due: string }> };
+        const memberData = memberDoc.data() as {
+          agendaTasks?: Array<{ title: string; due: string }>;
+        };
         if (Array.isArray(memberData.agendaTasks)) {
-          agendaTasks.push(...memberData.agendaTasks.map(task => ({
-            title: task.title,
-            due: task.due,
-            source: 'Agenda pessoal'
-          })));
+          agendaTasks.push(
+            ...memberData.agendaTasks.map((task) => ({
+              title: task.title,
+              due: task.due,
+              source: 'Agenda pessoal'
+            }))
+          );
         }
       }
 
       // Carregar tarefas de projetos
-      const projectsSnapshot = await getDocs(collection(firebaseDb, 'projects'));
-      const projectTasks: Array<{ title: string; due: string; source: string }> =
-        [];
+      const projectsSnapshot = await getDocs(
+        collection(firebaseDb, 'projects')
+      );
+      const projectTasks: Array<{
+        title: string;
+        due: string;
+        source: string;
+      }> = [];
       projectsSnapshot.docs.forEach((docSnapshot) => {
         const data = docSnapshot.data() as {
           name?: string;
@@ -464,13 +490,53 @@ export default function ProjetoPage() {
           message = `O responsável possui ${tasksNearDueDate.length} tarefa(s) próximas ao prazo desta atividade (±3 dias).`;
         }
 
-        return { hasConflict: true, message, tasksCount: totalConflicts, tasks: allConflictingTasks };
+        return {
+          hasConflict: true,
+          message,
+          tasksCount: totalConflicts,
+          tasks: allConflictingTasks
+        };
       }
 
       return { hasConflict: false, message: '', tasksCount: 0, tasks: [] };
     } catch (error) {
       console.error('Erro ao verificar conflitos:', error);
       return { hasConflict: false, message: '', tasksCount: 0, tasks: [] };
+    }
+  };
+
+  const handleDeleteActivity = async (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    if (!projectId) {
+      toast.error('Projeto nao encontrado.');
+      return;
+    }
+
+    if (!firebaseDb) {
+      toast.error('Firebase nao configurado.');
+      return;
+    }
+
+    setIsDeletingActivity(true);
+
+    try {
+      const projectRef = doc(firebaseDb, 'projects', projectId);
+      const nextList = activityList.filter(
+        (activity) => activity.id !== selectedActivity?.id
+      );
+
+      await updateDoc(projectRef, {
+        Activities: nextList,
+        updatedAt: serverTimestamp()
+      });
+
+      setActivityList(nextList);
+      setIsDeletingActivityOpen(false);
+      toast.success('Atividade deletada.');
+    } catch (error) {
+      console.error('Erro ao deletar atividade:', error);
+      toast.error('Não foi possível deletar a atividade.');
     }
   };
 
@@ -511,7 +577,10 @@ export default function ProjetoPage() {
 
     // Verificar conflitos se tiver ownerId
     if (newActivity.ownerId && newActivity.dueDate) {
-      const conflict = await checkMemberConflicts(newActivity.ownerId, newActivity.dueDate);
+      const conflict = await checkMemberConflicts(
+        newActivity.ownerId,
+        newActivity.dueDate
+      );
       if (conflict.hasConflict) {
         setPendingActivity(activityPayload);
         setConflictWarning({
@@ -619,7 +688,9 @@ export default function ProjetoPage() {
         return;
       }
 
-      const currentData = snapshot.data() as { Activities?: ActivityFirestore[] };
+      const currentData = snapshot.data() as {
+        Activities?: ActivityFirestore[];
+      };
       const nextActivities = Array.isArray(currentData.Activities)
         ? currentData.Activities.map((activity) => {
             const normalizedActivity = {
@@ -689,6 +760,41 @@ export default function ProjetoPage() {
         </span>
       }
     >
+      <Dialog
+        open={isDeletingActivityOpen}
+        onOpenChange={setIsDeletingActivityOpen}
+      >
+        <DialogContent className='max-w-[95vw] sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>Excluir atividade</DialogTitle>
+            <DialogDescription>
+              Esta ação não pode ser desfeita. Deseja excluir{' '}
+              <span className='font-medium'>
+                {selectedActivity?.name || 'esta atividade'}
+              </span>
+              ?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className='gap-2 sm:gap-2'>
+            <Button
+              type='button'
+              variant='secondary'
+              onClick={() => setIsDeletingActivityOpen(false)}
+              disabled={isDeletingActivity}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type='button'
+              variant='destructive'
+              onClick={handleDeleteActivity}
+              disabled={isDeletingActivity}
+            >
+              {isDeletingActivity ? 'Excluindo...' : 'Excluir'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className='flex flex-1 flex-col space-y-4'>
         <div className='*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-linear-to-t *:data-[slot=card]:shadow-xs lg:grid-cols-2'>
           <Card className='h-full'>
@@ -777,7 +883,10 @@ export default function ProjetoPage() {
                 </div>
                 <div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
                   <div className='space-y-1'>
-                    <label className='text-sm font-medium' htmlFor='activityDue'>
+                    <label
+                      className='text-sm font-medium'
+                      htmlFor='activityDue'
+                    >
                       Prazo
                     </label>
                     <Input
@@ -794,20 +903,19 @@ export default function ProjetoPage() {
                     />
                   </div>
                   <div className='space-y-1'>
-                    <label className='text-sm font-medium'>
-                      Responsável
-                    </label>
-                    <div className="relative">
+                    <label className='text-sm font-medium'>Responsável</label>
+                    <div className='relative'>
                       <Combobox
-                        as="div"
+                        as='div'
                         value={newActivity.owner}
                         onChange={(value: any) => {
                           // value can be the object if selected from list, or string if typed (though strictly Combobox returns the value prop of Option)
                           // Headless UI Combobox value is controlled.
                           // Actually, for custom input handling + selection, we usually rely on onChange providing the 'value' prop of the Option.
-                          const member = typeof value === 'string'
-                            ? memberOptions.find(m => m.name === value)
-                            : value;
+                          const member =
+                            typeof value === 'string'
+                              ? memberOptions.find((m) => m.name === value)
+                              : value;
 
                           if (member) {
                             setNewActivity((current) => ({
@@ -818,9 +926,9 @@ export default function ProjetoPage() {
                           }
                         }}
                       >
-                        <div className="relative">
+                        <div className='relative'>
                           <ComboboxInput
-                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                            className='border-input placeholder:text-muted-foreground focus-visible:ring-ring flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm'
                             onChange={(event) => {
                               const value = event.target.value;
                               setNewActivity((current) => ({
@@ -838,8 +946,8 @@ export default function ProjetoPage() {
                           />
                         </div>
                         <ComboboxOptions
-                          anchor="bottom start"
-                          className="z-50 w-[var(--input-width)] min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 p-1"
+                          anchor='bottom start'
+                          className='bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 w-[var(--input-width)] min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-md'
                         >
                           {isMembersLoading ? (
                             <div className='text-muted-foreground px-2 py-2 text-sm'>
@@ -856,9 +964,9 @@ export default function ProjetoPage() {
                                   <ComboboxOption
                                     key={member.id}
                                     value={member.name}
-                                    className="group data-[focus]:bg-accent data-[focus]:text-accent-foreground hover:bg-accent hover:text-accent-foreground relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none"
+                                    className='group data-focus:bg-accent data-focus:text-accent-foreground hover:bg-accent hover:text-accent-foreground relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-none select-none'
                                   >
-                                    <div className="flex flex-col group-hover:text-accent-foreground">
+                                    <div className='group-hover:text-accent-foreground flex flex-col'>
                                       <span className='font-medium'>
                                         {member.name}
                                       </span>
@@ -880,9 +988,7 @@ export default function ProjetoPage() {
                 </div>
                 <div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
                   <div className='space-y-1'>
-                    <label className='text-sm font-medium'>
-                      Prioridade
-                    </label>
+                    <label className='text-sm font-medium'>Prioridade</label>
                     <Select
                       value={newActivity.priority}
                       disabled={isSavingActivity}
@@ -912,9 +1018,7 @@ export default function ProjetoPage() {
                       onClick={handleCreateActivity}
                       disabled={isSavingActivity}
                     >
-                      {isSavingActivity
-                        ? 'Salvando...'
-                        : 'Adicionar atividade'}
+                      {isSavingActivity ? 'Salvando...' : 'Adicionar atividade'}
                     </Button>
                   </div>
                 </div>
@@ -941,6 +1045,14 @@ export default function ProjetoPage() {
                     disabled={!selectedActivity}
                   >
                     Editar atividade
+                  </Button>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={setIsDeletingActivityOpen.bind(null, true)}
+                    disabled={!selectedActivity || isDeletingActivity}
+                  >
+                    Excluir Atividade
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -1005,12 +1117,12 @@ export default function ProjetoPage() {
               </div>
               <div className='rounded-md border p-3'>
                 <div className='text-muted-foreground text-xs'>Descrição</div>
-                <p className='mt-1'>
-                  {selectedActivity?.description ?? '---'}
-                </p>
+                <p className='mt-1'>{selectedActivity?.description ?? '---'}</p>
               </div>
               <div className='rounded-md border p-3'>
-                <div className='text-muted-foreground text-xs'>Atualizações</div>
+                <div className='text-muted-foreground text-xs'>
+                  Atualizações
+                </div>
                 <ScrollArea className='mt-2 h-40 pr-2'>
                   <div className='space-y-2'>
                     {activityUpdates.length === 0 ? (
@@ -1090,11 +1202,11 @@ export default function ProjetoPage() {
               />
               <div className='relative'>
                 <Combobox
-                  as="div"
+                  as='div'
                   value={editActivity.owner}
                   onChange={(value: string | null) => {
                     if (!value) return;
-                    const member = memberOptions.find(m => m.name === value);
+                    const member = memberOptions.find((m) => m.name === value);
 
                     if (member) {
                       setEditActivity((current) => ({
@@ -1105,9 +1217,9 @@ export default function ProjetoPage() {
                     }
                   }}
                 >
-                  <div className="relative">
+                  <div className='relative'>
                     <ComboboxInput
-                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                      className='border-input placeholder:text-muted-foreground focus-visible:ring-ring flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm'
                       onChange={(event) => {
                         const value = event.target.value;
                         setEditActivity((current) => ({
@@ -1126,7 +1238,7 @@ export default function ProjetoPage() {
                   </div>
                   <ComboboxOptions
                     portal={false}
-                    className="absolute top-full left-0 z-50 mt-1 w-full min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 p-1"
+                    className='bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 absolute top-full left-0 z-50 mt-1 w-full min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-md'
                   >
                     {isMembersLoading ? (
                       <div className='text-muted-foreground px-2 py-2 text-sm'>
@@ -1143,9 +1255,9 @@ export default function ProjetoPage() {
                             <ComboboxOption
                               key={member.id}
                               value={member.name}
-                              className="group data-[focus]:bg-accent data-[focus]:text-accent-foreground hover:bg-accent hover:text-accent-foreground relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none"
+                              className='group data-[focus]:bg-accent data-[focus]:text-accent-foreground hover:bg-accent hover:text-accent-foreground relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-none select-none'
                             >
-                              <div className="flex flex-col group-hover:text-accent-foreground">
+                              <div className='group-hover:text-accent-foreground flex flex-col'>
                                 <span className='font-medium'>
                                   {member.name}
                                 </span>
@@ -1228,23 +1340,24 @@ export default function ProjetoPage() {
       </Dialog>
 
       {/* Dialog de confirmação de conflito */}
-      <Dialog open={conflictWarning.show} onOpenChange={(open) => !open && handleCancelConflict()}>
+      <Dialog
+        open={conflictWarning.show}
+        onOpenChange={(open) => !open && handleCancelConflict()}
+      >
         <DialogContent className='max-w-2xl'>
           <DialogHeader>
             <DialogTitle>Aviso: Responsável com tarefas próximas</DialogTitle>
-            <DialogDescription>
-              {conflictWarning.message}
-            </DialogDescription>
+            <DialogDescription>{conflictWarning.message}</DialogDescription>
           </DialogHeader>
           <div className='py-4'>
             <div className='mb-4'>
-              <p className='text-sm font-medium mb-2'>Tarefas conflitantes:</p>
+              <p className='mb-2 text-sm font-medium'>Tarefas conflitantes:</p>
               <ScrollArea className='h-48 rounded-md border'>
-                <div className='p-3 space-y-2'>
+                <div className='space-y-2 p-3'>
                   {conflictWarning.tasks.map((task, index) => (
                     <div key={index} className='rounded-md border p-3 text-sm'>
                       <div className='font-medium'>{task.title}</div>
-                      <div className='text-muted-foreground text-xs mt-1'>
+                      <div className='text-muted-foreground mt-1 text-xs'>
                         Prazo: {task.due}
                       </div>
                       <div className='text-muted-foreground text-xs'>
@@ -1255,7 +1368,7 @@ export default function ProjetoPage() {
                 </div>
               </ScrollArea>
             </div>
-            <p className='text-sm text-muted-foreground'>
+            <p className='text-muted-foreground text-sm'>
               Deseja continuar e criar esta atividade mesmo assim?
             </p>
           </div>
