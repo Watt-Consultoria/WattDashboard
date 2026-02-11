@@ -28,6 +28,8 @@ import {
   AccordionTrigger
 } from '@/components/ui/accordion';
 import { firebaseDb } from '@/lib/firebase/client';
+import { firestoreDateToLabel } from '@/lib/firestore-date';
+import type { FirestoreDateValue } from '@/lib/firestore-date';
 import {
   collection,
   doc,
@@ -651,7 +653,7 @@ export default function IndividualPage() {
             Activities?: Array<{
               id: string;
               name: string;
-              dueAt?: string;
+              dueAt?: FirestoreDateValue;
               status?: string;
               priority?: string;
               ownerId?: string;
@@ -676,7 +678,7 @@ export default function IndividualPage() {
               projectName: data.name ?? 'Projeto',
               source: 'project',
               title: activity.name ?? 'Tarefa',
-              due: activity.dueAt ?? '',
+              due: firestoreDateToLabel(activity.dueAt),
               status: activity.status ?? 'Planejado',
               priority: activity.priority ?? 'Média',
               owner: activity.owner,

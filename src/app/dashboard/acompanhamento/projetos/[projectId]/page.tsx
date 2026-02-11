@@ -5,6 +5,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { firebaseDb } from '@/lib/firebase/client';
 import {
+  firestoreDateToDate,
+  firestoreDateToInput,
+  firestoreDateToLabel,
+  firestoreDateToTimestamp,
+  inputDateToTimestamp
+} from '@/lib/firestore-date';
+import type { FirestoreDateValue } from '@/lib/firestore-date';
+import {
   Card,
   CardAction,
   CardContent,
@@ -82,6 +90,11 @@ type Activity = {
 
 };
 
+type ActivityFirestore = Omit<Activity, 'issuedAt' | 'dueAt'> & {
+  issuedAt?: FirestoreDateValue;
+  dueAt?: FirestoreDateValue;
+};
+
 type ActivityUpdate = {
   id: string;
   author: string;
@@ -112,28 +125,25 @@ type ConflictingTask = {
   source: string;
 };
 
-const formatDateLabel = (value: string) => {
-  if (!value) {
-    return '';
-  }
-  const parsed = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) {
+const normalizePriority = (value?: string): Activity['priority'] => {
+  if (value === 'Alta' || value === 'Baixa') {
     return value;
   }
-  return format(parsed, 'dd/MM/yyyy');
+  return 'Média';
 };
 
-const toInputDate = (value: string) => {
-  if (!value) {
-    return '';
-  }
-  const parts = value.split('/');
-  if (parts.length !== 3) {
-    return '';
-  }
-  const [day, month, year] = parts;
-  return `${year}-${month}-${day}`;
-};
+const normalizeActivityForUi = (activity: Partial<ActivityFirestore>): Activity => ({
+  id: activity.id ?? '',
+  name: activity.name ?? '',
+  issuedAt: firestoreDateToLabel(activity.issuedAt),
+  dueAt: firestoreDateToLabel(activity.dueAt),
+  owner: activity.owner ?? '',
+  ownerId: activity.ownerId,
+  status: activity.status ?? statusOptions[0],
+  priority: normalizePriority(activity.priority),
+  description: activity.description ?? '',
+  updates: Array.isArray(activity.updates) ? activity.updates : []
+});
 
 const formatProjectValue = (value?: string | number) => {
   if (!value) {
@@ -198,7 +208,8 @@ export default function ProjetoPage() {
     tasksCount: number;
     tasks: ConflictingTask[];
   }>({ show: false, message: '', tasksCount: 0, tasks: [] });
-  const [pendingActivity, setPendingActivity] = React.useState<Activity | null>(null);
+  const [pendingActivity, setPendingActivity] =
+    React.useState<ActivityFirestore | null>(null);
   const [editActivity, setEditActivity] = React.useState({
     name: '',
     description: '',
@@ -284,7 +295,7 @@ export default function ProjetoPage() {
           next: string;
           value: string;
           manager: string;
-          Activities: Activity[];
+          Activities: ActivityFirestore[];
         }>;
         const startLabel =
           data.start instanceof Timestamp
@@ -313,11 +324,11 @@ export default function ProjetoPage() {
             console.warn('Falha ao salvar nome do projeto:', error);
           }
         }
-        if (Array.isArray(data.Activities)) {
-          setActivityList(data.Activities);
-        } else {
-          setActivityList([]);
-        }
+        setActivityList(
+          Array.isArray(data.Activities)
+            ? data.Activities.map(normalizeActivityForUi)
+            : []
+        );
       } catch (error) {
         console.error('Falha ao carregar atividades:', error);
         toast.error('Não foi possível carregar atividades.');
@@ -360,8 +371,8 @@ export default function ProjetoPage() {
     }
 
     try {
-      const dueDateTime = new Date(`${dueDate}T00:00:00`);
-      if (isNaN(dueDateTime.getTime())) {
+      const dueDateTime = firestoreDateToDate(dueDate);
+      if (!dueDateTime) {
         return { hasConflict: false, message: '', tasksCount: 0, tasks: [] };
       }
 
@@ -390,15 +401,24 @@ export default function ProjetoPage() {
 
       // Carregar tarefas de projetos
       const projectsSnapshot = await getDocs(collection(firebaseDb, 'projects'));
-      const projectTasks: Array<{ title: string; due: string; source: string }> = [];
+      const projectTasks: Array<{ title: string; due: string; source: string }> =
+        [];
       projectsSnapshot.docs.forEach((docSnapshot) => {
-        const data = docSnapshot.data() as { name?: string; Activities?: Array<{ ownerId?: string; name?: string; dueAt?: string }> };
+        const data = docSnapshot.data() as {
+          name?: string;
+          Activities?: Array<{
+            ownerId?: string;
+            name?: string;
+            dueAt?: FirestoreDateValue;
+          }>;
+        };
         if (Array.isArray(data.Activities)) {
           data.Activities.forEach((activity) => {
-            if (activity.ownerId === ownerId && activity.dueAt) {
+            const dueLabel = firestoreDateToLabel(activity.dueAt);
+            if (activity.ownerId === ownerId && dueLabel) {
               projectTasks.push({
                 title: activity.name || 'Tarefa',
-                due: activity.dueAt,
+                due: dueLabel,
                 source: `Projeto: ${data.name || 'Sem nome'}`
               });
             }
@@ -412,7 +432,7 @@ export default function ProjetoPage() {
       const allConflictingTasks: ConflictingTask[] = [];
 
       allTasks.forEach((task) => {
-        const taskDate = parseDateFromBR(task.due);
+        const taskDate = firestoreDateToDate(task.due);
         if (!taskDate) return;
 
         const isNext7Days = taskDate >= now && taskDate <= next7Days;
@@ -454,19 +474,6 @@ export default function ProjetoPage() {
     }
   };
 
-  const parseDateFromBR = (dateStr: string): Date | null => {
-    if (!dateStr) return null;
-    const parts = dateStr.split('/');
-    if (parts.length !== 3) return null;
-    const [day, month, year] = parts;
-    const date = new Date(
-      parseInt(year, 10),
-      parseInt(month, 10) - 1,
-      parseInt(day, 10)
-    );
-    return isNaN(date.getTime()) ? null : date;
-  };
-
   const handleCreateActivity = async () => {
     if (!newActivity.name.trim()) {
       toast.error('Informe o nome da atividade.');
@@ -489,13 +496,11 @@ export default function ProjetoPage() {
       typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
         : `activity-${Date.now()}`;
-    const issuedAt = format(new Date(), 'dd/MM/yyyy');
-    const dueAt = formatDateLabel(newActivity.dueDate);
-    const activityPayload: Activity = {
+    const activityPayload: ActivityFirestore = {
       id: activityId,
       name: newActivity.name.trim(),
-      issuedAt,
-      dueAt,
+      issuedAt: Timestamp.now(),
+      dueAt: inputDateToTimestamp(newActivity.dueDate),
       owner: newActivity.owner.trim(),
       ownerId: newActivity.ownerId || undefined,
       status: newActivity.status,
@@ -522,7 +527,7 @@ export default function ProjetoPage() {
     await saveActivity(activityPayload);
   };
 
-  const saveActivity = async (activityPayload: Activity) => {
+  const saveActivity = async (activityPayload: ActivityFirestore) => {
     if (!projectId || !firebaseDb) return;
 
     setIsSavingActivity(true);
@@ -531,7 +536,10 @@ export default function ProjetoPage() {
         Activities: arrayUnion(activityPayload),
         updatedAt: serverTimestamp()
       });
-      setActivityList((current) => [activityPayload, ...current]);
+      setActivityList((current) => [
+        normalizeActivityForUi(activityPayload),
+        ...current
+      ]);
       setSelectedId(activityPayload.id);
       setNewActivity({
         name: '',
@@ -572,7 +580,7 @@ export default function ProjetoPage() {
     setEditActivity({
       name: selectedActivity.name,
       description: selectedActivity.description,
-      dueDate: toInputDate(selectedActivity.dueAt),
+      dueDate: firestoreDateToInput(selectedActivity.dueAt),
       owner: selectedActivity.owner,
       ownerId: selectedActivity.ownerId ?? '',
       status: selectedActivity.status ?? statusOptions[1],
@@ -602,27 +610,63 @@ export default function ProjetoPage() {
       return;
     }
 
-    const nextActivity: Activity = {
-      ...selectedActivity,
-      name: editActivity.name.trim(),
-      description: editActivity.description.trim(),
-      dueAt: formatDateLabel(editActivity.dueDate),
-      owner: editActivity.owner.trim(),
-      ownerId: editActivity.ownerId || undefined,
-      status: editActivity.status,
-      priority: editActivity.priority as Activity['priority']
-    };
-    const nextList = activityList.map((activity) =>
-      activity.id === selectedActivity.id ? nextActivity : activity
-    );
-
     setIsSavingEdit(true);
     try {
+      const projectRef = doc(firebaseDb, 'projects', projectId);
+      const snapshot = await getDoc(projectRef);
+      if (!snapshot.exists()) {
+        toast.error('Projeto nao encontrado.');
+        return;
+      }
+
+      const currentData = snapshot.data() as { Activities?: ActivityFirestore[] };
+      const nextActivities = Array.isArray(currentData.Activities)
+        ? currentData.Activities.map((activity) => {
+            const normalizedActivity = {
+              ...activity,
+              issuedAt: firestoreDateToTimestamp(activity.issuedAt),
+              dueAt: firestoreDateToTimestamp(activity.dueAt)
+            };
+
+            if (activity.id !== selectedActivity.id) {
+              return normalizedActivity;
+            }
+
+            return {
+              ...normalizedActivity,
+              name: editActivity.name.trim(),
+              description: editActivity.description.trim(),
+              dueAt: inputDateToTimestamp(editActivity.dueDate),
+              owner: editActivity.owner.trim(),
+              ownerId: editActivity.ownerId || undefined,
+              status: editActivity.status,
+              priority: editActivity.priority as Activity['priority']
+            };
+          })
+        : [];
+
       await updateDoc(doc(firebaseDb, 'projects', projectId), {
-        Activities: nextList,
+        Activities: nextActivities,
         updatedAt: serverTimestamp()
       });
-      setActivityList(nextList);
+      setActivityList((current) =>
+        current.map((activity) =>
+          activity.id === selectedActivity.id
+            ? {
+                ...activity,
+                name: editActivity.name.trim(),
+                description: editActivity.description.trim(),
+                dueAt: firestoreDateToLabel(
+                  inputDateToTimestamp(editActivity.dueDate)
+                ),
+                owner: editActivity.owner.trim(),
+                ownerId: editActivity.ownerId || undefined,
+                status: editActivity.status,
+                priority: editActivity.priority as Activity['priority']
+              }
+            : activity
+        )
+      );
       setIsEditOpen(false);
       toast.success('Atividade atualizada.');
     } catch (error) {

@@ -30,6 +30,14 @@ import { Calendar } from '@/components/ui/calendar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { firebaseDb } from '@/lib/firebase/client';
 import {
+  firestoreDateToDate,
+  firestoreDateToInput,
+  firestoreDateToLabel,
+  firestoreDateToTimestamp,
+  inputDateToTimestamp
+} from '@/lib/firestore-date';
+import type { FirestoreDateValue } from '@/lib/firestore-date';
+import {
   collection,
   doc,
   getDoc,
@@ -168,45 +176,7 @@ const alertLevelStyles: Record<string, string> = {
   baixo: 'bg-emerald-500/10 text-emerald-700'
 };
 
-const parseDueDate = (value: string) => {
-  if (!value) {
-    return null;
-  }
-  const parts = value.split('/');
-  if (parts.length !== 3) {
-    return null;
-  }
-  const [day, month, year] = parts;
-  const parsed = new Date(
-    Number.parseInt(year, 10),
-    Number.parseInt(month, 10) - 1,
-    Number.parseInt(day, 10)
-  );
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const formatDateLabel = (value: string) => {
-  if (!value) {
-    return '';
-  }
-  const parsed = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  return format(parsed, 'dd/MM/yyyy');
-};
-
-const toInputDate = (value: string) => {
-  if (!value) {
-    return '';
-  }
-  const parts = value.split('/');
-  if (parts.length !== 3) {
-    return '';
-  }
-  const [day, month, year] = parts;
-  return `${year}-${month}-${day}`;
-};
+const parseDueDate = (value: string) => firestoreDateToDate(value);
 
 export default function MembroPage() {
   const params = useParams();
@@ -441,7 +411,7 @@ export default function MembroPage() {
             Activities?: Array<{
               id: string;
               name: string;
-              dueAt?: string;
+              dueAt?: FirestoreDateValue;
               status?: string;
               priority?: string;
               ownerId?: string;
@@ -465,7 +435,7 @@ export default function MembroPage() {
               projectName: data.name ?? 'Projeto',
               source: 'project',
               title: activity.name ?? 'Tarefa',
-              due: activity.dueAt ?? '',
+              due: firestoreDateToLabel(activity.dueAt),
               status: activity.status ?? 'Planejado',
               priority: activity.priority ?? 'Media',
               owner: activity.owner,
@@ -494,7 +464,7 @@ export default function MembroPage() {
     setEditTask({
       name: task.title,
       description: task.description ?? '',
-      dueDate: toInputDate(task.due),
+      dueDate: firestoreDateToInput(task.due),
       owner: task.owner ?? '',
       ownerId: task.ownerId ?? '',
       status: task.status ?? statusOptions[1],
@@ -534,17 +504,25 @@ export default function MembroPage() {
         return;
       }
 
-      const data = snapshot.data() as { Activities?: MemberTask[] };
+      const data = snapshot.data() as { Activities?: Array<Record<string, unknown> & { id?: string }> };
+      const dueAtValue = inputDateToTimestamp(editTask.dueDate);
+      const dueAtLabel = firestoreDateToLabel(dueAtValue);
       const nextActivities = Array.isArray(data.Activities)
         ? data.Activities.map((activity) => {
+          const normalizedActivity = {
+            ...activity,
+            issuedAt: firestoreDateToTimestamp(activity.issuedAt as FirestoreDateValue),
+            dueAt: firestoreDateToTimestamp(activity.dueAt as FirestoreDateValue)
+          };
+
           if (activity.id !== activeTask.activityId) {
-            return activity;
+            return normalizedActivity;
           }
           return {
-            ...activity,
+            ...normalizedActivity,
             name: editTask.name.trim(),
             description: editTask.description.trim(),
-            dueAt: formatDateLabel(editTask.dueDate),
+            dueAt: dueAtValue,
             owner: editTask.owner.trim(),
             ownerId: editTask.ownerId || undefined,
             status: editTask.status,
@@ -565,7 +543,7 @@ export default function MembroPage() {
               ...task,
               title: editTask.name.trim(),
               description: editTask.description.trim(),
-              due: formatDateLabel(editTask.dueDate),
+              due: dueAtLabel,
               owner: editTask.owner.trim(),
               ownerId: editTask.ownerId || undefined,
               status: editTask.status,
@@ -580,7 +558,7 @@ export default function MembroPage() {
             ...current,
             title: editTask.name.trim(),
             description: editTask.description.trim(),
-            due: formatDateLabel(editTask.dueDate),
+            due: dueAtLabel,
             owner: editTask.owner.trim(),
             ownerId: editTask.ownerId || undefined,
             status: editTask.status,

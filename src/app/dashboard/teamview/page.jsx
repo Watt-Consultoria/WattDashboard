@@ -21,6 +21,10 @@ import {
   AccordionTrigger
 } from '@/components/ui/accordion';
 import { firebaseDb } from '@/lib/firebase/client';
+import {
+  firestoreDateToDate,
+  firestoreDateToLabel
+} from '@/lib/firestore-date';
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { addWeeks, endOfWeek, format, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -141,7 +145,7 @@ export default function TeamviewPage() {
               projectName: data.name ?? 'Projeto',
               source: 'project',
               title: activity.name ?? 'Tarefa',
-              due: activity.dueAt ?? '',
+              due: firestoreDateToLabel(activity.dueAt),
               status: activity.status ?? 'Planejado',
               priority: activity.priority ?? 'Media',
               owner: activity.owner,
@@ -312,7 +316,7 @@ export default function TeamviewPage() {
 
           data.Activities.forEach((activity) => {
             if (!memberIds.includes(activity.ownerId)) return;
-            const due = parseDueDate(activity.dueAt);
+            const due = firestoreDateToDate(activity.dueAt);
             if (!due || due < start || due > end) return;
 
             const entry = {
@@ -322,7 +326,7 @@ export default function TeamviewPage() {
               projectName: data.name ?? 'Projeto',
               source: 'project',
               title: activity.name ?? 'Tarefa',
-              due: activity.dueAt ?? '',
+              due: firestoreDateToLabel(activity.dueAt),
               status: activity.status ?? 'Planejado',
               priority: activity.priority ?? 'Media',
               owner: activity.owner,
