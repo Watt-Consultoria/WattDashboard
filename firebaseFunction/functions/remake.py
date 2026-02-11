@@ -30,6 +30,66 @@ def get_db():
     return firestore.client()
 
 
+def _build_alert_key(project_id, activity_id, activity_name) -> str:
+    project_part = str(project_id or "project-unknown")
+    activity_source = activity_id if activity_id is not None else activity_name
+    activity_part = str(activity_source or "activity-unknown").strip().lower()
+    return f"{project_part}:{activity_part}"
+
+
+def save_project_alert_if_missing(
+    db,
+    member_id: str | None,
+    project_id: str | None,
+    project_name: str,
+    activity_id: str | None,
+    activity_name: str,
+    due_at,
+) -> bool:
+    """Save a project alert in members/{member_id}.alerts if it is not duplicated."""
+    if not member_id:
+        return False
+
+    try:
+        member_ref = db.collection("members").document(member_id)
+        member_snapshot = member_ref.get()
+        member_data = member_snapshot.to_dict() or {}
+        current_alerts = member_data.get("alerts", [])
+
+        if not isinstance(current_alerts, list):
+            current_alerts = []
+
+        dedupe_key = _build_alert_key(project_id, activity_id, activity_name)
+        already_exists = any(
+            isinstance(alert, dict) and alert.get("activityKey") == dedupe_key
+            for alert in current_alerts
+        )
+        if already_exists:
+            logger.log(f"ℹ️ Alerta já existe para {member_id}: {dedupe_key}")
+            return False
+
+        due_label = due_at.strftime("%d/%m/%Y") if due_at else "breve"
+        now_sp = datetime.now(ZoneInfo("America/Sao_Paulo"))
+        alert_payload = {
+            "id": f"alert-{project_id or 'project'}-{activity_id or int(now_sp.timestamp())}",
+            "title": f"Projeto: {project_name}",
+            "detail": f"Tarefa '{activity_name}' com prazo em {due_label}.",
+            "time": now_sp.strftime("%d/%m/%Y %H:%M"),
+            "level": "alto",
+            "activityKey": dedupe_key,
+            "projectId": project_id,
+            "activityId": activity_id,
+        }
+
+        next_alerts = [alert_payload, *current_alerts][:ALERTS_LIMIT]
+        member_ref.set({"alerts": next_alerts}, merge=True)
+        logger.log(f"✅ Alerta salvo para {member_id}: {dedupe_key}")
+        return True
+    except Exception as exc:
+        logger.error(f"❌ Erro salvando alerta para {member_id}: {exc}")
+        return False
+
+
 def get_user_tokens(user_id: str, db) -> list[str]:
     """Fetch user's FCM tokens from Firestore."""
     try:
@@ -158,7 +218,7 @@ def alert_for_manager_pending_tasks(
         logger.error(f"❌ Erro enviando alertas ao manager: {exc}")
 
 
-def analyze_tasks(project, db):
+def analyze_tasks(project_id, project, db):
     """Analyze a single project and send alerts for pending tasks."""
     try:
         project_name = project.get("name", "Sem nome")
@@ -185,8 +245,19 @@ def analyze_tasks(project, db):
                 pending_count += 1
                 owner_id = activity.get("ownerId")
                 activity_name = activity.get("name")
+                activity_id = activity.get("id")
 
                 logger.log(f"⚠️ Tarefa pendente: '{activity_name}' vence em {due_at.strftime('%d/%m/%Y')}")
+
+                save_project_alert_if_missing(
+                    db=db,
+                    member_id=owner_id,
+                    project_id=project_id,
+                    project_name=project_name,
+                    activity_id=activity_id,
+                    activity_name=activity_name,
+                    due_at=due_at,
+                )
 
                 owner_tokens = get_user_tokens(owner_id, db)
                 alert_for_consultor_pending_tasks(
@@ -195,6 +266,16 @@ def analyze_tasks(project, db):
 
                 manager_id = project.get("managerId")
                 if manager_id and manager_id != owner_id:
+                    save_project_alert_if_missing(
+                        db=db,
+                        member_id=manager_id,
+                        project_id=project_id,
+                        project_name=project_name,
+                        activity_id=activity_id,
+                        activity_name=activity_name,
+                        due_at=due_at,
+                    )
+
                     manager_tokens = get_user_tokens(manager_id, db)
                     alert_for_manager_pending_tasks(
                         manager_id,
@@ -222,7 +303,7 @@ def run_pending_tasks_check():
         project_count = 0
         for project_doc in projects:
             project = project_doc.to_dict() or {}
-            analyze_tasks(project, db)
+            analyze_tasks(project_doc.id, project, db)
             project_count += 1
 
         logger.log(f"✅ CONCLUÍDO - {project_count} projetos analisados")
