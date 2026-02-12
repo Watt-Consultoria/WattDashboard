@@ -1,17 +1,19 @@
 import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import logging
 import firebase_admin
 from firebase_admin import credentials, firestore, messaging
 
 from firebase_functions import firestore_fn
 
+ALERTS_LIMIT = 100
+FCM_BATCH_SIZE = 100
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO)
 
-
-# --- seus helpers (mantive a ideia) ---
 
 def _init_firebase():
     if firebase_admin._apps:
@@ -91,6 +93,67 @@ def _cleanup_bad_tokens(db, token_pairs, batch_response):
             logger.debug("Deleted invalid token document %s", ref.path)
         except Exception:
             logger.exception("Failed to delete invalid token document %s", ref.path)
+            
+            
+def _build_alert_key(project_id, activity_id, activity_name) -> str:
+    project_part = str(project_id or "project-unknown")
+    activity_source = activity_id if activity_id is not None else activity_name
+    activity_part = str(activity_source or "activity-unknown").strip().lower()
+    return f"{project_part}:{activity_part}"
+            
+def save_project_alert_if_missing(
+    db,
+    member_id: str | None,
+    project_id: str | None,
+    project_name: str,
+    activity_id: str | None,
+    activity_name: str,
+    activity_priority: str | None,
+    due_at,
+) -> bool:
+    """Save a project alert in members/{member_id}.alerts if it is not duplicated."""
+    if not member_id:
+        return False
+
+    try:
+        member_ref = db.collection("members").document(member_id)
+        member_snapshot = member_ref.get()
+        member_data = member_snapshot.to_dict() or {}
+        current_alerts = member_data.get("alerts", [])
+
+        if not isinstance(current_alerts, list):
+            current_alerts = []
+
+        dedupe_key = _build_alert_key(project_id, activity_id, activity_name)
+        already_exists = any(
+            isinstance(alert, dict) and alert.get("activityKey") == dedupe_key
+            for alert in current_alerts
+        )
+        if already_exists:
+            logger.log(f"ℹ️ Alerta já existe para {member_id}: {dedupe_key}")
+            return False
+
+        due_label = due_at.strftime("%d/%m/%Y") if due_at else "breve"
+        now_sp = datetime.now(ZoneInfo("America/Sao_Paulo"))
+        alert_payload = {
+            "id": f"alert-{project_id or 'project'}-{activity_id or int(now_sp.timestamp())}",
+            "title": f"Nova tarefa: {activity_name}",
+            "detail": f"Tarefa '{activity_name}' atribuída a você no projeto {project_name} com prazo para {due_label}.",
+            "time": now_sp.strftime("%d/%m/%Y %H:%M"),
+            "level": activity_priority or "alto",
+            "activityKey": dedupe_key,
+            "projectId": project_id,
+            "activityId": activity_id,
+        }
+
+        next_alerts = [alert_payload, *current_alerts][:ALERTS_LIMIT]
+        member_ref.set({"alerts": next_alerts}, merge=True)
+        logger.log(f"✅ Alerta salvo para {member_id}: {dedupe_key}")
+        return True
+    except Exception as exc:
+        logger.error(f"❌ Erro salvando alerta para {member_id}: {exc}")
+        return False
+
 
 @firestore_fn.on_document_created(document="projects/{projectId}/activities/{activityID}")
 def notify_owner_on_activity_created(event) -> None:
@@ -152,13 +215,26 @@ def notify_owner_on_activity_created(event) -> None:
             "activityId": str(activity_id or ""),
         },
     )
+    
     logger.info(
         "Sending multicast notification for activity %s to %d token(s).",
         activity_id,
         len(tokens),
     )
     
+    
     resp = messaging.send_each_for_multicast(msg)
+    alert = save_project_alert_if_missing(
+        db,
+        member_id=owner_id,
+        project_id=project_id,
+        project_name=project_name,
+        activity_id=activity_id,
+        activity_name=act_title,
+        activity_priority=activity.get("priority", "alto"),
+        due_at=activity.get("dueAt", None),
+    )
+    
     logger.info(
         "FCM multicast completed: %d success, %d failure.",
         resp.success_count,
