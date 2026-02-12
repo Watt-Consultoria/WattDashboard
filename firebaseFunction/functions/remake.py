@@ -224,7 +224,14 @@ def analyze_tasks(project_id, project, db):
         project_name = project.get("name", "Sem nome")
         logger.log(f"📊 Analisando projeto: {project_name}")
         
-        activities = project.get("Activities", [])
+        activities_ref = (
+            db.collection("projects")
+            .document(project_id)
+            .collection("activities")
+        )
+
+        activities = [doc.to_dict() | {"id": doc.id} for doc in activities_ref.stream()]
+
         logger.log(f"   Total de atividades: {len(activities)}")
         
         now_brasilia = datetime.now(ZoneInfo("America/Sao_Paulo"))
