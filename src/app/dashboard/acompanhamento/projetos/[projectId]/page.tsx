@@ -281,12 +281,20 @@ export default function ProjetoPage() {
   }, []);
 
   React.useEffect(() => {
-    if (!firebaseDb || !projectId) return;
-
     let isActive = true;
 
     const loadActivities = async () => {
       try {
+        if (!projectId) {
+          toast.error('Projeto nao encontrado.');
+          return;
+        }
+
+        if (!firebaseDb) {
+          toast.error('Firebase não inicializado');
+          return;
+        }
+
         const projectRef = doc(firebaseDb, 'projects', projectId);
         const projectSnapshot = await getDoc(projectRef);
 
