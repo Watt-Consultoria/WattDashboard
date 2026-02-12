@@ -31,7 +31,7 @@ import { firebaseDb } from '@/lib/firebase/client';
 import { firestoreDateToLabel } from '@/lib/firestore-date';
 import type { FirestoreDateValue } from '@/lib/firestore-date';
 import {
-  collection,
+  collectionGroup,
   doc,
   getDoc,
   getDocs,
@@ -641,53 +641,105 @@ export default function IndividualPage() {
             return;
           }
         }
-        const snapshot = await getDocs(collection(db, 'projects'));
+
+        const activitiesQuery = query(
+          collectionGroup(db, 'activities'),
+          where('ownerId', '==', memberId)
+        );
+        const snapshot = await getDocs(activitiesQuery);
         if (!isActive) {
           return;
         }
 
-        const tasksFromDb: MemberTask[] = [];
-        snapshot.docs.forEach((docSnapshot) => {
-          const data = docSnapshot.data() as {
-            name?: string;
-            Activities?: Array<{
-              id: string;
-              name: string;
+        const projectNameCache = new Map<string, string>();
+        const missingProjectIds = new Set<string>();
+
+        snapshot.docs.forEach((activityDoc) => {
+          const data = activityDoc.data() as {
+            projectId?: string;
+            projectName?: string;
+          };
+          const inferredProjectId =
+            data.projectId ?? activityDoc.ref.parent?.parent?.id ?? '';
+          if (!inferredProjectId) {
+            return;
+          }
+          if (data.projectName) {
+            projectNameCache.set(inferredProjectId, data.projectName);
+            return;
+          }
+          if (!projectNameCache.has(inferredProjectId)) {
+            missingProjectIds.add(inferredProjectId);
+          }
+        });
+
+        if (missingProjectIds.size > 0) {
+          await Promise.all(
+            Array.from(missingProjectIds).map(async (projectId) => {
+              try {
+                const projectSnapshot = await getDoc(
+                  doc(db, 'projects', projectId)
+                );
+                if (projectSnapshot.exists()) {
+                  const projectData = projectSnapshot.data() as {
+                    name?: string;
+                  };
+                  projectNameCache.set(
+                    projectId,
+                    projectData.name ?? 'Projeto'
+                  );
+                } else {
+                  projectNameCache.set(projectId, 'Projeto');
+                }
+              } catch (error) {
+                console.error('Falha ao buscar projeto:', projectId, error);
+                projectNameCache.set(projectId, 'Projeto');
+              }
+            })
+          );
+        }
+
+        const tasksFromDb: MemberTask[] = snapshot.docs
+          .map((activityDoc) => {
+            const data = activityDoc.data() as {
+              id?: string;
+              name?: string;
               dueAt?: FirestoreDateValue;
               status?: string;
               priority?: string;
-              ownerId?: string;
               owner?: string;
+              ownerId?: string;
               description?: string;
               updates?: ActivityUpdate[];
-            }>;
-          };
-          if (!Array.isArray(data.Activities)) {
-            return;
-          }
-
-          data.Activities.forEach((activity) => {
-            if (activity.ownerId !== memberId) {
-              return;
+              projectId?: string;
+              projectName?: string;
+            };
+            const parentProjectId = activityDoc.ref.parent?.parent?.id;
+            const projectId = data.projectId ?? parentProjectId ?? '';
+            if (!projectId) {
+              return null;
             }
 
-            tasksFromDb.push({
-              id: `${docSnapshot.id}-${activity.id}`,
-              activityId: activity.id,
-              projectId: docSnapshot.id,
-              projectName: data.name ?? 'Projeto',
-              source: 'project',
-              title: activity.name ?? 'Tarefa',
-              due: firestoreDateToLabel(activity.dueAt),
-              status: activity.status ?? 'Planejado',
-              priority: activity.priority ?? 'Média',
-              owner: activity.owner,
-              ownerId: activity.ownerId,
-              description: activity.description,
-              updates: Array.isArray(activity.updates) ? activity.updates : []
-            });
-          });
-        });
+            const projectName =
+              data.projectName ?? projectNameCache.get(projectId) ?? 'Projeto';
+
+            return {
+              id: `${projectId}-${activityDoc.id}`,
+              activityId: data.id ?? activityDoc.id,
+              projectId,
+              projectName,
+              source: 'project' as const,
+              title: data.name ?? 'Tarefa',
+              due: firestoreDateToLabel(data.dueAt ?? ''),
+              status: data.status ?? statusOptions[0],
+              priority: data.priority ?? priorityOptions[1],
+              owner: data.owner ?? '',
+              ownerId: data.ownerId ?? memberId,
+              description: data.description ?? '',
+              updates: Array.isArray(data.updates) ? data.updates : []
+            } as MemberTask;
+          })
+          .filter((task): task is MemberTask => task !== null);
 
         setProjectTasks(tasksFromDb);
         storeTasksCache(memberId, tasksFromDb);

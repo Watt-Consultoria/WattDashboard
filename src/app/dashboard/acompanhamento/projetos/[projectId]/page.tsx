@@ -62,7 +62,9 @@ import {
   query,
   serverTimestamp,
   Timestamp,
-  updateDoc
+  updateDoc,
+  setDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { useParams } from 'next/navigation';
@@ -279,65 +281,50 @@ export default function ProjetoPage() {
   }, []);
 
   React.useEffect(() => {
-    if (!firebaseDb || !projectId) {
-      return;
-    }
+    if (!firebaseDb || !projectId) return;
 
     let isActive = true;
+
     const loadActivities = async () => {
-      if (!firebaseDb) {
-        console.error('Firebase não inicializado');
-        return;
-      }
-
       try {
-        const snapshot = await getDoc(doc(firebaseDb, 'projects', projectId));
-        if (!snapshot.exists() || !isActive) {
-          return;
-        }
+        const projectRef = doc(firebaseDb, 'projects', projectId);
+        const projectSnapshot = await getDoc(projectRef);
 
-        const data = snapshot.data() as Partial<{
-          name: string;
-          client: string;
-          status: string;
-          start: Timestamp;
-          next: string;
-          value: string;
-          manager: string;
-          Activities: ActivityFirestore[];
-        }>;
+        const activitiesRef = collection(
+          firebaseDb,
+          'projects',
+          projectId,
+          'activities'
+        );
+        const snapshot = await getDocs(activitiesRef);
+
+        if (!isActive) return;
+
+        const projectData = projectSnapshot.data();
+
         const startLabel =
-          data.start instanceof Timestamp
-            ? format(data.start.toDate(), 'dd/MM/yyyy')
+          projectData?.start instanceof Timestamp
+            ? format(projectData.start.toDate(), 'dd/MM/yyyy')
             : '';
 
         setProjectInfo({
-          id: snapshot.id,
-          name: data.name ?? 'Projeto',
-          client: data.client,
-          status: data.status,
+          id: projectSnapshot.id,
+          name: projectData?.name ?? 'Projeto',
+          client: projectData?.client,
+          status: projectData?.status,
           start: startLabel,
-          next: data.next,
-          value: data.value,
-          manager: data.manager
+          next: projectData?.next,
+          value: projectData?.value,
+          manager: projectData?.manager
         });
-        if (data.name) {
-          try {
-            sessionStorage.setItem(`project-name:${snapshot.id}`, data.name);
-            window.dispatchEvent(
-              new CustomEvent('project-name-updated', {
-                detail: { id: snapshot.id, name: data.name }
-              })
-            );
-          } catch (error) {
-            console.warn('Falha ao salvar nome do projeto:', error);
-          }
-        }
-        setActivityList(
-          Array.isArray(data.Activities)
-            ? data.Activities.map(normalizeActivityForUi)
-            : []
-        );
+
+        // ✅ atividades vêm da subcoleção
+        const activities = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any)
+        }));
+
+        setActivityList(activities.map(normalizeActivityForUi));
       } catch (error) {
         console.error('Falha ao carregar atividades:', error);
         toast.error('Não foi possível carregar atividades.');
@@ -345,11 +332,10 @@ export default function ProjetoPage() {
     };
 
     loadActivities();
-
     return () => {
       isActive = false;
     };
-  }, [projectId]);
+  }, [firebaseDb, projectId]);
 
   React.useEffect(() => {
     if (activityList.length === 0) {
@@ -521,17 +507,19 @@ export default function ProjetoPage() {
     setIsDeletingActivity(true);
 
     try {
-      const projectRef = doc(firebaseDb, 'projects', projectId);
-      const nextList = activityList.filter(
-        (activity) => activity.id !== selectedActivity?.id
+      const activityRef = doc(
+        firebaseDb,
+        'projects',
+        projectId,
+        'activities',
+        selectedActivity.id
       );
 
-      await updateDoc(projectRef, {
-        Activities: nextList,
-        updatedAt: serverTimestamp()
-      });
+      await deleteDoc(activityRef);
 
-      setActivityList(nextList);
+      setActivityList(
+        activityList.filter((activity) => activity.id !== selectedActivity.id)
+      );
       setIsDeletingActivityOpen(false);
       toast.success('Atividade deletada.');
     } catch (error) {
@@ -601,10 +589,14 @@ export default function ProjetoPage() {
 
     setIsSavingActivity(true);
     try {
-      await updateDoc(doc(firebaseDb, 'projects', projectId), {
-        Activities: arrayUnion(activityPayload),
-        updatedAt: serverTimestamp()
-      });
+      const activitiesRef = doc(
+        firebaseDb,
+        'projects',
+        projectId,
+        'activities',
+        activityPayload.id
+      );
+      await setDoc(activitiesRef, activityPayload);
       setActivityList((current) => [
         normalizeActivityForUi(activityPayload),
         ...current
@@ -681,8 +673,14 @@ export default function ProjetoPage() {
 
     setIsSavingEdit(true);
     try {
-      const projectRef = doc(firebaseDb, 'projects', projectId);
-      const snapshot = await getDoc(projectRef);
+      const activityRef = doc(
+        firebaseDb,
+        'projects',
+        projectId,
+        'activities',
+        selectedActivity.id
+      );
+      const snapshot = await getDoc(activityRef);
       if (!snapshot.exists()) {
         toast.error('Projeto nao encontrado.');
         return;
@@ -691,33 +689,15 @@ export default function ProjetoPage() {
       const currentData = snapshot.data() as {
         Activities?: ActivityFirestore[];
       };
-      const nextActivities = Array.isArray(currentData.Activities)
-        ? currentData.Activities.map((activity) => {
-            const normalizedActivity = {
-              ...activity,
-              issuedAt: firestoreDateToTimestamp(activity.issuedAt),
-              dueAt: firestoreDateToTimestamp(activity.dueAt)
-            };
 
-            if (activity.id !== selectedActivity.id) {
-              return normalizedActivity;
-            }
-
-            return {
-              ...normalizedActivity,
-              name: editActivity.name.trim(),
-              description: editActivity.description.trim(),
-              dueAt: inputDateToTimestamp(editActivity.dueDate),
-              owner: editActivity.owner.trim(),
-              ownerId: editActivity.ownerId || undefined,
-              status: editActivity.status,
-              priority: editActivity.priority as Activity['priority']
-            };
-          })
-        : [];
-
-      await updateDoc(doc(firebaseDb, 'projects', projectId), {
-        Activities: nextActivities,
+      await updateDoc(activityRef, {
+        name: editActivity.name.trim(),
+        description: editActivity.description.trim(),
+        dueAt: inputDateToTimestamp(editActivity.dueDate),
+        owner: editActivity.owner.trim(),
+        ownerId: editActivity.ownerId || undefined,
+        status: editActivity.status,
+        priority: editActivity.priority as Activity['priority'],
         updatedAt: serverTimestamp()
       });
       setActivityList((current) =>
