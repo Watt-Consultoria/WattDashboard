@@ -63,6 +63,8 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/features/auth/components/auth-provider';
 import { useFcmToken } from '@/hooks/use-fcm';
+import memberService from '@/services/memberService';
+import { Member, TimeRecord } from '@/types/member/member';
 
 type MemberTask = {
   id: string;
@@ -477,29 +479,21 @@ export default function IndividualPage() {
   }, [priorityByDate]);
 
   React.useEffect(() => {
-    if (!firebaseDb || authLoading || !user?.email) {
+    if (authLoading || !user?.email) {
       return;
     }
-    const db = firebaseDb;
 
     let isActive = true;
     setIsMemberLoading(true);
 
-    const applyMemberSnapshot = (
-      docId: string,
-      data: Partial<MemberInfo> & {
-        tasks?: MemberTask[];
-        alerts?: MemberAlert[];
-        agendaTasks?: MemberTask[];
-      }
-    ) => {
-      setMemberId(docId);
+    const applyMemberSnapshot = (memberData: Partial<Member>) => {
+      setMemberId(memberData.id ?? '');
       setMemberInfo({
-        name: data.name ?? '',
-        email: data.email ?? '',
-        sector: data.sector ?? '',
-        cpf: data.cpf ?? '',
-        role: data.role ?? ''
+        name: memberData.name ?? '',
+        email: memberData.email ?? '',
+        sector: memberData.sector ?? '',
+        cpf: memberData.cpf ?? '',
+        role: memberData.role ?? ''
       });
 
       const today = new Date();
@@ -507,18 +501,14 @@ export default function IndividualPage() {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const weekStart = getWeekStart(new Date());
-      const allRecords = ((data as any).timeRecords || []) as {
-        id: string;
-        type: string;
-        timestamp: any;
-      }[];
+      const allRecords = memberData.timeRecords ?? [];
 
       console.log('=== DEBUG PONTO ===');
       console.log('Total de registros no Firestore:', allRecords.length);
       console.log('Data de hoje:', today);
       console.log('Início da semana (segunda-feira):', weekStart);
 
-      const todayRecords = allRecords.filter((r: any) => {
+      const todayRecords = allRecords.filter((r: TimeRecord) => {
         if (!r.timestamp?.toDate) return false;
         const recordDate = r.timestamp.toDate();
         return recordDate >= today && recordDate < tomorrow;
@@ -526,7 +516,7 @@ export default function IndividualPage() {
       console.log('Registros de hoje filtrados:', todayRecords.length);
       setTimeRecords(todayRecords);
 
-      const weekRecords = allRecords.filter((r: any) => {
+      const weekRecords = allRecords.filter((r: TimeRecord) => {
         if (!r.timestamp?.toDate) return false;
         const recordDate = r.timestamp.toDate();
         const isInWeek = recordDate >= weekStart;
@@ -543,9 +533,9 @@ export default function IndividualPage() {
       console.log('===================');
       setWeekTimeRecords(weekRecords);
 
-      if (Array.isArray(data.agendaTasks)) {
+      if (Array.isArray(memberData.agendaTasks)) {
         setAgendaTasks(
-          data.agendaTasks.map((task) => ({
+          memberData.agendaTasks.map((task) => ({
             ...task,
             source: 'agenda'
           }))
@@ -553,8 +543,8 @@ export default function IndividualPage() {
       } else {
         setAgendaTasks([]);
       }
-      if (Array.isArray(data.alerts)) {
-        setMemberAlerts(data.alerts);
+      if (Array.isArray(memberData.alerts)) {
+        setMemberAlerts(memberData.alerts);
       } else {
         setMemberAlerts(alerts);
       }
@@ -569,7 +559,7 @@ export default function IndividualPage() {
         ...cached.data,
         timeRecords: fromCachedTimeRecords(cached.data.timeRecords)
       };
-      applyMemberSnapshot(cached.memberId, hydrated);
+      applyMemberSnapshot({ ...hydrated, id: cached.memberId } as Member);
       setMemberNotFound(false);
       setIsMemberLoading(false);
       return true;
@@ -582,16 +572,12 @@ export default function IndividualPage() {
             return;
           }
         }
-        // Usar o UID do usuário para buscar o documento do membro
-        const memberRef = doc(db, 'members', user.uid);
-        const memberDoc = await getDoc(memberRef);
 
-        if (memberDoc.exists() && isActive) {
-          applyMemberSnapshot(
-            memberDoc.id,
-            memberDoc.data() as Partial<MemberInfo>
-          );
-          storeMemberCache(memberDoc.id, memberDoc.data() as any);
+        const member = await memberService.getMemberProfile(user.uid);
+
+        if (member && isActive) {
+          applyMemberSnapshot(member);
+          storeMemberCache(member.id, member);
         } else if (isActive) {
           setMemberNotFound(true);
         }
