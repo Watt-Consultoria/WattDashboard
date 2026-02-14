@@ -69,8 +69,6 @@ import {
 import { format } from 'date-fns';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { fi } from '@faker-js/faker/.';
-import { set } from 'zod';
 
 const priorities: Record<string, string> = {
   Alta: 'bg-red-500/10 text-red-700',
