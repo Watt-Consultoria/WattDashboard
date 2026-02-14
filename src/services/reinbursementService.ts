@@ -27,6 +27,7 @@ const parseAmountToCents = (rawValue: string): number | null => {
 class ReinbursementService {
   async submitReinbursement(input: {
     memberId: string;
+    title: string;
     description: string;
     category: ReinbursementCategory;
     amount: string;
@@ -39,6 +40,10 @@ class ReinbursementService {
     const description = input.description?.trim();
     if (!description)
       throw new ValidationError('Descreva a solicitação de reembolso');
+
+    const title = input.title?.trim();
+    if (!title)
+      throw new ValidationError('Informe um título para a solicitação');
 
     if (!input.category)
       throw new ValidationError('Selecione a categoria da solicitação');
@@ -71,6 +76,7 @@ class ReinbursementService {
       memberId,
       memberName: member.name ?? '',
       memberEmail: member.email ?? '',
+      title,
       description,
       category: input.category,
       amountCents,

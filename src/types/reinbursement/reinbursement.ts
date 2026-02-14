@@ -23,6 +23,7 @@ export type Reinbursement = {
   memberId: string;
   memberName: string;
   memberEmail: string;
+  title: string;
   description: string;
   category: ReinbursementCategory;
   amountCents: number;

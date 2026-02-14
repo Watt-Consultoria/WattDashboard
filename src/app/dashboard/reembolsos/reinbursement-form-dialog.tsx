@@ -31,6 +31,7 @@ const categories: ReinbursementCategory[] = [
 ];
 
 type ReinbursementFormState = {
+  title: string;
   description: string;
   category: ReinbursementCategory | '';
   amount: string;
@@ -39,6 +40,7 @@ type ReinbursementFormState = {
 };
 
 const initialFormState: ReinbursementFormState = {
+  title: '',
   description: '',
   category: '',
   amount: '',
@@ -76,6 +78,7 @@ export function ReinbursementFormDialog({
     try {
       await reinbursementService.submitReinbursement({
         memberId,
+        title: form.title,
         description: form.description,
         category: form.category as ReinbursementCategory,
         amount: form.amount,
@@ -121,6 +124,22 @@ export function ReinbursementFormDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className='space-y-5'>
+          <div className='space-y-2'>
+            <Label htmlFor='title'>Título *</Label>
+            <Input
+              id='title'
+              placeholder='Ex: Reembolso de despesas de transporte'
+              value={form.title}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  title: event.target.value
+                }))
+              }
+              disabled={isFormDisabled}
+              required
+            />
+          </div>
           <div className='space-y-2'>
             <Label htmlFor='description'>Descrição detalhada *</Label>
             <Textarea

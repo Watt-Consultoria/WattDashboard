@@ -79,6 +79,7 @@ class ReinbursementRepository implements IReinbursementRepository {
         memberId: data.memberId ?? '',
         memberName: data.memberName ?? '',
         memberEmail: data.memberEmail ?? '',
+        title: data.title ?? '',
         description: data.description ?? '',
         category: data.category ?? 'Outros',
         amountCents: data.amountCents ?? 0,

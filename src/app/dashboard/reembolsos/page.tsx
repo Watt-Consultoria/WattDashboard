@@ -107,51 +107,100 @@ export default function ReembolsosPage() {
             </CardContent>
           </Card>
         ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Suas solicitações</CardTitle>
-              <CardDescription>
+          <Card className='overflow-hidden'>
+            <CardHeader className='pb-3'>
+              <CardTitle className='text-base md:text-lg'>
+                Suas solicitações
+              </CardTitle>
+              <CardDescription className='text-xs md:text-sm'>
                 {reinbursements.length} solicitação(ões) encontrada(s)
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className='overflow-x-auto'>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Categoria</TableHead>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead className='text-right'>Valor</TableHead>
-                      <TableHead className='text-center'>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {reinbursements.map((reinbursement) => (
-                      <TableRow key={reinbursement.id}>
-                        <TableCell className='whitespace-nowrap'>
-                          {formatDate(reinbursement.createdAt)}
-                        </TableCell>
-                        <TableCell>{reinbursement.category}</TableCell>
-                        <TableCell className='max-w-xs truncate'>
-                          {reinbursement.description}
-                        </TableCell>
-                        <TableCell className='text-right font-medium'>
-                          {formatCurrency(reinbursement.amountCents)}
-                        </TableCell>
-                        <TableCell className='text-center'>
-                          <Badge
-                            variant={
-                              statusColors[reinbursement.status] || 'default'
-                            }
-                          >
-                            {reinbursement.status}
-                          </Badge>
-                        </TableCell>
+            <CardContent className='p-0 md:p-6'>
+              {/* Visualização em tabela para desktop */}
+              <div className='hidden md:block'>
+                <div className='overflow-x-auto'>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Título</TableHead>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead className='text-right'>Valor</TableHead>
+                        <TableHead className='text-center'>Status</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {reinbursements.map((reinbursement) => (
+                        <TableRow key={reinbursement.id}>
+                          <TableCell className='whitespace-nowrap'>
+                            {formatDate(reinbursement.createdAt)}
+                          </TableCell>
+                          <TableCell>{reinbursement.title}</TableCell>
+                          <TableCell className='max-w-xs truncate'>
+                            {reinbursement.description}
+                          </TableCell>
+                          <TableCell className='text-right font-medium'>
+                            {formatCurrency(reinbursement.amountCents)}
+                          </TableCell>
+                          <TableCell className='text-center'>
+                            <Badge
+                              variant={
+                                statusColors[reinbursement.status] || 'default'
+                              }
+                            >
+                              {reinbursement.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              {/* Visualização em cards para mobile */}
+              <div className='space-y-3 px-4 pb-4 md:hidden'>
+                {reinbursements.map((reinbursement) => (
+                  <div
+                    key={reinbursement.id}
+                    className='bg-card space-y-2.5 rounded-lg border p-3'
+                  >
+                    <div className='flex items-start justify-between gap-2'>
+                      <div className='min-w-0 flex-1'>
+                        <h3 className='truncate text-sm leading-tight font-semibold'>
+                          {reinbursement.title}
+                        </h3>
+                        <p className='text-muted-foreground mt-1 text-xs'>
+                          {formatDate(reinbursement.createdAt)}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          statusColors[reinbursement.status] || 'default'
+                        }
+                        className='shrink-0 text-xs'
+                      >
+                        {reinbursement.status}
+                      </Badge>
+                    </div>
+
+                    {reinbursement.description && (
+                      <p className='text-muted-foreground line-clamp-2 text-xs'>
+                        {reinbursement.description}
+                      </p>
+                    )}
+
+                    <div className='flex items-center justify-between border-t pt-2'>
+                      <span className='text-muted-foreground text-xs'>
+                        Valor
+                      </span>
+                      <span className='text-base font-semibold'>
+                        {formatCurrency(reinbursement.amountCents)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
