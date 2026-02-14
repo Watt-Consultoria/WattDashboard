@@ -54,6 +54,11 @@ export function useFilteredNavItems(items: NavItem[]) {
       allowedUrls.add('/dashboard/leads');
     }
 
+    const allowReembolsos = true;
+    if (allowReembolsos) {
+      allowedUrls.add('/dashboard/reembolsos');
+    }
+
     const allowTeamview = [
       'diretor',
       'presidente',

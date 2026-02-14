@@ -111,6 +111,13 @@ export const navItems: NavItem[] = [
     items: []
   },
   {
+    title: 'Reembolsos',
+    url: '/dashboard/reembolsos',
+    icon: 'refund',
+    isActive: false,
+    items: []
+  },
+  {
     title: 'Estatísticas',
     url: '/dashboard/estatisticas',
     icon: 'chart',
