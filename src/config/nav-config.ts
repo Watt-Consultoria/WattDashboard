@@ -111,6 +111,13 @@ export const navItems: NavItem[] = [
     items: []
   },
   {
+    title: 'Controle de Reembolsos',
+    url: '/dashboard/financeiro/reembolsos',
+    icon: 'chart',
+    isActive: false,
+    items: []
+  },
+  {
     title: 'Reembolsos',
     url: '/dashboard/reembolsos',
     icon: 'refund',

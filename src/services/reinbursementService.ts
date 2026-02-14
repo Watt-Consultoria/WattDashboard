@@ -1,10 +1,16 @@
 import memberRepository from '@/repositories/memberRepository';
 import reinbursementRepository from '@/repositories/reinbursementRepository';
 import { ValidationError } from '@/errors/repositoryErrors';
+import { Timestamp } from 'firebase/firestore';
 import type {
   CreateReinbursementInput,
   Reinbursement,
   ReinbursementCategory,
+  ReinbursementDashboardData,
+  ReinbursementDashboardFilters,
+  ReinbursementMemberTotal,
+  ReinbursementQuery,
+  ReinbursementStatus,
   ReinbursementReceipt
 } from '@/types/reinbursement/reinbursement';
 
@@ -91,6 +97,135 @@ class ReinbursementService {
   async getMemberReinbursements(memberId: string): Promise<Reinbursement[]> {
     if (!memberId) throw new ValidationError('Usuário inválido');
     return await reinbursementRepository.getMemberReinbursements(memberId);
+  }
+
+  async getDashboardData(
+    filters: ReinbursementDashboardFilters
+  ): Promise<ReinbursementDashboardData> {
+    const searchText = filters.searchText?.trim().toLowerCase();
+
+    let startDate = filters.startDate ?? undefined;
+    let endDate = filters.endDate ?? undefined;
+
+    if (startDate && endDate && startDate > endDate) {
+      [startDate, endDate] = [endDate, startDate];
+    }
+
+    const repoFilters: ReinbursementQuery = {
+      memberId: filters.memberId?.trim() || undefined,
+      category: filters.category,
+      status: filters.status,
+      startDate: startDate ? Timestamp.fromDate(startDate) : undefined,
+      endDate: endDate ? Timestamp.fromDate(endDate) : undefined
+    };
+
+    const reinbursements =
+      await reinbursementRepository.getReinbursements(repoFilters);
+
+    const filteredReinbursements = searchText
+      ? reinbursements.filter((item) => {
+          const title = item.title?.toLowerCase() ?? '';
+          const description = item.description?.toLowerCase() ?? '';
+          return title.includes(searchText) || description.includes(searchText);
+        })
+      : reinbursements;
+
+    const sortedReinbursements = [...filteredReinbursements].sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+
+    const summary = sortedReinbursements.reduce(
+      (acc, item) => {
+        acc.totalRequestedCents += item.amountCents;
+        acc.totalCount += 1;
+
+        if (item.status === 'Aprovado') {
+          acc.totalApprovedCents += item.amountCents;
+        } else if (item.status === 'Recusado') {
+          acc.totalRejectedCents += item.amountCents;
+        } else {
+          acc.totalPendingCents += item.amountCents;
+        }
+
+        return acc;
+      },
+      {
+        totalCount: 0,
+        totalRequestedCents: 0,
+        totalApprovedCents: 0,
+        totalPendingCents: 0,
+        totalRejectedCents: 0
+      }
+    );
+
+    const totalRequested = summary.totalRequestedCents || 0;
+    const categoryTotals = new Map<ReinbursementCategory, number>();
+    const memberTotalsMap = new Map<string, ReinbursementMemberTotal>();
+
+    for (const item of sortedReinbursements) {
+      categoryTotals.set(
+        item.category,
+        (categoryTotals.get(item.category) ?? 0) + item.amountCents
+      );
+
+      const existingMember = memberTotalsMap.get(item.memberId);
+      const memberName =
+        item.memberName?.trim() || item.memberEmail?.trim() || item.memberId;
+
+      if (existingMember) {
+        existingMember.amountCents += item.amountCents;
+      } else {
+        memberTotalsMap.set(item.memberId, {
+          memberId: item.memberId,
+          memberName,
+          amountCents: item.amountCents
+        });
+      }
+    }
+
+    const categoryShares = Array.from(categoryTotals.entries()).map(
+      ([category, amountCents]) => ({
+        category,
+        amountCents,
+        percentage: totalRequested
+          ? Number(((amountCents / totalRequested) * 100).toFixed(1))
+          : 0
+      })
+    );
+
+    categoryShares.sort((a, b) => b.amountCents - a.amountCents);
+
+    const memberTotals = Array.from(memberTotalsMap.values()).sort(
+      (a, b) => b.amountCents - a.amountCents
+    );
+
+    return {
+      reinbursements: sortedReinbursements,
+      summary,
+      categoryShares,
+      memberTotals
+    };
+  }
+
+  async updateReinbursementStatus(
+    id: string,
+    currentStatus: ReinbursementStatus,
+    nextStatus: ReinbursementStatus
+  ): Promise<void> {
+    if (!id) throw new ValidationError('Solicitação inválida');
+    if (!nextStatus) throw new ValidationError('Status inválido');
+
+    if (currentStatus !== 'Pendente') {
+      throw new ValidationError(
+        'Somente solicitações pendentes podem ser atualizadas'
+      );
+    }
+
+    if (currentStatus === nextStatus) return;
+
+    await reinbursementRepository.updateReinbursementStatus(id, nextStatus);
   }
 }
 

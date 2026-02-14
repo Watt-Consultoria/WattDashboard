@@ -26,6 +26,10 @@ class MemberService {
       }))
     ];
   }
+
+  async getAllMembers(): Promise<Member[]> {
+    return await memberRepository.getAllMembers();
+  }
 }
 
 export default new MemberService();

@@ -69,6 +69,11 @@ export function useFilteredNavItems(items: NavItem[]) {
       allowedUrls.add('/dashboard/teamview');
     }
 
+    const allowFinanceiro = ['presidente', 'assessor'].includes(role);
+    if (allowFinanceiro) {
+      allowedUrls.add('/dashboard/financeiro/reembolsos');
+    }
+
     const filterItem = (item: NavItem): NavItem | null => {
       const includeItem = Boolean(item.url && allowedUrls.has(item.url));
       if (item.items && item.items.length > 0) {
