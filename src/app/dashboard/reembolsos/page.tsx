@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { Plus, Calendar, DollarSign, FileText } from 'lucide-react';
 import { useAuth } from '@/features/auth/components/auth-provider';
 import reinbursementService from '@/services/reinbursementService';
 import type { Reinbursement } from '@/types/reinbursement/reinbursement';
@@ -24,7 +25,6 @@ import {
 } from '@/components/ui/table';
 import PageContainer from '@/components/layout/page-container';
 import { ReinbursementFormDialog } from './reinbursement-form-dialog';
-import { Plus } from 'lucide-react';
 
 const statusColors: Record<
   string,
@@ -84,23 +84,29 @@ export default function ReembolsosPage() {
       pageHeaderAction={
         <Button
           onClick={() => setIsModalOpen(true)}
-          className='gap-2'
+          className='h-10 gap-2 sm:h-9'
           size='sm'
         >
           <Plus className='h-4 w-4' />
-          Novo reembolso
+          <span className='xs:inline hidden'>Novo reembolso</span>
+          <span className='xs:hidden'>Novo</span>
         </Button>
       }
     >
-      <div className='space-y-6'>
+      <div className='space-y-4 sm:space-y-6'>
         {reinbursements.length === 0 && !isLoading ? (
           <Card>
-            <CardContent className='pt-6'>
-              <div className='py-8 text-center'>
-                <p className='text-muted-foreground mb-4'>
+            <CardContent className='px-4 pt-6 sm:px-6'>
+              <div className='py-6 text-center sm:py-8'>
+                <FileText className='text-muted-foreground mx-auto mb-3 h-10 w-10 sm:h-12 sm:w-12' />
+                <p className='text-muted-foreground mb-4 text-sm sm:text-base'>
                   Você ainda não tem solicitações de reembolso.
                 </p>
-                <Button onClick={() => setIsModalOpen(true)} variant='outline'>
+                <Button
+                  onClick={() => setIsModalOpen(true)}
+                  variant='outline'
+                  className='h-10 w-full sm:h-9 sm:w-auto'
+                >
                   Criar primeira solicitação
                 </Button>
               </div>
@@ -108,96 +114,100 @@ export default function ReembolsosPage() {
           </Card>
         ) : (
           <Card className='overflow-hidden'>
-            <CardHeader className='pb-3'>
-              <CardTitle className='text-base md:text-lg'>
+            <CardHeader className='px-3 pt-3 pb-2 sm:px-6 sm:pt-6 sm:pb-3'>
+              <CardTitle className='text-sm sm:text-base md:text-lg'>
                 Suas solicitações
               </CardTitle>
-              <CardDescription className='text-xs md:text-sm'>
+              <CardDescription className='text-[10px] sm:text-xs md:text-sm'>
                 {reinbursements.length} solicitação(ões) encontrada(s)
               </CardDescription>
             </CardHeader>
-            <CardContent className='p-0 md:p-6'>
-              {/* Visualização em tabela para desktop */}
-              <div className='hidden md:block'>
-                <div className='overflow-x-auto'>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Data</TableHead>
-                        <TableHead>Título</TableHead>
-                        <TableHead>Descrição</TableHead>
-                        <TableHead className='text-right'>Valor</TableHead>
-                        <TableHead className='text-center'>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {reinbursements.map((reinbursement) => (
-                        <TableRow key={reinbursement.id}>
-                          <TableCell className='whitespace-nowrap'>
-                            {formatDate(reinbursement.createdAt)}
-                          </TableCell>
-                          <TableCell>{reinbursement.title}</TableCell>
-                          <TableCell className='max-w-xs truncate'>
-                            {reinbursement.description}
-                          </TableCell>
-                          <TableCell className='text-right font-medium'>
-                            {formatCurrency(reinbursement.amountCents)}
-                          </TableCell>
-                          <TableCell className='text-center'>
-                            <Badge
-                              variant={
-                                statusColors[reinbursement.status] || 'default'
-                              }
-                            >
-                              {reinbursement.status}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
 
-              {/* Visualização em cards para mobile */}
-              <div className='space-y-3 px-4 pb-4 md:hidden'>
+            {/* Desktop / Tablet: table layout */}
+            <CardContent className='hidden p-0 sm:block md:p-6'>
+              <div className='overflow-x-auto'>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Título</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead className='text-right'>Valor</TableHead>
+                      <TableHead className='text-center'>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {reinbursements.map((reinbursement) => (
+                      <TableRow key={reinbursement.id}>
+                        <TableCell className='whitespace-nowrap'>
+                          {formatDate(reinbursement.createdAt)}
+                        </TableCell>
+                        <TableCell>{reinbursement.title}</TableCell>
+                        <TableCell className='max-w-xs truncate'>
+                          {reinbursement.description}
+                        </TableCell>
+                        <TableCell className='text-right font-medium'>
+                          {formatCurrency(reinbursement.amountCents)}
+                        </TableCell>
+                        <TableCell className='text-center'>
+                          <Badge
+                            variant={
+                              statusColors[reinbursement.status] || 'default'
+                            }
+                          >
+                            {reinbursement.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+
+            {/* Mobile: card-based layout */}
+            <CardContent className='block p-2 sm:hidden'>
+              <div className='space-y-2'>
                 {reinbursements.map((reinbursement) => (
                   <div
                     key={reinbursement.id}
-                    className='bg-card space-y-2.5 rounded-lg border p-3'
+                    className='rounded-lg border p-3 transition-colors'
                   >
-                    <div className='flex items-start justify-between gap-2'>
+                    <div className='mb-1.5 flex items-start justify-between gap-2'>
                       <div className='min-w-0 flex-1'>
                         <h3 className='truncate text-sm leading-tight font-semibold'>
                           {reinbursement.title}
                         </h3>
-                        <p className='text-muted-foreground mt-1 text-xs'>
-                          {formatDate(reinbursement.createdAt)}
-                        </p>
                       </div>
                       <Badge
                         variant={
                           statusColors[reinbursement.status] || 'default'
                         }
-                        className='shrink-0 text-xs'
+                        className='shrink-0 text-[10px]'
                       >
                         {reinbursement.status}
                       </Badge>
                     </div>
 
                     {reinbursement.description && (
-                      <p className='text-muted-foreground line-clamp-2 text-xs'>
+                      <p className='text-muted-foreground mb-2 line-clamp-2 text-xs'>
                         {reinbursement.description}
                       </p>
                     )}
 
-                    <div className='flex items-center justify-between border-t pt-2'>
-                      <span className='text-muted-foreground text-xs'>
-                        Valor
-                      </span>
-                      <span className='text-base font-semibold'>
-                        {formatCurrency(reinbursement.amountCents)}
-                      </span>
+                    <div className='flex items-center justify-between gap-2'>
+                      <div className='text-muted-foreground space-y-0.5'>
+                        <div className='flex items-center gap-1.5 text-[11px]'>
+                          <Calendar className='h-3 w-3 shrink-0' />
+                          <span>{formatDate(reinbursement.createdAt)}</span>
+                        </div>
+                      </div>
+                      <div className='flex shrink-0 items-center gap-1'>
+                        <DollarSign className='text-muted-foreground h-3.5 w-3.5' />
+                        <span className='text-sm font-semibold tabular-nums'>
+                          {formatCurrency(reinbursement.amountCents)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 ))}

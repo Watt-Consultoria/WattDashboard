@@ -12,6 +12,14 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
+import {
+  ChevronDown,
+  ChevronUp,
+  Calendar,
+  Tag,
+  User,
+  DollarSign
+} from 'lucide-react';
 
 import PageContainer from '@/components/layout/page-container';
 import { Badge } from '@/components/ui/badge';
@@ -24,12 +32,24 @@ import {
   CardTitle
 } from '@/components/ui/card';
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from '@/components/ui/collapsible';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle
+} from '@/components/ui/drawer';
 import {
   ChartConfig,
   ChartContainer,
@@ -53,6 +73,7 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
+import { useIsMobile } from '@/hooks/use-mobile';
 import memberService from '@/services/memberService';
 import reinbursementService from '@/services/reinbursementService';
 import type { Member } from '@/types/member/member';
@@ -142,6 +163,7 @@ const buildDashboardFilters = (
 };
 
 export default function ReembolsosGestaoPage() {
+  const isMobile = useIsMobile();
   const [filters, setFilters] = React.useState<FilterState>(initialFilters);
   const [members, setMembers] = React.useState<Member[]>([]);
   const [dashboard, setDashboard] =
@@ -152,6 +174,18 @@ export default function ReembolsosGestaoPage() {
   const [selectedReinbursement, setSelectedReinbursement] =
     React.useState<Reinbursement | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false);
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
+
+  const activeFilterCount = React.useMemo(() => {
+    let count = 0;
+    if (filters.memberId !== 'all') count++;
+    if (filters.category !== 'all') count++;
+    if (filters.status !== 'all') count++;
+    if (filters.query) count++;
+    if (filters.startDate) count++;
+    if (filters.endDate) count++;
+    return count;
+  }, [filters]);
 
   const appliedFilters = React.useMemo(
     () => buildDashboardFilters(filters),
@@ -286,177 +320,217 @@ export default function ReembolsosGestaoPage() {
     <PageContainer
       scrollable
       pageTitle='Reembolsos'
-      pageDescription='Acompanhe as solicitacoes e aprovacoes de reembolso'
+      pageDescription='Acompanhe as solicitações e aprovações de reembolso'
       isloading={isLoading}
     >
-      <div className='space-y-6'>
+      <div className='space-y-4 sm:space-y-6'>
         <Card>
-          <CardHeader>
-            <CardTitle>Filtros</CardTitle>
-            <CardDescription>
-              Refine por membro, categoria, período e palavra-chave.
-              {isFetching ? ' Atualizando resultados...' : ''}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
-              <div className='space-y-2'>
-                <FieldLabel>Membro</FieldLabel>
-                <Select
-                  value={filters.memberId}
-                  onValueChange={(value) => updateFilter('memberId', value)}
-                >
-                  <SelectTrigger className='w-full'>
-                    <SelectValue placeholder='Todos os membros' />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='all'>Todos os membros</SelectItem>
-                    {members.map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.name || member.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          <Collapsible
+            open={!isMobile || filtersOpen}
+            onOpenChange={setFiltersOpen}
+          >
+            <CardHeader className='pb-3'>
+              <div className='flex items-center justify-between'>
+                <div className='min-w-0 flex-1'>
+                  <CardTitle className='text-base md:text-lg'>
+                    Filtros
+                  </CardTitle>
+                  <CardDescription className='mt-1 text-xs md:text-sm'>
+                    {isMobile
+                      ? isFetching
+                        ? 'Atualizando...'
+                        : activeFilterCount > 0
+                          ? `${activeFilterCount} filtro(s) ativo(s)`
+                          : 'Toque para filtrar'
+                      : `Refine por membro, categoria, período e palavra-chave.${isFetching ? ' Atualizando resultados...' : ''}`}
+                  </CardDescription>
+                </div>
+                {isMobile && (
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='ml-2 shrink-0'
+                    >
+                      {filtersOpen ? (
+                        <ChevronUp className='h-4 w-4' />
+                      ) : (
+                        <ChevronDown className='h-4 w-4' />
+                      )}
+                    </Button>
+                  </CollapsibleTrigger>
+                )}
               </div>
-              <div className='space-y-2'>
-                <FieldLabel>Categoria</FieldLabel>
-                <Select
-                  value={filters.category}
-                  onValueChange={(value) => updateFilter('category', value)}
-                >
-                  <SelectTrigger className='w-full'>
-                    <SelectValue placeholder='Todas as categorias' />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='all'>Todas as categorias</SelectItem>
-                    {REINBURSEMENT_CATEGORIES.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className='space-y-2'>
-                <FieldLabel>Status</FieldLabel>
-                <Select
-                  value={filters.status}
-                  onValueChange={(value) => updateFilter('status', value)}
-                >
-                  <SelectTrigger className='w-full'>
-                    <SelectValue placeholder='Todos os status' />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='all'>Todos os status</SelectItem>
-                    {REINBURSEMENT_STATUSES.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className='space-y-2'>
-                <FieldLabel>Buscar</FieldLabel>
-                <Input
-                  value={filters.query}
-                  onChange={(event) =>
-                    updateFilter('query', event.target.value)
-                  }
-                  placeholder='Titulo ou descricao'
-                />
-              </div>
-            </div>
-            <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-4'>
-              <div className='space-y-2'>
-                <FieldLabel>Data inicial</FieldLabel>
-                <Input
-                  type='date'
-                  value={filters.startDate}
-                  onChange={(event) =>
-                    updateFilter('startDate', event.target.value)
-                  }
-                />
-              </div>
-              <div className='space-y-2'>
-                <FieldLabel>Data final</FieldLabel>
-                <Input
-                  type='date'
-                  value={filters.endDate}
-                  onChange={(event) =>
-                    updateFilter('endDate', event.target.value)
-                  }
-                />
-              </div>
-              <div className='flex items-end'>
-                <Button variant='outline' onClick={resetFilters}>
-                  Limpar filtros
-                </Button>
-              </div>
-            </div>
-          </CardContent>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent className='space-y-3 pt-0 md:space-y-4'>
+                <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+                  <div className='space-y-1.5'>
+                    <FieldLabel className='text-xs'>Membro</FieldLabel>
+                    <Select
+                      value={filters.memberId}
+                      onValueChange={(value) => updateFilter('memberId', value)}
+                    >
+                      <SelectTrigger className='h-10 w-full text-sm md:h-9'>
+                        <SelectValue placeholder='Todos os membros' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='all'>Todos os membros</SelectItem>
+                        {members.map((member) => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {member.name || member.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className='space-y-1.5'>
+                    <FieldLabel className='text-xs'>Categoria</FieldLabel>
+                    <Select
+                      value={filters.category}
+                      onValueChange={(value) => updateFilter('category', value)}
+                    >
+                      <SelectTrigger className='h-10 w-full text-sm md:h-9'>
+                        <SelectValue placeholder='Todas as categorias' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='all'>Todas as categorias</SelectItem>
+                        {REINBURSEMENT_CATEGORIES.map((category) => (
+                          <SelectItem key={category} value={category}>
+                            {category}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className='space-y-1.5'>
+                    <FieldLabel className='text-xs'>Status</FieldLabel>
+                    <Select
+                      value={filters.status}
+                      onValueChange={(value) => updateFilter('status', value)}
+                    >
+                      <SelectTrigger className='h-10 w-full text-sm md:h-9'>
+                        <SelectValue placeholder='Todos os status' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='all'>Todos os status</SelectItem>
+                        {REINBURSEMENT_STATUSES.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className='space-y-1.5'>
+                    <FieldLabel className='text-xs'>Buscar</FieldLabel>
+                    <Input
+                      className='h-10 text-sm md:h-9'
+                      value={filters.query}
+                      onChange={(event) =>
+                        updateFilter('query', event.target.value)
+                      }
+                      placeholder='Titulo ou descricao'
+                    />
+                  </div>
+                </div>
+                <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+                  <div className='space-y-1.5'>
+                    <FieldLabel className='text-xs'>Data inicial</FieldLabel>
+                    <Input
+                      className='h-10 text-sm md:h-9'
+                      type='date'
+                      value={filters.startDate}
+                      onChange={(event) =>
+                        updateFilter('startDate', event.target.value)
+                      }
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <FieldLabel className='text-xs'>Data final</FieldLabel>
+                    <Input
+                      className='h-10 text-sm md:h-9'
+                      type='date'
+                      value={filters.endDate}
+                      onChange={(event) =>
+                        updateFilter('endDate', event.target.value)
+                      }
+                    />
+                  </div>
+                  <div className='flex items-end sm:col-span-2 xl:col-span-1'>
+                    <Button
+                      variant='outline'
+                      onClick={resetFilters}
+                      className='h-10 w-full sm:w-auto md:h-9'
+                    >
+                      Limpar filtros
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
 
-        <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-4'>
+        <div className='grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4'>
           <Card>
-            <CardHeader className='pb-3'>
-              <CardDescription className='text-xs'>
+            <CardHeader className='p-3 pb-2 sm:p-4 sm:pb-3'>
+              <CardDescription className='text-[10px] sm:text-xs'>
                 Total solicitado
               </CardDescription>
-              <CardTitle className='text-lg md:text-2xl'>
+              <CardTitle className='text-sm tabular-nums sm:text-lg md:text-2xl'>
                 {formatCurrency(dashboard?.summary.totalRequestedCents ?? 0)}
               </CardTitle>
             </CardHeader>
           </Card>
           <Card>
-            <CardHeader className='pb-3'>
-              <CardDescription className='text-xs'>
+            <CardHeader className='p-3 pb-2 sm:p-4 sm:pb-3'>
+              <CardDescription className='text-[10px] sm:text-xs'>
                 Total aprovado
               </CardDescription>
-              <CardTitle className='text-lg md:text-2xl'>
+              <CardTitle className='text-sm tabular-nums sm:text-lg md:text-2xl'>
                 {formatCurrency(dashboard?.summary.totalApprovedCents ?? 0)}
               </CardTitle>
             </CardHeader>
           </Card>
           <Card>
-            <CardHeader className='pb-3'>
-              <CardDescription className='text-xs'>
+            <CardHeader className='p-3 pb-2 sm:p-4 sm:pb-3'>
+              <CardDescription className='text-[10px] sm:text-xs'>
                 Total pendente
               </CardDescription>
-              <CardTitle className='text-lg md:text-2xl'>
+              <CardTitle className='text-sm tabular-nums sm:text-lg md:text-2xl'>
                 {formatCurrency(dashboard?.summary.totalPendingCents ?? 0)}
               </CardTitle>
             </CardHeader>
           </Card>
           <Card>
-            <CardHeader className='pb-3'>
-              <CardDescription className='text-xs'>
+            <CardHeader className='p-3 pb-2 sm:p-4 sm:pb-3'>
+              <CardDescription className='text-[10px] sm:text-xs'>
                 Total recusado
               </CardDescription>
-              <CardTitle className='text-lg md:text-2xl'>
+              <CardTitle className='text-sm tabular-nums sm:text-lg md:text-2xl'>
                 {formatCurrency(dashboard?.summary.totalRejectedCents ?? 0)}
               </CardTitle>
             </CardHeader>
           </Card>
         </div>
 
-        <div className='grid gap-4 lg:grid-cols-2'>
+        <div className='grid gap-3 sm:gap-4 lg:grid-cols-2'>
           <Card className='w-full'>
-            <CardHeader className='pb-3'>
-              <CardTitle className='text-base md:text-lg'>
-                Participacao por categoria
+            <CardHeader className='px-3 pt-3 pb-2 sm:px-6 sm:pt-6 sm:pb-3'>
+              <CardTitle className='text-sm sm:text-base md:text-lg'>
+                Participação por categoria
               </CardTitle>
-              <CardDescription className='text-xs md:text-sm'>
+              <CardDescription className='text-[10px] sm:text-xs md:text-sm'>
                 Percentual do total solicitado por tipo de reembolso.
               </CardDescription>
             </CardHeader>
-            <CardContent className='pb-4'>
+            <CardContent className='px-3 pb-3 sm:px-6 sm:pb-4'>
               {categoryChartData.length ? (
-                <div className='space-y-4'>
+                <div className='space-y-3 sm:space-y-4'>
                   <ChartContainer
                     config={categoryChartConfig}
-                    className='mx-auto aspect-square h-60 md:h-65'
+                    className='mx-auto aspect-square h-48 sm:h-60 md:h-65'
                   >
                     <PieChart>
                       <ChartTooltip
@@ -473,7 +547,7 @@ export default function ReembolsosGestaoPage() {
                         data={categoryChartData}
                         dataKey='value'
                         nameKey='key'
-                        innerRadius={70}
+                        innerRadius={isMobile ? 50 : 70}
                         strokeWidth={2}
                         stroke='var(--background)'
                       >
@@ -490,7 +564,7 @@ export default function ReembolsosGestaoPage() {
                                   <tspan
                                     x={viewBox.cx}
                                     y={viewBox.cy}
-                                    className='fill-foreground text-2xl font-bold'
+                                    className='fill-foreground text-lg font-bold sm:text-2xl'
                                   >
                                     {formatCurrency(
                                       dashboard?.summary.totalRequestedCents ??
@@ -499,8 +573,8 @@ export default function ReembolsosGestaoPage() {
                                   </tspan>
                                   <tspan
                                     x={viewBox.cx}
-                                    y={(viewBox.cy || 0) + 22}
-                                    className='fill-muted-foreground text-xs'
+                                    y={(viewBox.cy || 0) + (isMobile ? 18 : 22)}
+                                    className='fill-muted-foreground text-[10px] sm:text-xs'
                                   >
                                     Total solicitado
                                   </tspan>
@@ -513,23 +587,23 @@ export default function ReembolsosGestaoPage() {
                       </Pie>
                     </PieChart>
                   </ChartContainer>
-                  <div className='grid gap-2 text-sm'>
+                  <div className='grid gap-1.5 text-xs sm:gap-2 sm:text-sm'>
                     {dashboard?.categoryShares.map((share, index) => (
                       <div
                         key={share.category}
-                        className='flex items-center justify-between'
+                        className='flex items-center justify-between py-0.5'
                       >
-                        <div className='flex items-center gap-2'>
+                        <div className='flex items-center gap-1.5 sm:gap-2'>
                           <span
-                            className='h-2 w-2 rounded-sm'
+                            className='h-2 w-2 shrink-0 rounded-sm'
                             style={{
                               backgroundColor:
                                 chartPalette[index % chartPalette.length]
                             }}
                           />
-                          <span>{share.category}</span>
+                          <span className='truncate'>{share.category}</span>
                         </div>
-                        <span className='font-mono'>
+                        <span className='ml-2 shrink-0 font-mono'>
                           {share.percentage.toFixed(1)}%
                         </span>
                       </div>
@@ -537,7 +611,7 @@ export default function ReembolsosGestaoPage() {
                   </div>
                 </div>
               ) : (
-                <div className='text-muted-foreground text-sm'>
+                <div className='text-muted-foreground py-8 text-center text-xs sm:text-sm'>
                   Nenhum dado para exibir.
                 </div>
               )}
@@ -545,44 +619,49 @@ export default function ReembolsosGestaoPage() {
           </Card>
 
           <Card className='w-full'>
-            <CardHeader className='pb-3'>
-              <CardTitle className='text-base md:text-lg'>
+            <CardHeader className='px-3 pt-3 pb-2 sm:px-6 sm:pt-6 sm:pb-3'>
+              <CardTitle className='text-sm sm:text-base md:text-lg'>
                 Montante por membro
               </CardTitle>
-              <CardDescription className='text-xs md:text-sm'>
+              <CardDescription className='text-[10px] sm:text-xs md:text-sm'>
                 Top 8 membros com maior volume solicitado.
               </CardDescription>
             </CardHeader>
-            <CardContent className='pb-4'>
+            <CardContent className='px-2 pb-3 sm:px-6 sm:pb-4'>
               {memberChartData.length ? (
                 <ChartContainer
                   config={memberChartConfig}
-                  className='aspect-auto h-64 w-full md:h-75'
+                  className='aspect-auto h-52 w-full sm:h-64 md:h-75'
                 >
                   <BarChart
                     data={memberChartData}
-                    margin={{ left: 12, right: 12 }}
-                    maxBarSize={100}
+                    margin={
+                      isMobile ? { left: 0, right: 4 } : { left: 12, right: 12 }
+                    }
+                    maxBarSize={isMobile ? 40 : 100}
                   >
                     <CartesianGrid vertical={false} />
                     <XAxis
                       dataKey='name'
                       tickLine={false}
                       axisLine={false}
-                      tickMargin={8}
+                      tickMargin={4}
                       interval={0}
-                      angle={-20}
+                      angle={isMobile ? -35 : -20}
                       textAnchor='end'
-                      height={60}
+                      height={isMobile ? 50 : 60}
+                      tick={{ fontSize: isMobile ? 10 : 12 }}
                       tickFormatter={(value) =>
-                        truncateLabel(String(value), 12)
+                        truncateLabel(String(value), isMobile ? 8 : 12)
                       }
                     />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      tickFormatter={(value) => formatCurrency(Number(value))}
-                    />
+                    {!isMobile && (
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(value) => formatCurrency(Number(value))}
+                      />
+                    )}
                     <ChartTooltip
                       cursor={{ fill: 'var(--primary)', opacity: 0.08 }}
                       content={
@@ -596,7 +675,7 @@ export default function ReembolsosGestaoPage() {
                   </BarChart>
                 </ChartContainer>
               ) : (
-                <div className='text-muted-foreground text-sm'>
+                <div className='text-muted-foreground py-8 text-center text-xs sm:text-sm'>
                   Nenhum dado para exibir.
                 </div>
               )}
@@ -605,14 +684,74 @@ export default function ReembolsosGestaoPage() {
         </div>
 
         <Card className='overflow-hidden'>
-          <CardHeader>
-            <CardTitle>Solicitacoes</CardTitle>
-            <CardDescription>
-              {dashboard?.summary.totalCount ?? 0} solicitacao(oes)
+          <CardHeader className='px-3 pt-3 pb-2 sm:px-6 sm:pt-6 sm:pb-4'>
+            <CardTitle className='text-base md:text-lg'>Solicitações</CardTitle>
+            <CardDescription className='text-xs md:text-sm'>
+              {dashboard?.summary.totalCount ?? 0} solicitação(ões)
               encontrada(s)
             </CardDescription>
           </CardHeader>
-          <CardContent className='p-0 md:p-6'>
+
+          {/* Mobile: card-based layout */}
+          <CardContent className='block p-2 sm:hidden'>
+            {dashboard?.reinbursements.length ? (
+              <div className='space-y-2'>
+                {dashboard.reinbursements.map((reinbursement) => (
+                  <div
+                    key={reinbursement.id}
+                    className='active:bg-muted/70 cursor-pointer rounded-lg border p-3 transition-colors'
+                    onClick={() => openDetails(reinbursement)}
+                  >
+                    <div className='mb-1.5 flex items-start justify-between gap-2'>
+                      <p className='min-w-0 flex-1 truncate text-sm font-medium'>
+                        {reinbursement.title}
+                      </p>
+                      <Badge
+                        variant={statusColors[reinbursement.status]}
+                        className='shrink-0 text-[10px]'
+                      >
+                        {reinbursement.status}
+                      </Badge>
+                    </div>
+                    <div className='flex items-center justify-between gap-2'>
+                      <div className='text-muted-foreground min-w-0 flex-1 space-y-0.5'>
+                        <div className='flex items-center gap-1.5 text-[11px]'>
+                          <User className='h-3 w-3 shrink-0' />
+                          <span className='truncate'>
+                            {reinbursement.memberName ||
+                              reinbursement.memberEmail}
+                          </span>
+                        </div>
+                        <div className='flex items-center gap-1.5 text-[11px]'>
+                          <Tag className='h-3 w-3 shrink-0' />
+                          <span className='truncate'>
+                            {reinbursement.category}
+                          </span>
+                        </div>
+                        <div className='flex items-center gap-1.5 text-[11px]'>
+                          <Calendar className='h-3 w-3 shrink-0' />
+                          <span>{formatDate(reinbursement.createdAt)}</span>
+                        </div>
+                      </div>
+                      <div className='flex shrink-0 items-center gap-1'>
+                        <DollarSign className='text-muted-foreground h-3.5 w-3.5' />
+                        <span className='text-sm font-semibold tabular-nums'>
+                          {formatCurrency(reinbursement.amountCents)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className='text-muted-foreground py-8 text-center text-sm'>
+                Nenhuma solicitação encontrada.
+              </div>
+            )}
+          </CardContent>
+
+          {/* Desktop / Tablet: classic table */}
+          <CardContent className='hidden p-0 sm:block md:p-6'>
             <div className='overflow-x-auto'>
               <Table>
                 <TableHeader>
@@ -657,7 +796,7 @@ export default function ReembolsosGestaoPage() {
                   ) : (
                     <TableRow>
                       <TableCell colSpan={6} className='text-center'>
-                        Nenhuma solicitacao encontrada.
+                        Nenhuma solicitação encontrada.
                       </TableCell>
                     </TableRow>
                   )}
@@ -668,100 +807,101 @@ export default function ReembolsosGestaoPage() {
         </Card>
       </div>
 
-      <Dialog open={!!selectedReinbursement} onOpenChange={closeDetails}>
-        <DialogContent className='max-h-[90vh] max-w-2xl overflow-y-auto'>
-          <DialogHeader>
-            <DialogTitle className='text-base md:text-lg'>
-              Detalhes do reembolso
-            </DialogTitle>
-            <DialogDescription className='text-xs md:text-sm'>
-              Informacoes completas da solicitacao selecionada.
-            </DialogDescription>
-          </DialogHeader>
+      {/* Mobile: Drawer for details */}
+      {isMobile ? (
+        <Drawer
+          open={!!selectedReinbursement}
+          onOpenChange={(open) => !open && closeDetails()}
+        >
+          <DrawerContent className='max-h-[85dvh]'>
+            <DrawerHeader className='px-4 pt-4 pb-2'>
+              <DrawerTitle className='text-base'>
+                Detalhes do reembolso
+              </DrawerTitle>
+              <DrawerDescription className='text-xs'>
+                Informações completas da solicitação selecionada.
+              </DrawerDescription>
+            </DrawerHeader>
 
-          {selectedReinbursement && (
-            <div className='space-y-4 md:space-y-6'>
-              <div className='grid grid-cols-2 gap-3 md:gap-4'>
-                <div className='col-span-2 sm:col-span-1'>
-                  <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase md:text-xs'>
-                    Titulo
-                  </p>
-                  <p className='text-xs font-semibold wrap-break-word md:text-sm'>
-                    {selectedReinbursement.title}
-                  </p>
+            {selectedReinbursement && (
+              <div className='space-y-4 overflow-y-auto px-4 pb-6'>
+                <div className='grid grid-cols-2 gap-3'>
+                  <div className='col-span-2'>
+                    <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase'>
+                      Título
+                    </p>
+                    <p className='text-sm font-semibold wrap-break-word'>
+                      {selectedReinbursement.title}
+                    </p>
+                  </div>
+                  <div>
+                    <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase'>
+                      Categoria
+                    </p>
+                    <p className='text-xs font-semibold'>
+                      {selectedReinbursement.category}
+                    </p>
+                  </div>
+                  <div>
+                    <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase'>
+                      Status
+                    </p>
+                    <Badge
+                      variant={statusColors[selectedReinbursement.status]}
+                      className='text-xs'
+                    >
+                      {selectedReinbursement.status}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase'>
+                      Valor
+                    </p>
+                    <p className='text-sm font-semibold tabular-nums'>
+                      {formatCurrency(selectedReinbursement.amountCents)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase'>
+                      Data
+                    </p>
+                    <p className='text-xs font-semibold'>
+                      {formatDate(selectedReinbursement.createdAt)}
+                    </p>
+                  </div>
+                  <div className='col-span-2'>
+                    <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase'>
+                      Chave PIX
+                    </p>
+                    <p className='text-xs font-semibold break-all'>
+                      {selectedReinbursement.pixKey}
+                    </p>
+                  </div>
                 </div>
-                <div className='col-span-2 sm:col-span-1'>
-                  <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase md:text-xs'>
-                    Categoria
-                  </p>
-                  <p className='text-xs font-semibold md:text-sm'>
-                    {selectedReinbursement.category}
-                  </p>
-                </div>
-                <div>
-                  <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase md:text-xs'>
-                    Status
-                  </p>
-                  <Badge
-                    variant={statusColors[selectedReinbursement.status]}
-                    className='text-xs'
-                  >
-                    {selectedReinbursement.status}
-                  </Badge>
-                </div>
-                <div>
-                  <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase md:text-xs'>
-                    Valor
-                  </p>
-                  <p className='text-xs font-semibold md:text-sm'>
-                    {formatCurrency(selectedReinbursement.amountCents)}
-                  </p>
-                </div>
-                <div>
-                  <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase md:text-xs'>
-                    Data
-                  </p>
-                  <p className='text-xs font-semibold md:text-sm'>
-                    {formatDate(selectedReinbursement.createdAt)}
-                  </p>
-                </div>
-                <div>
-                  <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase md:text-xs'>
-                    Chave PIX
-                  </p>
-                  <p className='text-xs font-semibold break-all md:text-sm'>
-                    {selectedReinbursement.pixKey}
-                  </p>
-                </div>
-              </div>
 
-              <div className='space-y-1 md:space-y-2'>
-                <p className='text-muted-foreground text-[10px] tracking-wide uppercase md:text-xs'>
-                  Descricao
-                </p>
-                <p className='text-xs leading-relaxed md:text-sm'>
-                  {selectedReinbursement.description}
-                </p>
-              </div>
+                <div className='space-y-1'>
+                  <p className='text-muted-foreground text-[10px] tracking-wide uppercase'>
+                    Descrição
+                  </p>
+                  <p className='text-xs leading-relaxed'>
+                    {selectedReinbursement.description}
+                  </p>
+                </div>
 
-              <div className='space-y-1 rounded-lg border p-3 md:p-4'>
-                <p className='text-muted-foreground mb-2 text-[10px] tracking-wide uppercase md:text-xs'>
-                  Membro
-                </p>
-                <p className='text-xs font-semibold md:text-sm'>
-                  {selectedReinbursement.memberName}
-                </p>
-                <p className='text-muted-foreground text-[10px] break-all md:text-xs'>
-                  {selectedReinbursement.memberEmail}
-                </p>
-                <p className='text-muted-foreground text-[10px] md:text-xs'>
-                  ID: {selectedReinbursement.memberId}
-                </p>
-              </div>
+                <div className='space-y-1 rounded-lg border p-3'>
+                  <p className='text-muted-foreground mb-2 text-[10px] tracking-wide uppercase'>
+                    Membro
+                  </p>
+                  <p className='text-xs font-semibold'>
+                    {selectedReinbursement.memberName}
+                  </p>
+                  <p className='text-muted-foreground text-[10px] break-all'>
+                    {selectedReinbursement.memberEmail}
+                  </p>
+                </div>
 
-              <div className='flex flex-wrap items-center gap-2 md:gap-3'>
                 {selectedReinbursement.receipt?.url ? (
-                  <Button asChild size='sm' className='w-full sm:w-auto'>
+                  <Button asChild size='sm' className='h-10 w-full'>
                     <a
                       href={selectedReinbursement.receipt.url}
                       target='_blank'
@@ -772,45 +912,190 @@ export default function ReembolsosGestaoPage() {
                     </a>
                   </Button>
                 ) : (
-                  <p className='text-muted-foreground text-xs md:text-sm'>
+                  <p className='text-muted-foreground text-center text-xs'>
                     Nenhum comprovante anexado.
                   </p>
                 )}
-              </div>
 
-              <div className='flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-end md:gap-3 md:pt-4'>
-                {selectedReinbursement.status === 'Pendente' ? (
-                  <>
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      onClick={() => handleStatusChange('Recusado')}
-                      disabled={isUpdatingStatus}
-                      className='w-full sm:w-auto'
-                    >
-                      Recusar
-                    </Button>
-                    <Button
-                      size='sm'
-                      onClick={() => handleStatusChange('Aprovado')}
-                      disabled={isUpdatingStatus}
-                      className='w-full sm:w-auto'
-                    >
-                      Aprovar
-                    </Button>
-                  </>
-                ) : (
-                  <p className='text-muted-foreground text-center text-xs sm:text-right md:text-sm'>
-                    Esta solicitação já foi processada{' ('}
-                    {selectedReinbursement.status.toLowerCase()}
-                    {')'}.
-                  </p>
-                )}
+                <div className='flex flex-col gap-2 border-t pt-3'>
+                  {selectedReinbursement.status === 'Pendente' ? (
+                    <>
+                      <Button
+                        size='sm'
+                        onClick={() => handleStatusChange('Aprovado')}
+                        disabled={isUpdatingStatus}
+                        className='h-11 w-full'
+                      >
+                        Aprovar
+                      </Button>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={() => handleStatusChange('Recusado')}
+                        disabled={isUpdatingStatus}
+                        className='h-11 w-full'
+                      >
+                        Recusar
+                      </Button>
+                    </>
+                  ) : (
+                    <p className='text-muted-foreground text-center text-xs'>
+                      Esta solicitação já foi processada{' ('}
+                      {selectedReinbursement.status.toLowerCase()}
+                      {')'}.
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            )}
+          </DrawerContent>
+        </Drawer>
+      ) : (
+        /* Desktop / Tablet: Dialog */
+        <Dialog open={!!selectedReinbursement} onOpenChange={closeDetails}>
+          <DialogContent className='max-h-[90vh] max-w-2xl overflow-y-auto'>
+            <DialogHeader>
+              <DialogTitle className='text-base md:text-lg'>
+                Detalhes do reembolso
+              </DialogTitle>
+              <DialogDescription className='text-xs md:text-sm'>
+                Informações completas da solicitação selecionada.
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedReinbursement && (
+              <div className='space-y-4 md:space-y-6'>
+                <div className='grid grid-cols-2 gap-3 md:gap-4'>
+                  <div className='col-span-2 sm:col-span-1'>
+                    <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase md:text-xs'>
+                      Título
+                    </p>
+                    <p className='text-xs font-semibold wrap-break-word md:text-sm'>
+                      {selectedReinbursement.title}
+                    </p>
+                  </div>
+                  <div className='col-span-2 sm:col-span-1'>
+                    <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase md:text-xs'>
+                      Categoria
+                    </p>
+                    <p className='text-xs font-semibold md:text-sm'>
+                      {selectedReinbursement.category}
+                    </p>
+                  </div>
+                  <div>
+                    <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase md:text-xs'>
+                      Status
+                    </p>
+                    <Badge
+                      variant={statusColors[selectedReinbursement.status]}
+                      className='text-xs'
+                    >
+                      {selectedReinbursement.status}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase md:text-xs'>
+                      Valor
+                    </p>
+                    <p className='text-xs font-semibold md:text-sm'>
+                      {formatCurrency(selectedReinbursement.amountCents)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase md:text-xs'>
+                      Data
+                    </p>
+                    <p className='text-xs font-semibold md:text-sm'>
+                      {formatDate(selectedReinbursement.createdAt)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className='text-muted-foreground mb-1 text-[10px] tracking-wide uppercase md:text-xs'>
+                      Chave PIX
+                    </p>
+                    <p className='text-xs font-semibold break-all md:text-sm'>
+                      {selectedReinbursement.pixKey}
+                    </p>
+                  </div>
+                </div>
+
+                <div className='space-y-1 md:space-y-2'>
+                  <p className='text-muted-foreground text-[10px] tracking-wide uppercase md:text-xs'>
+                    Descrição
+                  </p>
+                  <p className='text-xs leading-relaxed md:text-sm'>
+                    {selectedReinbursement.description}
+                  </p>
+                </div>
+
+                <div className='space-y-1 rounded-lg border p-3 md:p-4'>
+                  <p className='text-muted-foreground mb-2 text-[10px] tracking-wide uppercase md:text-xs'>
+                    Membro
+                  </p>
+                  <p className='text-xs font-semibold md:text-sm'>
+                    {selectedReinbursement.memberName}
+                  </p>
+                  <p className='text-muted-foreground text-[10px] break-all md:text-xs'>
+                    {selectedReinbursement.memberEmail}
+                  </p>
+                  <p className='text-muted-foreground text-[10px] md:text-xs'>
+                    ID: {selectedReinbursement.memberId}
+                  </p>
+                </div>
+
+                <div className='flex flex-wrap items-center gap-2 md:gap-3'>
+                  {selectedReinbursement.receipt?.url ? (
+                    <Button asChild size='sm' className='w-full sm:w-auto'>
+                      <a
+                        href={selectedReinbursement.receipt.url}
+                        target='_blank'
+                        rel='noreferrer'
+                        download
+                      >
+                        Download comprovante
+                      </a>
+                    </Button>
+                  ) : (
+                    <p className='text-muted-foreground text-xs md:text-sm'>
+                      Nenhum comprovante anexado.
+                    </p>
+                  )}
+                </div>
+
+                <div className='flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-end md:gap-3 md:pt-4'>
+                  {selectedReinbursement.status === 'Pendente' ? (
+                    <>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={() => handleStatusChange('Recusado')}
+                        disabled={isUpdatingStatus}
+                        className='w-full sm:w-auto'
+                      >
+                        Recusar
+                      </Button>
+                      <Button
+                        size='sm'
+                        onClick={() => handleStatusChange('Aprovado')}
+                        disabled={isUpdatingStatus}
+                        className='w-full sm:w-auto'
+                      >
+                        Aprovar
+                      </Button>
+                    </>
+                  ) : (
+                    <p className='text-muted-foreground text-center text-xs sm:text-right md:text-sm'>
+                      Esta solicitação já foi processada{' ('}
+                      {selectedReinbursement.status.toLowerCase()}
+                      {')'}.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </PageContainer>
   );
 }
