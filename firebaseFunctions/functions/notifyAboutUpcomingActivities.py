@@ -326,7 +326,7 @@ def run_pending_tasks_check():
     schedule="every day 08:00",
     timezone="America/Sao_Paulo",
 )
-def check_pending_tasks(req: scheduler_fn.ScheduledEvent) -> None:
+def notify_members_about_upcoming_activities(req: scheduler_fn.ScheduledEvent) -> None:
     """Daily scheduled check for pending tasks."""
     logger.log("=" * 70)
     logger.log("🕐 CHECK_PENDING_TASKS - NOVA VERSÃO")

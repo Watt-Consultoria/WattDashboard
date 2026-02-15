@@ -1,6 +1,6 @@
 from firebase_functions.options import set_global_options
 
-from remake import check_pending_tasks
+from notifyAboutUpcomingActivities import notify_members_about_upcoming_activities
 from notifyOnNewActivities import notify_owner_on_activity_created
 
 # Cost control for this codebase.
