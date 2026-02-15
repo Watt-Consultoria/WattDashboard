@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/table';
 import PageContainer from '@/components/layout/page-container';
 import { ReinbursementFormDialog } from './reinbursement-form-dialog';
+import useMetadata from '@/hooks/use-metadata';
 
 const statusColors: Record<
   string,
@@ -53,6 +54,8 @@ export default function ReembolsosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [reinbursements, setReinbursements] = useState<Reinbursement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  useMetadata({ title: 'Reembolsos' });
 
   const loadReinbursements = async () => {
     if (!user?.uid) return;

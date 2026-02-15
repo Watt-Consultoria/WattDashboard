@@ -69,6 +69,7 @@ import {
 import { format } from 'date-fns';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
+import useMetadata from '@/hooks/use-metadata';
 
 const priorities: Record<string, string> = {
   Alta: 'bg-red-500/10 text-red-700',
@@ -193,6 +194,9 @@ export default function ProjetoPage() {
     value: '',
     manager: ''
   });
+
+  useMetadata({ title: `Projeto - ${projectInfo.name}` });
+
   const [isSavingActivity, setIsSavingActivity] = React.useState(false);
   const [isDeletingActivity, setIsDeletingActivity] = React.useState(false);
   const [isDeletingActivityOpen, setIsDeletingActivityOpen] =

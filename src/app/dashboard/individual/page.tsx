@@ -65,6 +65,7 @@ import { useAuth } from '@/features/auth/components/auth-provider';
 import { useFcmToken } from '@/hooks/use-fcm';
 import memberService from '@/services/memberService';
 import { Member, TimeRecord } from '@/types/member/member';
+import useMetadata from '@/hooks/use-metadata';
 
 type MemberTask = {
   id: string;
@@ -325,6 +326,8 @@ function NotFoundMember() {
 }
 
 export default function IndividualPage() {
+  useMetadata({ title: 'Dashboard Individual' });
+
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [memberId, setMemberId] = React.useState('');

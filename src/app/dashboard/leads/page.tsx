@@ -22,6 +22,7 @@ import { LeadFormDialog } from './lead-form-dialog';
 import { LeadsList } from './leads-list';
 import { LeadsPageHeader } from './leads-page-header';
 import type { Lead, LeadComment, LeadContact, LeadFormState } from './types';
+import useMetadata from '@/hooks/use-metadata';
 
 const initialFormState: LeadFormState = {
   responsibleId: '',
@@ -69,6 +70,8 @@ export default function LeadsPage() {
   const formContacts = form.contacts ?? [];
   const selectedLeadId = selectedLead ? selectedLead.id : null;
   const hasFirebaseDb = Boolean(firebaseDb);
+
+  useMetadata({ title: 'Leads' });
 
   const sortedMembers = React.useMemo(() => {
     return [...(members ?? [])].sort((a, b) =>

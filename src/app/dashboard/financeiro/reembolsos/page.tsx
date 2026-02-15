@@ -85,6 +85,7 @@ import {
   type ReinbursementDashboardFilters,
   type ReinbursementStatus
 } from '@/types/reinbursement/reinbursement';
+import useMetadata from '@/hooks/use-metadata';
 
 type FilterState = {
   memberId: string;
@@ -175,6 +176,8 @@ export default function ReembolsosGestaoPage() {
     React.useState<Reinbursement | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
+
+  useMetadata({ title: 'Gestão de Reembolsos' });
 
   const activeFilterCount = React.useMemo(() => {
     let count = 0;

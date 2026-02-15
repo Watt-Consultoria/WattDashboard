@@ -46,8 +46,13 @@ import {
   priorityStyles,
   statusStyles
 } from './teamview-constants';
+import useMetadata from '../../../hooks/use-metadata';
 
 export default function TeamviewPage() {
+  useMetadata({
+    title: 'Visão do time'
+  });
+
   const { members, currentMember, isLoading } = useFirebaseData();
   const router = useRouter();
   const [selectedDay, setSelectedDay] = React.useState(new Date());

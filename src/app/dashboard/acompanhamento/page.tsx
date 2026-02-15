@@ -66,6 +66,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPenToSquare } from '@fortawesome/free-regular-svg-icons';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 import { useRouter } from 'next/navigation';
+import useMetadata from '@/hooks/use-metadata';
 
 type Project = {
   id: string;
@@ -194,6 +195,8 @@ type MemberFormState = {
 };
 
 export default function AcompanhamentoPage() {
+  useMetadata({ title: 'Acompanhamento' });
+
   const router = useRouter();
   const {
     projects: contextProjects,

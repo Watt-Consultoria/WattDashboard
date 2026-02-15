@@ -60,6 +60,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import useMetadata from '@/hooks/use-metadata';
 
 type MemberTask = {
   id: string;
@@ -196,6 +197,8 @@ export default function MembroPage() {
     cpf: '',
     role: ''
   });
+
+  useMetadata({ title: `Membro - ${memberInfo.name.split(' ')[0]}` });
   const [projectTasks, setProjectTasks] = React.useState<MemberTask[]>([]);
   const [agendaTasks, setAgendaTasks] = React.useState<MemberTask[]>([]);
   const [memberAlerts, setMemberAlerts] = React.useState<MemberAlert[]>(alerts);

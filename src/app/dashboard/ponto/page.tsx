@@ -35,6 +35,7 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
+import useMetadata from '@/hooks/use-metadata';
 
 type Member = {
   id: string;
@@ -70,6 +71,8 @@ export default function PontoPage() {
   const [minWeeklyHours, setMinWeeklyHours] = React.useState<number>(0);
   const [newMinHours, setNewMinHours] = React.useState<string>('');
   const [isSavingHours, setIsSavingHours] = React.useState(false);
+
+  useMetadata({ title: 'Ponto Digital' });
 
   const isAdmin = React.useMemo(() => {
     return (
