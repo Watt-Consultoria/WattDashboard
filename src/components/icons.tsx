@@ -39,7 +39,8 @@ import {
   IconChartBar,
   IconClock2,
   IconMessageCircle2,
-  IconCreditCardRefund
+  IconCreditCardRefund,
+  IconClipboardList
 } from '@tabler/icons-react';
 import { ref } from 'firebase/storage';
 
@@ -86,5 +87,6 @@ export const Icons = {
   clock: IconClock2,
   chart: IconChartBar,
   feedback: IconMessageCircle2,
-  refund: IconCreditCardRefund
+  refund: IconCreditCardRefund,
+  faltas: IconClipboardList
 };

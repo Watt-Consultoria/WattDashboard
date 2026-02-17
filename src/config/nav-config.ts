@@ -125,6 +125,13 @@ export const navItems: NavItem[] = [
     items: []
   },
   {
+    title: 'Faltas',
+    url: '/dashboard/faltas',
+    icon: 'faltas',
+    isActive: false,
+    items: []
+  },
+  {
     title: 'Estatísticas',
     url: '/dashboard/estatisticas',
     icon: 'chart',
