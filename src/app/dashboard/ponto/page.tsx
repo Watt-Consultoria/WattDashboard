@@ -23,7 +23,9 @@ import {
   CheckCircle2,
   XCircle,
   Save,
-  ArrowUpDown
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useFirebaseData } from '@/contexts/firebase-data-context';
@@ -67,6 +69,9 @@ export default function PontoPage() {
   const [loading, setLoading] = React.useState(true);
   const [members, setMembers] = React.useState<Member[]>([]);
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [orderBy, setOrderBy] = React.useState<
+    'member' | 'currentWeek' | 'lastWeek'
+  >('member');
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc');
   const [minWeeklyHours, setMinWeeklyHours] = React.useState<number>(0);
   const [newMinHours, setNewMinHours] = React.useState<string>('');
@@ -239,11 +244,30 @@ export default function PontoPage() {
   );
 
   const sortedMembers = React.useMemo(() => {
-    const sorted = [...filteredMembers].sort((a, b) =>
-      a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })
-    );
+    const sorted = [...filteredMembers].sort((a, b) => {
+      const statusA = calculateMemberStatus(a);
+      const statusB = calculateMemberStatus(b);
+
+      let primaryDiff = 0;
+
+      if (orderBy === 'currentWeek') {
+        primaryDiff = (statusB.hoursWeek || 0) - (statusA.hoursWeek || 0);
+      }
+
+      if (orderBy === 'lastWeek') {
+        primaryDiff =
+          (statusB.hoursLastWeek || 0) - (statusA.hoursLastWeek || 0);
+      }
+
+      if (primaryDiff !== 0) return primaryDiff;
+
+      return a.name.localeCompare(b.name, 'pt-BR', {
+        sensitivity: 'base'
+      });
+    });
+
     return sortOrder === 'asc' ? sorted : sorted.reverse();
-  }, [filteredMembers, sortOrder]);
+  }, [filteredMembers, sortOrder, orderBy]);
 
   const stats = React.useMemo(() => {
     let working = 0;
@@ -396,27 +420,78 @@ export default function PontoPage() {
                         <TableHead>
                           <button
                             type='button'
-                            onClick={() =>
-                              setSortOrder((prev) =>
-                                prev === 'asc' ? 'desc' : 'asc'
-                              )
-                            }
+                            onClick={() => {
+                              if (orderBy === 'member') {
+                                setSortOrder((prev) =>
+                                  prev === 'asc' ? 'desc' : 'asc'
+                                );
+                              } else {
+                                setOrderBy('member');
+                                setSortOrder('asc');
+                              }
+                            }}
                             className='flex items-center gap-2'
                             aria-label='Alternar ordenacao alfabetica'
                           >
                             <span>Membro</span>
-                            <span className='text-muted-foreground text-xs'>
-                              {sortOrder === 'asc' ? 'A-Z' : 'Z-A'}
-                            </span>
-                            <ArrowUpDown className='text-muted-foreground h-3.5 w-3.5' />
+                            {orderBy === 'member' &&
+                              (sortOrder === 'asc' ? (
+                                <ArrowUp className='text-muted-foreground h-3.5 w-3.5' />
+                              ) : (
+                                <ArrowDown className='text-muted-foreground h-3.5 w-3.5' />
+                              ))}
                           </button>
                         </TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className='text-center'>
-                          Semana Passada
+                          <button
+                            type='button'
+                            onClick={() => {
+                              if (orderBy === 'lastWeek') {
+                                setSortOrder((prev) =>
+                                  prev === 'asc' ? 'desc' : 'asc'
+                                );
+                              } else {
+                                setOrderBy('lastWeek');
+                                setSortOrder('asc');
+                              }
+                            }}
+                            className='flex items-center gap-2'
+                            aria-label='Alternar ordenacao alfabetica'
+                          >
+                            <span>Semana Passada</span>
+                            {orderBy === 'lastWeek' &&
+                              (sortOrder === 'asc' ? (
+                                <ArrowUp className='text-muted-foreground h-3.5 w-3.5' />
+                              ) : (
+                                <ArrowDown className='text-muted-foreground h-3.5 w-3.5' />
+                              ))}
+                          </button>
                         </TableHead>
                         <TableHead className='text-center'>
-                          Semana Atual
+                          <button
+                            type='button'
+                            onClick={() => {
+                              if (orderBy === 'currentWeek') {
+                                setSortOrder((prev) =>
+                                  prev === 'asc' ? 'desc' : 'asc'
+                                );
+                              } else {
+                                setOrderBy('currentWeek');
+                                setSortOrder('asc');
+                              }
+                            }}
+                            className='flex items-center gap-2'
+                            aria-label='Alternar ordenacao alfabetica'
+                          >
+                            <span>Semana Atual</span>
+                            {orderBy === 'currentWeek' &&
+                              (sortOrder === 'asc' ? (
+                                <ArrowUp className='text-muted-foreground h-3.5 w-3.5' />
+                              ) : (
+                                <ArrowDown className='text-muted-foreground h-3.5 w-3.5' />
+                              ))}
+                          </button>
                         </TableHead>
                         <TableHead className='text-right'>
                           Último Registro
