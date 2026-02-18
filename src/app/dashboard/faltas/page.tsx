@@ -127,9 +127,12 @@ export default function FaltasPage() {
       setAllMembers(members);
 
       // Carregar faltas de todos os membros
+      const allFaltas = await faltaService.getAllFaltasWithDetails();
       const faltasMap: Record<string, FaltaWithDetails[]> = {};
       for (const member of members) {
-        const faltas = await faltaService.getFaltasWithDetails(member.id);
+        const faltas = allFaltas.filter(
+          (falta) => falta.memberId === member.id
+        );
         faltasMap[member.id] = faltas;
       }
 

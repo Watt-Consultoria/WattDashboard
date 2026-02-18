@@ -10,6 +10,25 @@ import type { RuleCode } from '@/types/code-of-conduct';
 import { Timestamp } from 'firebase/firestore';
 
 class FaltaService {
+  async getAllFaltasWithDetails(): Promise<FaltaWithDetails[]> {
+    const faltas = await faltaRepository.getAllFaltas();
+    return faltas.map((falta) => {
+      const ruleDetails = rules[falta.ruleCode as RuleCode];
+      const now = new Date();
+      const expiryDate = falta.expiresAt.toDate();
+      const daysUntilExpiry = Math.ceil(
+        (expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      return {
+        ...falta,
+        ruleName: ruleDetails.rule,
+        ruleType: ruleDetails.type,
+        daysUntilExpiry: Math.max(0, daysUntilExpiry)
+      };
+    });
+  }
+
   async getFaltasWithDetails(memberId: string): Promise<FaltaWithDetails[]> {
     const faltas = await faltaRepository.getFaltasByMemberId(memberId);
 

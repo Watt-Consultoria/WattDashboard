@@ -9,7 +9,8 @@ import {
   query,
   where,
   Timestamp,
-  deleteDoc
+  deleteDoc,
+  collectionGroup
 } from 'firebase/firestore';
 import { firebaseDb } from '@/lib/firebase/client';
 import {
@@ -189,6 +190,31 @@ class FaltaRepository {
       }
 
       return true;
+    });
+  }
+
+  async getAllFaltas(): Promise<Falta[]> {
+    if (!firebaseDb) {
+      throw new FirebaseError('Firebase não está configurado');
+    }
+
+    const q = query(collectionGroup(firebaseDb, 'faltas'));
+
+    const snap = await getDocs(q);
+    return snap.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        memberId: data.memberId,
+        ruleCode: data.ruleCode,
+        description: data.description ?? '',
+        dateAdded: data.dateAdded ?? Timestamp.now(),
+        expiresAt: data.expiresAt ?? Timestamp.now(),
+        addedBy: data.addedBy ?? '',
+        status: data.status ?? 'ativa',
+        createdAt: data.createdAt ?? Timestamp.now(),
+        updatedAt: data.updatedAt ?? Timestamp.now()
+      } satisfies Falta;
     });
   }
 }
