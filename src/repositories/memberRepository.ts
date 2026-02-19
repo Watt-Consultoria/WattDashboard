@@ -9,7 +9,7 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { firebaseDb } from '@/lib/firebase/client';
-import { Member } from '@/types/member/member';
+import { Member, WeekShedule } from '@/types/member/member';
 import {
   FirebaseError,
   MissingParameterError,
@@ -47,7 +47,8 @@ class MemberRepository implements IMemberRepository {
       timeRecords: memberData.timeRecords ?? [],
       updatedAt: memberData.updatedAt ?? Timestamp.now(),
       alerts: memberData.alerts ?? [],
-      agendaTasks: memberData.agendaTasks ?? []
+      agendaTasks: memberData.agendaTasks ?? [],
+      weekSchedule: memberData.weekSchedule ?? undefined
     };
   }
 
@@ -92,7 +93,8 @@ class MemberRepository implements IMemberRepository {
         timeRecords: memberData.timeRecords ?? [],
         updatedAt: memberData.updatedAt ?? Timestamp.now(),
         alerts: memberData.alerts ?? [],
-        agendaTasks: memberData.agendaTasks ?? []
+        agendaTasks: memberData.agendaTasks ?? [],
+        weekSchedule: memberData.weekSchedule ?? undefined
       };
     });
   }

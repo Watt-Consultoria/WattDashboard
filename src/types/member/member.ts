@@ -14,6 +14,7 @@ export type Member = {
   updatedAt: Timestamp;
   alerts: Alert[];
   agendaTasks: AgendaTask[];
+  weekSchedule?: WeekShedule;
 };
 
 export type MemberRoleEnum =
@@ -72,3 +73,108 @@ export type AgendaTaskUpdate = {
 export type MemberTask =
   | ({ type: 'agenda' } & AgendaTask)
   | ({ type: 'project' } & Activity);
+
+export type DA = 'D' | 'I';
+
+export type DayShedule = [
+  DA,
+  DA,
+  DA,
+  DA,
+  DA,
+  DA,
+  DA,
+  DA,
+  DA,
+  DA,
+  DA,
+  DA,
+  DA,
+  DA
+];
+
+export type WeekShedule = {
+  monday: DayShedule;
+  tuesday: DayShedule;
+  wednesday: DayShedule;
+  thursday: DayShedule;
+  friday: DayShedule;
+  saturday: DayShedule;
+  sunday: DayShedule;
+};
+
+export const WEEK_DAYS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday'
+] as const;
+
+export const WEEK_DAY_LABELS: Record<string, string> = {
+  monday: 'Segunda',
+  tuesday: 'Terça',
+  wednesday: 'Quarta',
+  thursday: 'Quinta',
+  friday: 'Sexta',
+  saturday: 'Sábado',
+  sunday: 'Domingo'
+};
+
+export const TIME_SLOTS = [
+  '08-09',
+  '09-10',
+  '10-11',
+  '11-12',
+  '12-13',
+  '13-14',
+  '14-15',
+  '15-16',
+  '16-17',
+  '17-18',
+  '18-19',
+  '19-20',
+  '20-21',
+  '21-22'
+] as const;
+
+export const DEFAULT_DAY_SCHEDULE: DayShedule = [
+  'D',
+  'D',
+  'D',
+  'D',
+  'D',
+  'D',
+  'D',
+  'D',
+  'D',
+  'D',
+  'D',
+  'D',
+  'D',
+  'D'
+];
+
+export const DEFAULT_WEEK_SCHEDULE: WeekShedule = {
+  monday: [...DEFAULT_DAY_SCHEDULE] as unknown as DayShedule,
+  tuesday: [...DEFAULT_DAY_SCHEDULE] as unknown as DayShedule,
+  wednesday: [...DEFAULT_DAY_SCHEDULE] as unknown as DayShedule,
+  thursday: [...DEFAULT_DAY_SCHEDULE] as unknown as DayShedule,
+  friday: [...DEFAULT_DAY_SCHEDULE] as unknown as DayShedule,
+  saturday: [...DEFAULT_DAY_SCHEDULE] as unknown as DayShedule,
+  sunday: [...DEFAULT_DAY_SCHEDULE] as unknown as DayShedule
+};
+
+export function countAvailableHours(schedule: WeekShedule): number {
+  let total = 0;
+  for (const day of WEEK_DAYS) {
+    for (const slot of schedule[day]) {
+      if (slot === 'D') total++;
+    }
+  }
+  return total;
+}
+
+export const MIN_WEEKLY_AVAILABLE_HOURS = 10;

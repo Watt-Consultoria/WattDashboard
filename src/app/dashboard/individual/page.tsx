@@ -64,8 +64,12 @@ import {
 import { useAuth } from '@/features/auth/components/auth-provider';
 import { useFcmToken } from '@/hooks/use-fcm';
 import memberService from '@/services/memberService';
-import { Member, TimeRecord } from '@/types/member/member';
+import { Member, TimeRecord, WeekShedule } from '@/types/member/member';
 import useMetadata from '@/hooks/use-metadata';
+import {
+  WeekScheduleEditor,
+  WeekScheduleEditorSkeleton
+} from '@/components/week-schedule-editor';
 
 type MemberTask = {
   id: string;
@@ -393,6 +397,10 @@ export default function IndividualPage() {
     status: statusOptions[0]
   });
 
+  const [weekSchedule, setWeekSchedule] = React.useState<
+    WeekShedule | undefined
+  >(undefined);
+
   useFcmToken();
 
   const [minWeeklyHours, setMinWeeklyHours] = React.useState(4);
@@ -498,6 +506,10 @@ export default function IndividualPage() {
         cpf: memberData.cpf ?? '',
         role: memberData.role ?? ''
       });
+
+      if (memberData.weekSchedule) {
+        setWeekSchedule(memberData.weekSchedule);
+      }
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -1270,18 +1282,36 @@ export default function IndividualPage() {
         {/* Mobile Tabs */}
         <div className='block lg:hidden'>
           <Tabs defaultValue='tasks' className='w-full'>
-            <TabsList className='grid h-auto w-full grid-cols-4'>
-              <TabsTrigger value='tasks' className='py-2 text-xs'>
+            <TabsList className='grid h-auto w-full grid-cols-5 gap-0.5'>
+              <TabsTrigger
+                value='tasks'
+                className='px-1 py-2 text-[10px] sm:text-xs'
+              >
                 Tarefas
               </TabsTrigger>
-              <TabsTrigger value='calendar' className='py-2 text-xs'>
+              <TabsTrigger
+                value='calendar'
+                className='px-1 py-2 text-[10px] sm:text-xs'
+              >
                 Calendário
               </TabsTrigger>
-              <TabsTrigger value='agenda' className='py-2 text-xs'>
+              <TabsTrigger
+                value='agenda'
+                className='px-1 py-2 text-[10px] sm:text-xs'
+              >
                 Agenda
               </TabsTrigger>
-              <TabsTrigger value='ponto' className='py-2 text-xs'>
+              <TabsTrigger
+                value='ponto'
+                className='px-1 py-2 text-[10px] sm:text-xs'
+              >
                 Ponto
+              </TabsTrigger>
+              <TabsTrigger
+                value='horario'
+                className='px-1 py-2 text-[10px] sm:text-xs'
+              >
+                Horário
               </TabsTrigger>
             </TabsList>
 
@@ -1782,6 +1812,19 @@ export default function IndividualPage() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Horário Tab */}
+            <TabsContent value='horario' className='mt-3'>
+              {isMemberLoading ? (
+                <WeekScheduleEditorSkeleton />
+              ) : (
+                <WeekScheduleEditor
+                  memberId={memberId}
+                  initialSchedule={weekSchedule}
+                  onSaved={(s) => setWeekSchedule(s)}
+                />
+              )}
             </TabsContent>
           </Tabs>
         </div>
@@ -2295,6 +2338,19 @@ export default function IndividualPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Desktop: Week Schedule Editor (full width) */}
+        <div className='hidden lg:block'>
+          {isMemberLoading ? (
+            <WeekScheduleEditorSkeleton />
+          ) : (
+            <WeekScheduleEditor
+              memberId={memberId}
+              initialSchedule={weekSchedule}
+              onSaved={(s) => setWeekSchedule(s)}
+            />
+          )}
         </div>
       </div>
       <Dialog open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen}>

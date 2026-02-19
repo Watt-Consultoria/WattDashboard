@@ -38,6 +38,7 @@ import { TaskCard } from './task-card';
 import { TaskSkeletons } from './task-skeletons';
 import { DayTasksList } from './day-tasks-list';
 import { SectorWeeklyOverview } from './sector-weekly-overview';
+import { TeamAvailabilityView } from './team-availability-view';
 import {
   normalizeLabel,
   normalizeSearch,
@@ -411,12 +412,15 @@ export default function TeamviewPage() {
               onValueChange={setViewMode}
               className='w-full'
             >
-              <TabsList className='grid h-auto w-full grid-cols-2'>
+              <TabsList className='grid h-auto w-full grid-cols-3'>
                 <TabsTrigger value='member' className='py-2 text-xs'>
                   Membro
                 </TabsTrigger>
                 <TabsTrigger value='sector' className='py-2 text-xs'>
                   Setor
+                </TabsTrigger>
+                <TabsTrigger value='disponibilidade' className='py-2 text-xs'>
+                  Disponibilidade
                 </TabsTrigger>
               </TabsList>
               <TabsContent value='member' className='mt-3'>
@@ -442,6 +446,17 @@ export default function TeamviewPage() {
                   onNextWeek={() => setSectorWeekOffset((value) => value + 1)}
                   isLoading={isLoadingSectorTasks}
                   items={sectorWeeklyTasks}
+                />
+              </TabsContent>
+              <TabsContent value='disponibilidade' className='mt-3'>
+                <TeamAvailabilityView
+                  members={(members || []).map((m) => ({
+                    id: m.id,
+                    name: m.name || 'Membro',
+                    sector: m.sector,
+                    weekSchedule: m.weekSchedule
+                  }))}
+                  isLoading={isLoading}
                 />
               </TabsContent>
             </Tabs>

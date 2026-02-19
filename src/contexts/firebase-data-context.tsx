@@ -10,6 +10,7 @@ import {
   query
 } from 'firebase/firestore';
 import { useAuth } from '@/features/auth/components/auth-provider';
+import type { WeekShedule } from '@/types/member/member';
 
 export type Project = {
   id: string;
@@ -45,6 +46,7 @@ export type Member = {
   fcmTokenUpdatedAt?: any;
   createdAt?: any;
   updatedAt?: any;
+  weekSchedule?: WeekShedule;
 };
 
 type FirebaseDataContextType = {
