@@ -230,7 +230,7 @@ export function WeekScheduleEditor({
                     </button>
                   ))}
                 </div>
-                <div className='mt-2 flex gap-2'>
+                {/* <div className='mt-2 flex gap-2'>
                   <Button
                     variant='outline'
                     size='sm'
@@ -247,7 +247,7 @@ export function WeekScheduleEditor({
                   >
                     Tudo indisponível
                   </Button>
-                </div>
+                </div> */}
               </div>
             )}
           </div>
