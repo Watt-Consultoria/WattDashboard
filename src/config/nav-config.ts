@@ -104,6 +104,13 @@ export const navItems: NavItem[] = [
     items: []
   },
   {
+    title: 'pSeletivo',
+    url: '/dashboard/pseletivo',
+    icon: 'kanban',
+    isActive: false,
+    items: []
+  },
+  {
     title: 'Visão do time',
     url: '/dashboard/teamview',
     icon: 'dashboard',
@@ -176,3 +183,4 @@ export const navItems: NavItem[] = [
     ]
   }
 ];
+

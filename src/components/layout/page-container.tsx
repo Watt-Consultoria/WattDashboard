@@ -54,7 +54,7 @@ export default function PageContainer({
 
   return scrollable ? (
     <ScrollArea className='h-[calc(100dvh-52px)]'>
-      <div className='flex flex-1 flex-col p-4 md:px-6'>
+      <div className='flex flex-1 flex-col min-w-0 p-4 md:px-6'>
         <div
           className={`mb-4 flex items-center justify-between${hideHeaderOnMobile ? ' hidden md:flex' : ''
             }`}

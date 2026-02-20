@@ -64,6 +64,24 @@ export function useFilteredNavItems(items: NavItem[]) {
       allowedUrls.add('/dashboard/teamview');
     }
 
+<<<<<<< Updated upstream
+=======
+    const allowPSeletivo = true;
+    if (allowPSeletivo) {
+      allowedUrls.add('/dashboard/pseletivo');
+    }
+
+    const allowFaltas = ['diretor', 'presidente', 'assessor'].includes(role);
+    if (allowFaltas) {
+      allowedUrls.add('/dashboard/faltas');
+    }
+
+    const allowFinanceiro = ['presidente', 'assessor'].includes(role);
+    if (allowFinanceiro) {
+      allowedUrls.add('/dashboard/financeiro/reembolsos');
+    }
+
+>>>>>>> Stashed changes
     const filterItem = (item: NavItem): NavItem | null => {
       const includeItem = Boolean(item.url && allowedUrls.has(item.url));
       if (item.items && item.items.length > 0) {
