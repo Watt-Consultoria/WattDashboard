@@ -1,0 +1,136 @@
+.vcToggleContainer {
+  --vc-off-color: var(--muted);
+  --vc-on-color: var(--primary);
+  --vc-animation-speed: 0.15s ease-out;
+  --vc-font-family: inherit;
+  --vc-font-size: 11px;
+  --vc-font-weight: 600;
+  --vc-on-font-color: var(--muted-foreground);
+  --vc-off-font-color: var(--primary-foreground);
+  --vc-label-position-off: 12px;
+  --vc-label-position-on: 11px;
+  --vc-width: 50px;
+  --vc-height: 25px;
+  --vc-handle-border-radius: 20px;
+  --vc-box-border-radius: 18px;
+  --vc-handle-shadow: 1px 1px 5px rgba(0, 0, 0, 0.2);
+  --vc-handle-color: #fff;
+  --vc-handle-width: 15px;
+  --vc-handle-height: 15px;
+  --vc-onclick-width: 30px;
+  --vc-handle-top: 5px;
+}
+
+.vcToggleContainer * {
+  font-family: var(--vc-font-family);
+  -webkit-transition: var(--vc-animation-speed);
+  -moz-transition: var(--vc-animation-speed);
+  -o-transition: var(--vc-animation-speed);
+  transition: var(--vc-animation-speed);
+}
+
+.vcSwitch {
+  width: var(--vc-width);
+  height: var(--vc-height);
+}
+
+.vcToggleContainer label {
+  position: relative;
+  display: inline-block;
+  vertical-align: top;
+  border-radius: var(--vc-box-border-radius);
+  cursor: pointer;
+}
+
+.vcSwitchInput {
+  position: absolute;
+  transform: translate3d(5px, 5px, 0);
+}
+
+.vcSwitchLabel {
+  position: relative;
+  display: block;
+  height: inherit;
+  font-size: var(--vc-font-size);
+  font-weight: var(--vc-font-weight);
+  background: var(--vc-off-color);
+  border-radius: inherit;
+  border: 1px solid var(--border);
+}
+
+.vcSwitchLabel::before,
+.vcSwitchLabel::after {
+  position: absolute;
+  top: 50%;
+  margin-top: -0.5em;
+  line-height: 1.1;
+}
+
+.vcSwitchLabel::before {
+  content: attr(data-off);
+  color: var(--vc-on-font-color);
+}
+
+.vcSwitchLabel::after {
+  content: attr(data-on);
+  color: var(--vc-off-font-color);
+  opacity: 0;
+}
+
+.vcSwitchLabel::before {
+  right: var(--vc-label-position-off);
+}
+
+.vcSwitchLabel::after {
+  left: var(--vc-label-position-on);
+}
+
+.vcSwitchInput:checked ~ .vcSwitchLabel {
+  background: var(--vc-on-color);
+  border-color: var(--vc-on-color);
+}
+
+.vcSwitchInput:checked ~ .vcSwitchLabel::before {
+  opacity: 0;
+}
+
+.vcSwitchInput:checked ~ .vcSwitchLabel::after {
+  opacity: 1;
+}
+
+.vcHandle {
+  position: absolute !important;
+  top: var(--vc-handle-top);
+  left: 5px;
+  background: var(--vc-handle-color);
+  border-radius: var(--vc-handle-border-radius);
+  box-shadow: var(--vc-handle-shadow);
+  width: var(--vc-handle-width);
+  height: var(--vc-handle-height);
+}
+
+.vcHandle::before {
+  content: '';
+  top: 50%;
+  left: 50%;
+  position: absolute !important;
+  margin: -6px 0 0 -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 6px;
+}
+
+.vcSwitchLabel:active ~ .vcHandle,
+.vcHandle:active {
+  width: var(--vc-onclick-width);
+}
+
+.vcSwitchInput:checked ~ .vcHandle {
+  left: unset;
+  right: 5px;
+}
+
+.vcSwitchInput:focus-visible ~ .vcSwitchLabel {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
