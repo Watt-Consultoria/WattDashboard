@@ -23,6 +23,8 @@ import {
 import { VcToggleSwitch } from '@/components/vc-toggle-switch';
 import {
   createForm,
+  getMissingPselQuestionTitles,
+  PSEL_REQUIRED_QUESTIONS,
   type FormAnswerType,
   type FormType
 } from '@/lib/firestore/forms';
@@ -35,6 +37,7 @@ type Pergunta = {
   id: number;
   tituloPergunta: string;
   tipoResposta: TipoResposta;
+  isPselRequired?: boolean;
 };
 
 const TIPOS_RESPOSTA: Array<{ value: TipoResposta; label: string }> = [
@@ -45,10 +48,19 @@ const TIPOS_RESPOSTA: Array<{ value: TipoResposta; label: string }> = [
   { value: 'pdfFile', label: 'pdfFile' }
 ];
 
+function normalizeComparableText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
 export default function FormulariosPage() {
   const [nomeFormulario, setNomeFormulario] = React.useState('');
   const [tipoFormulario, setTipoFormulario] =
     React.useState<TipoFormulario>('interno');
+  const [isPselForm, setIsPselForm] = React.useState(false);
   const [perguntas, setPerguntas] = React.useState<Pergunta[]>([]);
   const [novaPerguntaTitulo, setNovaPerguntaTitulo] = React.useState('');
   const [novaPerguntaTipo, setNovaPerguntaTipo] =
@@ -58,6 +70,45 @@ export default function FormulariosPage() {
   const [error, setError] = React.useState('');
 
   const podeEditarPerguntas = !isSaving;
+
+  React.useEffect(() => {
+    if (tipoFormulario !== 'externo') {
+      setIsPselForm(false);
+    }
+  }, [tipoFormulario]);
+
+  function garantirPerguntasObrigatoriasPsel() {
+    const perguntasAtualizadas = [...perguntas];
+    let nextId = Math.max(0, ...perguntasAtualizadas.map((pergunta) => pergunta.id)) + 1;
+
+    for (const perguntaObrigatoria of PSEL_REQUIRED_QUESTIONS) {
+      const requiredAliases = perguntaObrigatoria.aliases.map(normalizeComparableText);
+      const perguntaExistenteIndex = perguntasAtualizadas.findIndex((perguntaAtual) => {
+        const perguntaNormalizada = normalizeComparableText(perguntaAtual.tituloPergunta);
+        return requiredAliases.includes(perguntaNormalizada);
+      });
+
+      if (perguntaExistenteIndex >= 0) {
+        perguntasAtualizadas[perguntaExistenteIndex] = {
+          ...perguntasAtualizadas[perguntaExistenteIndex],
+          tituloPergunta: perguntaObrigatoria.titulo,
+          isPselRequired: true
+        };
+        continue;
+      }
+
+      perguntasAtualizadas.push({
+        id: nextId,
+        tituloPergunta: perguntaObrigatoria.titulo,
+        tipoResposta: perguntaObrigatoria.tipoResposta,
+        isPselRequired: true
+      });
+      nextId += 1;
+    }
+
+    setPerguntas(perguntasAtualizadas);
+    setNextPerguntaId(nextId);
+  }
 
   function adicionarPergunta() {
     const titulo = novaPerguntaTitulo.trim();
@@ -72,7 +123,8 @@ export default function FormulariosPage() {
       {
         id: nextPerguntaId,
         tituloPergunta: titulo,
-        tipoResposta: novaPerguntaTipo
+        tipoResposta: novaPerguntaTipo,
+        isPselRequired: false
       }
     ]);
     setNextPerguntaId((current) => current + 1);
@@ -82,6 +134,12 @@ export default function FormulariosPage() {
   }
 
   function removerPergunta(perguntaId: number) {
+    const pergunta = perguntas.find((item) => item.id === perguntaId);
+    if (isPselForm && pergunta?.isPselRequired) {
+      setError('Perguntas obrigatorias do PSEL nao podem ser removidas.');
+      return;
+    }
+
     setPerguntas((current) => current.filter((pergunta) => pergunta.id !== perguntaId));
   }
 
@@ -103,11 +161,22 @@ export default function FormulariosPage() {
     const payload = {
       nomeFormulario: nomeFormulario.trim(),
       tipoFormulario,
+      ehFormularioPsel: tipoFormulario === 'externo' ? isPselForm : false,
       perguntas: perguntas.map((pergunta) => ({
         tituloPergunta: pergunta.tituloPergunta.trim(),
         tipoResposta: pergunta.tipoResposta
       }))
     };
+
+    if (payload.tipoFormulario === 'externo' && payload.ehFormularioPsel) {
+      const missingQuestionTitles = getMissingPselQuestionTitles(payload.perguntas);
+      if (missingQuestionTitles.length > 0) {
+        setError(
+          `Formulario PSEL precisa conter no minimo as perguntas: ${missingQuestionTitles.join(', ')}.`
+        );
+        return;
+      }
+    }
 
     try {
       setIsSaving(true);
@@ -124,6 +193,7 @@ export default function FormulariosPage() {
 
       setNomeFormulario('');
       setTipoFormulario('interno');
+      setIsPselForm(false);
       setPerguntas([]);
       setNovaPerguntaTitulo('');
       setNovaPerguntaTipo('string');
@@ -180,9 +250,30 @@ export default function FormulariosPage() {
                   />
                 </div>
               </div>
-              <p className='text-muted-foreground text-sm'>
-                Tipo selecionado: <span className='font-medium'>{tipoFormulario}</span>
-              </p>
+
+              {tipoFormulario === 'externo' ? (
+                <div className='space-y-2'>
+                  <Button
+                    type='button'
+                    variant={isPselForm ? 'default' : 'outline'}
+                    onClick={() =>
+                      setIsPselForm((current) => {
+                        const nextValue = !current;
+                        if (nextValue) {
+                          garantirPerguntasObrigatoriasPsel();
+                        }
+                        return nextValue;
+                      })
+                    }
+                    disabled={!podeEditarPerguntas}
+                  >
+                    {isPselForm
+                      ? 'Formulario para PSEL ativado'
+                      : 'Criar formulario para PSEL'}
+                  </Button>
+                </div>
+              ) : null}
+
             </section>
 
             <section className='space-y-3'>
@@ -260,6 +351,11 @@ export default function FormulariosPage() {
                       <div className='space-y-1'>
                         <Label>Tipo de resposta</Label>
                         <Input value={pergunta.tipoResposta} readOnly />
+                        {isPselForm && pergunta.isPselRequired ? (
+                          <p className='text-muted-foreground text-xs'>
+                            Obrigatoria do PSEL
+                          </p>
+                        ) : null}
                       </div>
 
                       <div className='flex items-end gap-2'>
@@ -268,7 +364,10 @@ export default function FormulariosPage() {
                           variant='outline'
                           size='icon'
                           onClick={() => removerPergunta(pergunta.id)}
-                          disabled={!podeEditarPerguntas}
+                          disabled={
+                            !podeEditarPerguntas ||
+                            (isPselForm && Boolean(pergunta.isPselRequired))
+                          }
                           aria-label='Remover pergunta'
                         >
                           <IconMinus className='size-4' />

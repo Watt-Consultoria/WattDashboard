@@ -17,6 +17,19 @@ import {
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import useMetadata from '@/hooks/use-metadata';
+import {
+  getExternalFormResponses,
+  listExternalPselForms,
+  type StoredForm,
+  type StoredFormResponse
+} from '@/lib/firestore/forms';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 
 type CandidateTaskStatus = 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDA';
 
@@ -44,221 +57,60 @@ type Candidate = {
   historicoEscolarUrl: string;
   imagemUrl: string;
   tarefas: CandidateTask[];
+  informacoesAdicionais: Array<{
+    titulo: string;
+    valor: string;
+  }>;
 };
 
-const members: Candidate[] = [
-  {
-    id: 'cand-001',
-    nome: 'Marina',
-    sobrenome: 'Alves',
-    curso: 'Engenharia Eletrica',
-    periodo: '5',
-    etapa: 'Inscricao',
-    telefone: '(31) 99877-1234',
-    email: 'marina.alves@gmail.com',
-    instagram: '@marialves.dev',
-    origemPsel: 'Indicacao de um membro da WATT',
-    oQueMove: 'Criar impacto pratico com energia e tecnologia.',
-    porqueWatt: 'Aplicar conhecimento em projetos reais e evoluir em equipe.',
-    tamanhoCamisa: 'M',
-    curriculumVitaeUrl: 'https://storage.googleapis.com/mock-watt/cv-marina.pdf',
-    historicoEscolarUrl:
-      'https://storage.googleapis.com/mock-watt/historico-marina.pdf',
-    imagemUrl: 'https://api.slingacademy.com/public/sample-users/1.png',
-    tarefas: [
-      { id: 'task-001', titulo: 'Conferir formulario', status: 'CONCLUIDA' },
-      { id: 'task-002', titulo: 'Validar contato', status: 'EM_ANDAMENTO' },
-      { id: 'task-003', titulo: 'Triagem inicial', status: 'PENDENTE' }
-    ]
-  },
-  {
-    id: 'cand-002',
-    nome: 'Lucas',
-    sobrenome: 'Pereira',
-    curso: 'Engenharia de Computacao',
-    periodo: '3',
-    etapa: 'Triagem',
-    telefone: '(11) 97755-9087',
-    email: 'lucaspereira@outlook.com',
-    instagram: '@lks.pereira',
-    origemPsel: 'Instagram da WATT',
-    oQueMove: 'Aprender rapido e construir produtos.',
-    porqueWatt: 'Projetos desafiadores com aprendizado intenso.',
-    tamanhoCamisa: 'G',
-    curriculumVitaeUrl: 'https://storage.googleapis.com/mock-watt/cv-lucas.pdf',
-    historicoEscolarUrl:
-      'https://storage.googleapis.com/mock-watt/historico-lucas.pdf',
-    imagemUrl: 'https://api.slingacademy.com/public/sample-users/2.png',
-    tarefas: [
-      { id: 'task-004', titulo: 'Analisar CV', status: 'EM_ANDAMENTO' },
-      { id: 'task-005', titulo: 'Analisar historico', status: 'PENDENTE' },
-      { id: 'task-006', titulo: 'Registrar feedback', status: 'PENDENTE' }
-    ]
-  },
-  {
-    id: 'cand-003',
-    nome: 'Bruna',
-    sobrenome: 'Silva',
-    curso: 'Engenharia de Producao',
-    periodo: '7',
-    etapa: 'Entrevista',
-    telefone: '(21) 99661-4500',
-    email: 'bruna.silva@gmail.com',
-    instagram: '@bruna.sv',
-    origemPsel: 'Evento da universidade',
-    oQueMove: 'Resolver problemas com foco em resultado.',
-    porqueWatt: 'Unir tecnica e gestao em consultoria.',
-    tamanhoCamisa: 'P',
-    curriculumVitaeUrl: 'https://storage.googleapis.com/mock-watt/cv-bruna.pdf',
-    historicoEscolarUrl:
-      'https://storage.googleapis.com/mock-watt/historico-bruna.pdf',
-    imagemUrl: 'https://api.slingacademy.com/public/sample-users/3.png',
-    tarefas: [
-      { id: 'task-007', titulo: 'Agendar entrevista', status: 'CONCLUIDA' },
-      { id: 'task-008', titulo: 'Coletar pareceres', status: 'EM_ANDAMENTO' },
-      { id: 'task-009', titulo: 'Consolidar nota', status: 'PENDENTE' }
-    ]
-  },
-  {
-    id: 'cand-004',
-    nome: 'Rafael',
-    sobrenome: 'Santos',
-    curso: 'Engenharia Mecanica',
-    periodo: '6',
-    etapa: 'Resultado',
-    telefone: '(41) 98811-3344',
-    email: 'rafael.santos@hotmail.com',
-    instagram: '@rafa.santos',
-    origemPsel: 'Site oficial da WATT',
-    oQueMove: 'Evoluir com desafios praticos e colaboracao.',
-    porqueWatt: 'Aprender com projetos reais e ritmo de consultoria.',
-    tamanhoCamisa: 'M',
-    curriculumVitaeUrl: 'https://storage.googleapis.com/mock-watt/cv-rafael.pdf',
-    historicoEscolarUrl:
-      'https://storage.googleapis.com/mock-watt/historico-rafael.pdf',
-    imagemUrl: 'https://api.slingacademy.com/public/sample-users/4.png',
-    tarefas: [
-      { id: 'task-010', titulo: 'Validar documentacao', status: 'CONCLUIDA' },
-      {
-        id: 'task-011',
-        titulo: 'Enviar retorno oficial',
-        status: 'EM_ANDAMENTO'
-      },
-      { id: 'task-012', titulo: 'Registrar onboarding', status: 'PENDENTE' }
-    ]
-  },
-  {
-    id: 'cand-005',
-    nome: 'Ana',
-    sobrenome: 'Costa',
-    curso: 'Administracao',
-    periodo: '4',
-    etapa: 'Triagem',
-    telefone: '(71) 99114-2233',
-    email: 'ana.costa@gmail.com',
-    instagram: '@anacostaa',
-    origemPsel: 'Indicacao de ex-membro',
-    oQueMove: 'Organizar processos e gerar resultado mensuravel.',
-    porqueWatt: 'Atuar em projetos de impacto com time multidisciplinar.',
-    tamanhoCamisa: 'P',
-    curriculumVitaeUrl: 'https://storage.googleapis.com/mock-watt/cv-ana.pdf',
-    historicoEscolarUrl: 'https://storage.googleapis.com/mock-watt/historico-ana.pdf',
-    imagemUrl: 'https://api.slingacademy.com/public/sample-users/5.png',
-    tarefas: [
-      { id: 'task-013', titulo: 'Revisar formulario', status: 'CONCLUIDA' },
-      { id: 'task-014', titulo: 'Checar disponibilidade', status: 'PENDENTE' },
-      { id: 'task-015', titulo: 'Agendar entrevista RH', status: 'PENDENTE' }
-    ]
-  },
-  {
-    id: 'cand-006',
-    nome: 'Pedro',
-    sobrenome: 'Lima',
-    curso: 'Ciencia da Computacao',
-    periodo: '2',
-    etapa: 'Inscricao',
-    telefone: '(85) 99773-1144',
-    email: 'pedrolima@outlook.com',
-    instagram: '@pedrol.dev',
-    origemPsel: 'Palestra na universidade',
-    oQueMove: 'Resolver problemas complexos com tecnologia.',
-    porqueWatt: 'Buscar crescimento tecnico e experiencia pratica.',
-    tamanhoCamisa: 'G',
-    curriculumVitaeUrl: 'https://storage.googleapis.com/mock-watt/cv-pedro.pdf',
-    historicoEscolarUrl:
-      'https://storage.googleapis.com/mock-watt/historico-pedro.pdf',
-    imagemUrl: 'https://api.slingacademy.com/public/sample-users/6.png',
-    tarefas: [
-      { id: 'task-016', titulo: 'Confirmar inscricao', status: 'CONCLUIDA' },
-      { id: 'task-017', titulo: 'Validar email', status: 'EM_ANDAMENTO' },
-      { id: 'task-018', titulo: 'Criar ficha de avaliacao', status: 'PENDENTE' }
-    ]
-  },
-  {
-    id: 'cand-007',
-    nome: 'Julia',
-    sobrenome: 'Rocha',
-    curso: 'Engenharia Civil',
-    periodo: '8',
-    etapa: 'Entrevista',
-    telefone: '(61) 99220-5544',
-    email: 'juliarocha@gmail.com',
-    instagram: '@ju.rocha',
-    origemPsel: 'Instagram da WATT',
-    oQueMove: 'Liderar equipes e transformar planejamento em execucao.',
-    porqueWatt: 'Desenvolver visao de negocio e gestao de projetos.',
-    tamanhoCamisa: 'M',
-    curriculumVitaeUrl: 'https://storage.googleapis.com/mock-watt/cv-julia.pdf',
-    historicoEscolarUrl:
-      'https://storage.googleapis.com/mock-watt/historico-julia.pdf',
-    imagemUrl: 'https://api.slingacademy.com/public/sample-users/7.png',
-    tarefas: [
-      {
-        id: 'task-019',
-        titulo: 'Marcar banca tecnica',
-        status: 'EM_ANDAMENTO'
-      },
-      { id: 'task-020', titulo: 'Enviar case', status: 'CONCLUIDA' },
-      {
-        id: 'task-021',
-        titulo: 'Consolidar feedback final',
-        status: 'PENDENTE'
-      }
-    ]
-  },
-  {
-    id: 'cand-008',
-    nome: 'Mateus',
-    sobrenome: 'Oliveira',
-    curso: 'Engenharia de Producao',
-    periodo: '5',
-    etapa: 'Triagem',
-    telefone: '(27) 99881-6622',
-    email: 'mateus.oliveira@gmail.com',
-    instagram: '@mateus.prod',
-    origemPsel: 'Feira de recrutamento',
-    oQueMove: 'Melhoria continua e eficiencia operacional.',
-    porqueWatt: 'Aplicar metodo e analise em desafios reais.',
-    tamanhoCamisa: 'G',
-    curriculumVitaeUrl: 'https://storage.googleapis.com/mock-watt/cv-mateus.pdf',
-    historicoEscolarUrl:
-      'https://storage.googleapis.com/mock-watt/historico-mateus.pdf',
-    imagemUrl: 'https://api.slingacademy.com/public/sample-users/8.png',
-    tarefas: [
-      {
-        id: 'task-022',
-        titulo: 'Avaliar perfil academico',
-        status: 'EM_ANDAMENTO'
-      },
-      { id: 'task-023', titulo: 'Contato inicial', status: 'CONCLUIDA' },
-      {
-        id: 'task-024',
-        titulo: 'Definir entrevistadores',
-        status: 'PENDENTE'
-      }
-    ]
-  }
+const fallbackImageUrls = [
+  'https://api.slingacademy.com/public/sample-users/1.png',
+  'https://api.slingacademy.com/public/sample-users/2.png',
+  'https://api.slingacademy.com/public/sample-users/3.png',
+  'https://api.slingacademy.com/public/sample-users/4.png',
+  'https://api.slingacademy.com/public/sample-users/5.png',
+  'https://api.slingacademy.com/public/sample-users/6.png',
+  'https://api.slingacademy.com/public/sample-users/7.png',
+  'https://api.slingacademy.com/public/sample-users/8.png'
 ];
+
+const candidateFieldAliases = {
+  nome: ['nome'],
+  sobrenome: ['sobrenome'],
+  curso: ['curso'],
+  periodo: ['periodo'],
+  etapa: ['etapa'],
+  telefone: ['telefone', 'telefone para contato', 'celular', 'whatsapp'],
+  email: ['email', 'e-mail', 'email para contato'],
+  instagram: ['instagram', 'qual o seu instagram'],
+  origemPsel: ['por onde voce ficou sabendo do psel', 'origem psel', 'origem'],
+  oQueMove: ['o que te move', 'oque te move'],
+  porqueWatt: [
+    'por que voce gostaria de entrar na watt',
+    'porque voce gostaria de entrar na watt',
+    'por que watt',
+    'porque watt'
+  ],
+  tamanhoCamisa: ['tamanho da camisa', 'tamanho camisa'],
+  curriculumVitaeUrl: [
+    'curriculum vitae',
+    'curriculo',
+    'curriculo vitae',
+    'curriculum vitae url'
+  ],
+  historicoEscolarUrl: [
+    'historico escolar',
+    'historico',
+    'historico escolar url'
+  ],
+  imagemUrl: ['imagem', 'foto', 'imagem url', 'foto do candidato']
+} as const;
+
+const baseAliasKeys = new Set(
+  Object.values(candidateFieldAliases)
+    .flat()
+    .map((alias) => normalizeFieldKey(alias))
+);
 
 const taskStatusLabel: Record<CandidateTaskStatus, string> = {
   PENDENTE: 'Pendente',
@@ -282,6 +134,95 @@ function normalizeText(value: string) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function normalizeFieldKey(value: string) {
+  return normalizeText(value).replace(/[^a-z0-9]/g, '');
+}
+
+function getFieldValue(
+  values: Map<string, string>,
+  aliases: readonly string[],
+  fallback = 'Nao informado'
+) {
+  for (const alias of aliases) {
+    const normalizedAlias = normalizeFieldKey(alias);
+    const value = values.get(normalizedAlias);
+    if (value) {
+      return value;
+    }
+  }
+
+  return fallback;
+}
+
+function isHttpUrl(value: string) {
+  return /^https?:\/\//i.test(value);
+}
+
+function mapResponseToCandidate(
+  response: StoredFormResponse,
+  index: number
+): Candidate {
+  const valuesByField = new Map<string, string>();
+
+  for (const answer of response.respostas ?? []) {
+    const fieldKey = normalizeFieldKey(answer.tituloPergunta ?? '');
+    const value = (answer.valor ?? '').trim();
+    if (!fieldKey || !value) continue;
+    if (!valuesByField.has(fieldKey)) {
+      valuesByField.set(fieldKey, value);
+    }
+  }
+
+  const informacoesAdicionaisArray = (response.respostas ?? [])
+    .filter((answer) => {
+      const titulo = answer.tituloPergunta ?? '';
+      const valor = (answer.valor ?? '').trim();
+      if (!titulo || !valor) return false;
+      return !baseAliasKeys.has(normalizeFieldKey(titulo));
+    })
+    .map((answer) => ({
+      titulo: answer.tituloPergunta,
+      valor: answer.valor.trim()
+    }));
+
+  const imagemInformada = getFieldValue(valuesByField, candidateFieldAliases.imagemUrl, '');
+  const imagemUrl = isHttpUrl(imagemInformada)
+    ? imagemInformada
+    : fallbackImageUrls[index % fallbackImageUrls.length];
+
+  const curriculumInformado = getFieldValue(
+    valuesByField,
+    candidateFieldAliases.curriculumVitaeUrl,
+    ''
+  );
+  const historicoInformado = getFieldValue(
+    valuesByField,
+    candidateFieldAliases.historicoEscolarUrl,
+    ''
+  );
+
+  return {
+    id: response.id,
+    nome: getFieldValue(valuesByField, candidateFieldAliases.nome),
+    sobrenome: getFieldValue(valuesByField, candidateFieldAliases.sobrenome),
+    curso: getFieldValue(valuesByField, candidateFieldAliases.curso),
+    periodo: getFieldValue(valuesByField, candidateFieldAliases.periodo),
+    etapa: getFieldValue(valuesByField, candidateFieldAliases.etapa, 'Inscricao'),
+    telefone: getFieldValue(valuesByField, candidateFieldAliases.telefone),
+    email: getFieldValue(valuesByField, candidateFieldAliases.email),
+    instagram: getFieldValue(valuesByField, candidateFieldAliases.instagram),
+    origemPsel: getFieldValue(valuesByField, candidateFieldAliases.origemPsel),
+    oQueMove: getFieldValue(valuesByField, candidateFieldAliases.oQueMove),
+    porqueWatt: getFieldValue(valuesByField, candidateFieldAliases.porqueWatt),
+    tamanhoCamisa: getFieldValue(valuesByField, candidateFieldAliases.tamanhoCamisa),
+    curriculumVitaeUrl: isHttpUrl(curriculumInformado) ? curriculumInformado : '#',
+    historicoEscolarUrl: isHttpUrl(historicoInformado) ? historicoInformado : '#',
+    imagemUrl,
+    tarefas: [],
+    informacoesAdicionais: informacoesAdicionaisArray
+  };
+}
+
 function CandidateField({ label, value }: { label: string; value: string }) {
   return (
     <div className='space-y-1'>
@@ -294,7 +235,125 @@ function CandidateField({ label, value }: { label: string; value: string }) {
 export default function PSeletivoPage() {
   useMetadata({ title: 'PSeletivo' });
 
+  const [pselForms, setPselForms] = React.useState<StoredForm[]>([]);
+  const [selectedFormId, setSelectedFormId] = React.useState('');
+  const [members, setMembers] = React.useState<Candidate[]>([]);
   const [query, setQuery] = React.useState('');
+  const [isLoadingMembers, setIsLoadingMembers] = React.useState(true);
+  const [isLoadingForms, setIsLoadingForms] = React.useState(true);
+  const [loadError, setLoadError] = React.useState('');
+  const [copyMessage, setCopyMessage] = React.useState('');
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    async function loadForms() {
+      try {
+        setIsLoadingForms(true);
+        setLoadError('');
+
+        const forms = await listExternalPselForms();
+        if (!isMounted) return;
+
+        setPselForms(forms);
+
+        if (forms.length === 0) {
+          setSelectedFormId('');
+          setMembers([]);
+          return;
+        }
+
+        setSelectedFormId(forms[0].id);
+      } catch (error) {
+        if (!isMounted) return;
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : 'Nao foi possivel carregar os formularios do PSEL.'
+        );
+        setPselForms([]);
+        setSelectedFormId('');
+        setMembers([]);
+      } finally {
+        if (isMounted) {
+          setIsLoadingForms(false);
+        }
+      }
+    }
+
+    loadForms();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    async function loadMembersFromSelectedForm() {
+      if (!selectedFormId) {
+        setMembers([]);
+        setIsLoadingMembers(false);
+        return;
+      }
+
+      try {
+        setIsLoadingMembers(true);
+        setLoadError('');
+
+        const responses = await getExternalFormResponses(selectedFormId);
+        if (!isMounted) return;
+
+        setMembers(responses.map(mapResponseToCandidate));
+      } catch (error) {
+        if (!isMounted) return;
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : 'Nao foi possivel carregar os candidatos do PSEL.'
+        );
+        setMembers([]);
+      } finally {
+        if (isMounted) {
+          setIsLoadingMembers(false);
+        }
+      }
+    }
+
+    loadMembersFromSelectedForm();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedFormId]);
+
+  const selectedForm = React.useMemo(
+    () => pselForms.find((form) => form.id === selectedFormId) ?? null,
+    [pselForms, selectedFormId]
+  );
+
+  const selectedFormPublicPath = React.useMemo(() => {
+    if (!selectedForm) return '';
+    const pathName = selectedForm.slug || selectedForm.nomeFormulario;
+    return `/forms/${encodeURIComponent(pathName)}`;
+  }, [selectedForm]);
+
+  React.useEffect(() => {
+    setCopyMessage('');
+  }, [selectedFormId]);
+
+  async function handleCopyLink() {
+    if (!selectedFormPublicPath || typeof window === 'undefined') return;
+
+    try {
+      const absoluteLink = `${window.location.origin}${selectedFormPublicPath}`;
+      await navigator.clipboard.writeText(absoluteLink);
+      setCopyMessage('Link copiado.');
+    } catch {
+      setCopyMessage('Nao foi possivel copiar o link.');
+    }
+  }
 
   const normalizedQuery = normalizeText(query.trim());
 
@@ -307,7 +366,7 @@ export default function PSeletivoPage() {
         normalizeText(field).includes(normalizedQuery)
       );
     });
-  }, [normalizedQuery]);
+  }, [members, normalizedQuery]);
 
   return (
     <PageContainer
@@ -317,16 +376,58 @@ export default function PSeletivoPage() {
     >
       <div className='flex h-full min-h-0 min-w-0 flex-col gap-3'>
         <div className='bg-muted/20 flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between'>
-          <p className='text-sm font-semibold'>
-            Total de membros: {filteredMembers.length}
-          </p>
+          <div className='flex flex-wrap items-center gap-2'>
+            <p className='text-sm font-semibold'>
+              Total de membros: {filteredMembers.length}
+            </p>
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              onClick={handleCopyLink}
+              disabled={!selectedFormPublicPath}
+            >
+              Link
+            </Button>
+            <div className='w-full sm:w-72'>
+              <Select
+                value={selectedFormId}
+                onValueChange={setSelectedFormId}
+                disabled={isLoadingForms || pselForms.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder='Selecione o formulario PSEL' />
+                </SelectTrigger>
+                <SelectContent>
+                  {pselForms.map((form) => (
+                    <SelectItem key={form.id} value={form.id}>
+                      {form.nomeFormulario}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder='Buscar por nome ou curso...'
             className='w-full sm:w-72'
+            disabled={isLoadingMembers || isLoadingForms}
           />
         </div>
+
+        {copyMessage ? (
+          <p className='text-muted-foreground px-1 text-sm'>{copyMessage}</p>
+        ) : null}
+
+        {isLoadingMembers ? (
+          <p className='text-muted-foreground px-1 text-sm'>
+            Carregando candidatos...
+          </p>
+        ) : null}
+
+        {loadError ? <p className='text-destructive px-1 text-sm'>{loadError}</p> : null}
 
         <div className='flex min-h-0 flex-1 w-full max-w-full overflow-hidden rounded-md'>
           <div className='h-full w-full max-w-full overflow-x-auto overflow-y-hidden touch-pan-x snap-x snap-mandatory'>
@@ -418,6 +519,20 @@ export default function PSeletivoPage() {
                                 Historico escolar
                               </a>
                             </div>
+                            {member.informacoesAdicionais.length > 0 ? (
+                              <div className='space-y-2'>
+                                <p className='text-muted-foreground text-xs font-medium'>
+                                  Informacoes adicionais
+                                </p>
+                                {member.informacoesAdicionais.map((info) => (
+                                  <CandidateField
+                                    key={`${member.id}-${info.titulo}`}
+                                    label={info.titulo}
+                                    value={info.valor}
+                                  />
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                         </DialogContent>
                       </Dialog>
@@ -439,6 +554,11 @@ export default function PSeletivoPage() {
                     </p>
                     <ScrollArea className='h-full min-h-0 flex-1 touch-pan-y'>
                       <ul className='space-y-2 pr-2'>
+                        {member.tarefas.length === 0 ? (
+                          <li className='text-muted-foreground rounded-md border border-dashed p-2 text-sm'>
+                            Nenhuma tarefa relacionada.
+                          </li>
+                        ) : null}
                         {member.tarefas.map((task) => (
                           <li key={task.id} className='rounded-md border p-2'>
                             <div className='flex items-center justify-between gap-2'>

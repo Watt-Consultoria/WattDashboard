@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   getExternalFormByPathName,
+  submitExternalFormResponse,
   type FormQuestion,
   type StoredForm
 } from '@/lib/firestore/forms';
@@ -135,25 +136,24 @@ export default function ExternalFormPage() {
     setError('');
     setIsSubmitting(true);
     try {
+      const respostasPayload = formData.perguntas.map((pergunta, index) => {
+        const value = answers[index];
+        return {
+          tituloPergunta: pergunta.tituloPergunta,
+          tipoResposta: pergunta.tipoResposta,
+          valor: value instanceof File ? value.name : (value ?? '')
+        };
+      });
+
+      const savedResponse = await submitExternalFormResponse(formData.id, {
+        respostas: respostasPayload
+      });
+
       const payload = {
         formId: formData.id,
+        responseId: savedResponse.id,
         nomeFormulario: formData.nomeFormulario,
-        respostas: formData.perguntas.map((pergunta, index) => {
-          const value = answers[index];
-          if (value instanceof File) {
-            return {
-              tituloPergunta: pergunta.tituloPergunta,
-              tipoResposta: pergunta.tipoResposta,
-              valor: value.name,
-              file: value
-            };
-          }
-          return {
-            tituloPergunta: pergunta.tituloPergunta,
-            tipoResposta: pergunta.tipoResposta,
-            valor: value
-          };
-        })
+        respostas: respostasPayload
       };
 
       console.log('Resposta de formulario externo:', payload);
