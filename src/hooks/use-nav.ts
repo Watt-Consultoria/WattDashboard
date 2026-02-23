@@ -74,6 +74,13 @@ export function useFilteredNavItems(items: NavItem[]) {
       allowedUrls.add('/dashboard/teamview');
     }
 
+    const allowFormularios = ['diretor', 'presidente', 'assessor'].includes(
+      role
+    );
+    if (allowFormularios) {
+      allowedUrls.add('/dashboard/formularios');
+    }
+
     const allowFaltas = ['diretor', 'presidente', 'assessor'].includes(role);
     if (allowFaltas) {
       allowedUrls.add('/dashboard/faltas');

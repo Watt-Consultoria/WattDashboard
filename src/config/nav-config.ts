@@ -104,6 +104,13 @@ export const navItems: NavItem[] = [
     items: []
   },
   {
+    title: 'Formularios',
+    url: '/dashboard/formularios',
+    icon: 'page',
+    isActive: false,
+    items: []
+  },
+  {
     title: 'pSeletivo',
     url: '/dashboard/pseletivo',
     icon: 'kanban',
