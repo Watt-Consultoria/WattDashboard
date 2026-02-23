@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import {
   getExternalFormByPathName,
   submitExternalFormResponse,
+  uploadExternalFormFile,
   type FormQuestion,
   type StoredForm
 } from '@/lib/firestore/forms';
@@ -136,14 +137,36 @@ export default function ExternalFormPage() {
     setError('');
     setIsSubmitting(true);
     try {
-      const respostasPayload = formData.perguntas.map((pergunta, index) => {
-        const value = answers[index];
-        return {
-          tituloPergunta: pergunta.tituloPergunta,
-          tipoResposta: pergunta.tipoResposta,
-          valor: value instanceof File ? value.name : (value ?? '')
-        };
-      });
+      const respostasPayload = await Promise.all(
+        formData.perguntas.map(async (pergunta, index) => {
+          const value = answers[index];
+
+          if (
+            (pergunta.tipoResposta === 'imageFile' ||
+              pergunta.tipoResposta === 'pdfFile') &&
+            value instanceof File
+          ) {
+            const uploadedFile = await uploadExternalFormFile({
+              formId: formData.id,
+              perguntaTitulo: pergunta.tituloPergunta,
+              tipoResposta: pergunta.tipoResposta,
+              file: value
+            });
+
+            return {
+              tituloPergunta: pergunta.tituloPergunta,
+              tipoResposta: pergunta.tipoResposta,
+              valor: uploadedFile.downloadUrl
+            };
+          }
+
+          return {
+            tituloPergunta: pergunta.tituloPergunta,
+            tipoResposta: pergunta.tipoResposta,
+            valor: typeof value === 'string' ? value : ''
+          };
+        })
+      );
 
       const savedResponse = await submitExternalFormResponse(formData.id, {
         respostas: respostasPayload
@@ -158,6 +181,12 @@ export default function ExternalFormPage() {
 
       console.log('Resposta de formulario externo:', payload);
       setSubmitted(true);
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : 'Nao foi possivel enviar o formulario.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -253,7 +282,10 @@ export default function ExternalFormPage() {
                 ))}
 
                 {submitted ? (
-                  <p className='text-sm'>Formulario enviado. Confira no console.</p>
+                  <p className='text-sm'>
+                    Formulario enviado. Se seu e-mail estiver correto, voce recebera a
+                    confirmacao em alguns minutos.
+                  </p>
                 ) : null}
 
                 <div className='flex justify-end'>
