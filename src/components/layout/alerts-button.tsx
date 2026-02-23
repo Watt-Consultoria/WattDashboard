@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Bell } from 'lucide-react';
+import { Bell, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -13,6 +13,10 @@ import {
 import { useAuth } from '@/features/auth/components/auth-provider';
 import { useFirebaseData } from '@/contexts/firebase-data-context';
 import { useFcmToken } from '@/hooks/use-fcm';
+import { firebaseDb } from '@/lib/firebase/client';
+import { doc, setDoc } from 'firebase/firestore';
+import { FirebaseApp } from 'firebase/app';
+import { toast } from 'sonner';
 
 type Alert = {
   id: string;
@@ -30,6 +34,7 @@ const alertLevelStyles = {
 
 export function AlertsButton() {
   const [isActivating, setIsActivating] = React.useState(false);
+  const [isDeletingAlert, setIsDeletingAlert] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState(false);
   const [token, tryActtivateNotifications] = useFcmToken();
   const { user } = useAuth();
@@ -53,6 +58,27 @@ export function AlertsButton() {
       await tryActtivateNotifications();
     } finally {
       setIsActivating(false);
+    }
+  };
+
+  const handleDeleteAlert = (alertId: string) => {
+    if (!firebaseDb) {
+      toast.error('Firebase não está inicializado.');
+      return;
+    }
+
+    const memberRef = doc(firebaseDb, 'members', currentMember!.id);
+    const updatedAlerts = alerts.filter((alert) => alert.id !== alertId);
+
+    setIsDeletingAlert(true);
+
+    try {
+      setDoc(memberRef, { alerts: updatedAlerts }, { merge: true });
+    } catch (error) {
+      console.error('Erro ao deletar alerta:', error);
+      toast.error('Erro ao deletar alerta.');
+    } finally {
+      setIsDeletingAlert(false);
     }
   };
 
@@ -101,9 +127,23 @@ export function AlertsButton() {
                         {alert.time}
                       </span>
                     </div>
-                    <Badge className={alertLevelStyles[alert.level]}>
-                      {alert.level}
-                    </Badge>
+
+                    <div className='flex items-center gap-2'>
+                      <Badge className={alertLevelStyles[alert.level]}>
+                        {alert.level}
+                      </Badge>
+
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon'
+                        className='h-8 w-8'
+                        aria-label={`Deletar alerta ${alert.title}`}
+                        onClick={() => handleDeleteAlert(alert.id)}
+                      >
+                        <Trash2 className='h-4 w-4' />
+                      </Button>
+                    </div>
                   </div>
                 ))
               )}

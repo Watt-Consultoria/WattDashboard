@@ -125,6 +125,27 @@ export const navItems: NavItem[] = [
     items: []
   },
   {
+    title: 'Controle de Reembolsos',
+    url: '/dashboard/financeiro/reembolsos',
+    icon: 'chart',
+    isActive: false,
+    items: []
+  },
+  {
+    title: 'Reembolsos',
+    url: '/dashboard/reembolsos',
+    icon: 'refund',
+    isActive: false,
+    items: []
+  },
+  {
+    title: 'Faltas',
+    url: '/dashboard/faltas',
+    icon: 'faltas',
+    isActive: false,
+    items: []
+  },
+  {
     title: 'Estatísticas',
     url: '/dashboard/estatisticas',
     icon: 'chart',

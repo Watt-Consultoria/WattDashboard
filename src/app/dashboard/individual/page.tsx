@@ -28,8 +28,10 @@ import {
   AccordionTrigger
 } from '@/components/ui/accordion';
 import { firebaseDb } from '@/lib/firebase/client';
+import { firestoreDateToLabel } from '@/lib/firestore-date';
+import type { FirestoreDateValue } from '@/lib/firestore-date';
 import {
-  collection,
+  collectionGroup,
   doc,
   getDoc,
   getDocs,
@@ -61,6 +63,13 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/features/auth/components/auth-provider';
 import { useFcmToken } from '@/hooks/use-fcm';
+import memberService from '@/services/memberService';
+import { Member, TimeRecord, WeekShedule } from '@/types/member/member';
+import useMetadata from '@/hooks/use-metadata';
+import {
+  WeekScheduleEditor,
+  WeekScheduleEditorSkeleton
+} from '@/components/week-schedule-editor';
 
 type MemberTask = {
   id: string;
@@ -321,6 +330,8 @@ function NotFoundMember() {
 }
 
 export default function IndividualPage() {
+  useMetadata({ title: 'Dashboard Individual' });
+
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [memberId, setMemberId] = React.useState('');
@@ -385,6 +396,10 @@ export default function IndividualPage() {
     priority: priorityOptions[1],
     status: statusOptions[0]
   });
+
+  const [weekSchedule, setWeekSchedule] = React.useState<
+    WeekShedule | undefined
+  >(undefined);
 
   useFcmToken();
 
@@ -475,48 +490,40 @@ export default function IndividualPage() {
   }, [priorityByDate]);
 
   React.useEffect(() => {
-    if (!firebaseDb || authLoading || !user?.email) {
+    if (authLoading || !user?.email) {
       return;
     }
-    const db = firebaseDb;
 
     let isActive = true;
     setIsMemberLoading(true);
 
-    const applyMemberSnapshot = (
-      docId: string,
-      data: Partial<MemberInfo> & {
-        tasks?: MemberTask[];
-        alerts?: MemberAlert[];
-        agendaTasks?: MemberTask[];
-      }
-    ) => {
-      setMemberId(docId);
+    const applyMemberSnapshot = (memberData: Partial<Member>) => {
+      setMemberId(memberData.id ?? '');
       setMemberInfo({
-        name: data.name ?? '',
-        email: data.email ?? '',
-        sector: data.sector ?? '',
-        cpf: data.cpf ?? '',
-        role: data.role ?? ''
+        name: memberData.name ?? '',
+        email: memberData.email ?? '',
+        sector: memberData.sector ?? '',
+        cpf: memberData.cpf ?? '',
+        role: memberData.role ?? ''
       });
+
+      if (memberData.weekSchedule) {
+        setWeekSchedule(memberData.weekSchedule);
+      }
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const weekStart = getWeekStart(new Date());
-      const allRecords = ((data as any).timeRecords || []) as {
-        id: string;
-        type: string;
-        timestamp: any;
-      }[];
+      const allRecords = memberData.timeRecords ?? [];
 
       console.log('=== DEBUG PONTO ===');
       console.log('Total de registros no Firestore:', allRecords.length);
       console.log('Data de hoje:', today);
       console.log('Início da semana (segunda-feira):', weekStart);
 
-      const todayRecords = allRecords.filter((r: any) => {
+      const todayRecords = allRecords.filter((r: TimeRecord) => {
         if (!r.timestamp?.toDate) return false;
         const recordDate = r.timestamp.toDate();
         return recordDate >= today && recordDate < tomorrow;
@@ -524,7 +531,7 @@ export default function IndividualPage() {
       console.log('Registros de hoje filtrados:', todayRecords.length);
       setTimeRecords(todayRecords);
 
-      const weekRecords = allRecords.filter((r: any) => {
+      const weekRecords = allRecords.filter((r: TimeRecord) => {
         if (!r.timestamp?.toDate) return false;
         const recordDate = r.timestamp.toDate();
         const isInWeek = recordDate >= weekStart;
@@ -541,9 +548,9 @@ export default function IndividualPage() {
       console.log('===================');
       setWeekTimeRecords(weekRecords);
 
-      if (Array.isArray(data.agendaTasks)) {
+      if (Array.isArray(memberData.agendaTasks)) {
         setAgendaTasks(
-          data.agendaTasks.map((task) => ({
+          memberData.agendaTasks.map((task) => ({
             ...task,
             source: 'agenda'
           }))
@@ -551,8 +558,8 @@ export default function IndividualPage() {
       } else {
         setAgendaTasks([]);
       }
-      if (Array.isArray(data.alerts)) {
-        setMemberAlerts(data.alerts);
+      if (Array.isArray(memberData.alerts)) {
+        setMemberAlerts(memberData.alerts);
       } else {
         setMemberAlerts(alerts);
       }
@@ -567,7 +574,7 @@ export default function IndividualPage() {
         ...cached.data,
         timeRecords: fromCachedTimeRecords(cached.data.timeRecords)
       };
-      applyMemberSnapshot(cached.memberId, hydrated);
+      applyMemberSnapshot({ ...hydrated, id: cached.memberId } as Member);
       setMemberNotFound(false);
       setIsMemberLoading(false);
       return true;
@@ -580,16 +587,12 @@ export default function IndividualPage() {
             return;
           }
         }
-        // Usar o UID do usuário para buscar o documento do membro
-        const memberRef = doc(db, 'members', user.uid);
-        const memberDoc = await getDoc(memberRef);
 
-        if (memberDoc.exists() && isActive) {
-          applyMemberSnapshot(
-            memberDoc.id,
-            memberDoc.data() as Partial<MemberInfo>
-          );
-          storeMemberCache(memberDoc.id, memberDoc.data() as any);
+        const member = await memberService.getMemberProfile(user.uid);
+
+        if (member && isActive) {
+          applyMemberSnapshot(member);
+          storeMemberCache(member.id, member);
         } else if (isActive) {
           setMemberNotFound(true);
         }
@@ -639,53 +642,105 @@ export default function IndividualPage() {
             return;
           }
         }
-        const snapshot = await getDocs(collection(db, 'projects'));
+
+        const activitiesQuery = query(
+          collectionGroup(db, 'activities'),
+          where('ownerId', '==', memberId)
+        );
+        const snapshot = await getDocs(activitiesQuery);
         if (!isActive) {
           return;
         }
 
-        const tasksFromDb: MemberTask[] = [];
-        snapshot.docs.forEach((docSnapshot) => {
-          const data = docSnapshot.data() as {
-            name?: string;
-            Activities?: Array<{
-              id: string;
-              name: string;
-              dueAt?: string;
-              status?: string;
-              priority?: string;
-              ownerId?: string;
-              owner?: string;
-              description?: string;
-              updates?: ActivityUpdate[];
-            }>;
+        const projectNameCache = new Map<string, string>();
+        const missingProjectIds = new Set<string>();
+
+        snapshot.docs.forEach((activityDoc) => {
+          const data = activityDoc.data() as {
+            projectId?: string;
+            projectName?: string;
           };
-          if (!Array.isArray(data.Activities)) {
+          const inferredProjectId =
+            data.projectId ?? activityDoc.ref.parent?.parent?.id ?? '';
+          if (!inferredProjectId) {
             return;
           }
+          if (data.projectName) {
+            projectNameCache.set(inferredProjectId, data.projectName);
+            return;
+          }
+          if (!projectNameCache.has(inferredProjectId)) {
+            missingProjectIds.add(inferredProjectId);
+          }
+        });
 
-          data.Activities.forEach((activity) => {
-            if (activity.ownerId !== memberId) {
-              return;
+        if (missingProjectIds.size > 0) {
+          await Promise.all(
+            Array.from(missingProjectIds).map(async (projectId) => {
+              try {
+                const projectSnapshot = await getDoc(
+                  doc(db, 'projects', projectId)
+                );
+                if (projectSnapshot.exists()) {
+                  const projectData = projectSnapshot.data() as {
+                    name?: string;
+                  };
+                  projectNameCache.set(
+                    projectId,
+                    projectData.name ?? 'Projeto'
+                  );
+                } else {
+                  projectNameCache.set(projectId, 'Projeto');
+                }
+              } catch (error) {
+                console.error('Falha ao buscar projeto:', projectId, error);
+                projectNameCache.set(projectId, 'Projeto');
+              }
+            })
+          );
+        }
+
+        const tasksFromDb: MemberTask[] = snapshot.docs
+          .map((activityDoc) => {
+            const data = activityDoc.data() as {
+              id?: string;
+              name?: string;
+              dueAt?: FirestoreDateValue;
+              status?: string;
+              priority?: string;
+              owner?: string;
+              ownerId?: string;
+              description?: string;
+              updates?: ActivityUpdate[];
+              projectId?: string;
+              projectName?: string;
+            };
+            const parentProjectId = activityDoc.ref.parent?.parent?.id;
+            const projectId = data.projectId ?? parentProjectId ?? '';
+            if (!projectId) {
+              return null;
             }
 
-            tasksFromDb.push({
-              id: `${docSnapshot.id}-${activity.id}`,
-              activityId: activity.id,
-              projectId: docSnapshot.id,
-              projectName: data.name ?? 'Projeto',
-              source: 'project',
-              title: activity.name ?? 'Tarefa',
-              due: activity.dueAt ?? '',
-              status: activity.status ?? 'Planejado',
-              priority: activity.priority ?? 'Média',
-              owner: activity.owner,
-              ownerId: activity.ownerId,
-              description: activity.description,
-              updates: Array.isArray(activity.updates) ? activity.updates : []
-            });
-          });
-        });
+            const projectName =
+              data.projectName ?? projectNameCache.get(projectId) ?? 'Projeto';
+
+            return {
+              id: `${projectId}-${activityDoc.id}`,
+              activityId: data.id ?? activityDoc.id,
+              projectId,
+              projectName,
+              source: 'project' as const,
+              title: data.name ?? 'Tarefa',
+              due: firestoreDateToLabel(data.dueAt ?? ''),
+              status: data.status ?? statusOptions[0],
+              priority: data.priority ?? priorityOptions[1],
+              owner: data.owner ?? '',
+              ownerId: data.ownerId ?? memberId,
+              description: data.description ?? '',
+              updates: Array.isArray(data.updates) ? data.updates : []
+            } as MemberTask;
+          })
+          .filter((task): task is MemberTask => task !== null);
 
         setProjectTasks(tasksFromDb);
         storeTasksCache(memberId, tasksFromDb);
@@ -1227,18 +1282,36 @@ export default function IndividualPage() {
         {/* Mobile Tabs */}
         <div className='block lg:hidden'>
           <Tabs defaultValue='tasks' className='w-full'>
-            <TabsList className='grid h-auto w-full grid-cols-4'>
-              <TabsTrigger value='tasks' className='py-2 text-xs'>
+            <TabsList className='grid h-auto w-full grid-cols-5 gap-0.5'>
+              <TabsTrigger
+                value='tasks'
+                className='px-1 py-2 text-[10px] sm:text-xs'
+              >
                 Tarefas
               </TabsTrigger>
-              <TabsTrigger value='calendar' className='py-2 text-xs'>
+              <TabsTrigger
+                value='calendar'
+                className='px-1 py-2 text-[10px] sm:text-xs'
+              >
                 Calendário
               </TabsTrigger>
-              <TabsTrigger value='agenda' className='py-2 text-xs'>
+              <TabsTrigger
+                value='agenda'
+                className='px-1 py-2 text-[10px] sm:text-xs'
+              >
                 Agenda
               </TabsTrigger>
-              <TabsTrigger value='ponto' className='py-2 text-xs'>
+              <TabsTrigger
+                value='ponto'
+                className='px-1 py-2 text-[10px] sm:text-xs'
+              >
                 Ponto
+              </TabsTrigger>
+              <TabsTrigger
+                value='horario'
+                className='px-1 py-2 text-[10px] sm:text-xs'
+              >
+                Horário
               </TabsTrigger>
             </TabsList>
 
@@ -1739,6 +1812,19 @@ export default function IndividualPage() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Horário Tab */}
+            <TabsContent value='horario' className='mt-3'>
+              {isMemberLoading ? (
+                <WeekScheduleEditorSkeleton />
+              ) : (
+                <WeekScheduleEditor
+                  memberId={memberId}
+                  initialSchedule={weekSchedule}
+                  onSaved={(s) => setWeekSchedule(s)}
+                />
+              )}
             </TabsContent>
           </Tabs>
         </div>
@@ -2252,6 +2338,19 @@ export default function IndividualPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Desktop: Week Schedule Editor (full width) */}
+        <div className='hidden lg:block'>
+          {isMemberLoading ? (
+            <WeekScheduleEditorSkeleton />
+          ) : (
+            <WeekScheduleEditor
+              memberId={memberId}
+              initialSchedule={weekSchedule}
+              onSaved={(s) => setWeekSchedule(s)}
+            />
+          )}
         </div>
       </div>
       <Dialog open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen}>

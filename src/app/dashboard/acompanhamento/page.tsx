@@ -66,6 +66,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPenToSquare } from '@fortawesome/free-regular-svg-icons';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 import { useRouter } from 'next/navigation';
+import useMetadata from '@/hooks/use-metadata';
 
 type Project = {
   id: string;
@@ -194,6 +195,8 @@ type MemberFormState = {
 };
 
 export default function AcompanhamentoPage() {
+  useMetadata({ title: 'Acompanhamento' });
+
   const router = useRouter();
   const {
     projects: contextProjects,
@@ -473,7 +476,9 @@ export default function AcompanhamentoPage() {
 
   // Atualizar leadership members quando memberList mudar
   React.useEffect(() => {
-    setLeadershipMembers(memberList.filter((member) => member.role.toLowerCase() != 'consultor'));
+    setLeadershipMembers(
+      memberList.filter((member) => member.role.toLowerCase() != 'consultor')
+    );
   }, [memberList]);
 
   React.useEffect(() => {
@@ -851,8 +856,13 @@ export default function AcompanhamentoPage() {
   const membersCard = (
     <Card className='flex h-full flex-col lg:h-105'>
       <CardHeader>
-        <CardTitle>Membros da equipe</CardTitle>
-        <CardDescription>Última atividade registrada</CardDescription>
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          <div>
+            <CardTitle>Membros da equipe</CardTitle>
+            <CardDescription>Última atividade registrada</CardDescription>
+          </div>
+          <Badge variant='secondary'>Total: {contextMembers.length}</Badge>
+        </div>
       </CardHeader>
       <CardContent className='flex min-h-0 flex-1 flex-col'>
         <ScrollArea className='-mr-3 min-h-0 flex-1 pr-3'>
@@ -1128,7 +1138,10 @@ export default function AcompanhamentoPage() {
                     }));
                   }}
                 >
-                  <SelectTrigger aria-label='Responsável' className='w-full min-w-0'>
+                  <SelectTrigger
+                    aria-label='Responsável'
+                    className='w-full min-w-0'
+                  >
                     <SelectValue
                       placeholder={
                         leadershipMembers.length === 0
@@ -1155,7 +1168,10 @@ export default function AcompanhamentoPage() {
                     }))
                   }
                 >
-                  <SelectTrigger aria-label='Status do projeto' className='w-full min-w-0'>
+                  <SelectTrigger
+                    aria-label='Status do projeto'
+                    className='w-full min-w-0'
+                  >
                     <SelectValue placeholder='Status' />
                   </SelectTrigger>
                   <SelectContent>

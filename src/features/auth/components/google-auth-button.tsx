@@ -42,6 +42,7 @@ export default function GoogleSignInButton({
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ hd: 'wattconsultoria.com.br' });
       await signInWithPopup(firebaseAuth, provider);
       toast.success('Login realizado com sucesso!');
       router.replace(callbackUrl);

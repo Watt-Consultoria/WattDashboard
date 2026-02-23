@@ -30,12 +30,23 @@ import { Calendar } from '@/components/ui/calendar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { firebaseDb } from '@/lib/firebase/client';
 import {
+  firestoreDateToDate,
+  firestoreDateToInput,
+  firestoreDateToLabel,
+  firestoreDateToTimestamp,
+  inputDateToTimestamp
+} from '@/lib/firestore-date';
+import type { FirestoreDateValue } from '@/lib/firestore-date';
+import {
   collection,
+  collectionGroup,
   doc,
   getDoc,
   getDocs,
+  query,
   serverTimestamp,
-  updateDoc
+  updateDoc,
+  where
 } from 'firebase/firestore';
 import { format } from 'date-fns';
 import Link from 'next/link';
@@ -49,6 +60,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import useMetadata from '@/hooks/use-metadata';
 
 type MemberTask = {
   id: string;
@@ -168,45 +180,7 @@ const alertLevelStyles: Record<string, string> = {
   baixo: 'bg-emerald-500/10 text-emerald-700'
 };
 
-const parseDueDate = (value: string) => {
-  if (!value) {
-    return null;
-  }
-  const parts = value.split('/');
-  if (parts.length !== 3) {
-    return null;
-  }
-  const [day, month, year] = parts;
-  const parsed = new Date(
-    Number.parseInt(year, 10),
-    Number.parseInt(month, 10) - 1,
-    Number.parseInt(day, 10)
-  );
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const formatDateLabel = (value: string) => {
-  if (!value) {
-    return '';
-  }
-  const parsed = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  return format(parsed, 'dd/MM/yyyy');
-};
-
-const toInputDate = (value: string) => {
-  if (!value) {
-    return '';
-  }
-  const parts = value.split('/');
-  if (parts.length !== 3) {
-    return '';
-  }
-  const [day, month, year] = parts;
-  return `${year}-${month}-${day}`;
-};
+const parseDueDate = (value: string) => firestoreDateToDate(value);
 
 export default function MembroPage() {
   const params = useParams();
@@ -223,6 +197,8 @@ export default function MembroPage() {
     cpf: '',
     role: ''
   });
+
+  useMetadata({ title: `Membro - ${memberInfo.name.split(' ')[0]}` });
   const [projectTasks, setProjectTasks] = React.useState<MemberTask[]>([]);
   const [agendaTasks, setAgendaTasks] = React.useState<MemberTask[]>([]);
   const [memberAlerts, setMemberAlerts] = React.useState<MemberAlert[]>(alerts);
@@ -269,10 +245,7 @@ export default function MembroPage() {
       }
       const key = format(parsed, 'yyyy-MM-dd');
       const current = map.get(key);
-      if (
-        !current ||
-        priorityRank[task.priority] > priorityRank[current]
-      ) {
+      if (!current || priorityRank[task.priority] > priorityRank[current]) {
         map.set(key, task.priority);
       }
     });
@@ -312,19 +285,20 @@ export default function MembroPage() {
   }, []);
 
   React.useEffect(() => {
-    if (!firebaseDb || !memberId) {
+    const db = firebaseDb;
+    if (!db || !memberId) {
       return;
     }
 
     let isActive = true;
     const loadMember = async () => {
-      if (!firebaseDb) {
+      if (!db) {
         console.error('Firebase não inicializado');
         return;
       }
 
       try {
-        const snapshot = await getDoc(doc(firebaseDb, 'members', memberId));
+        const snapshot = await getDoc(doc(db, 'members', memberId));
         if (!snapshot.exists() || !isActive) {
           return;
         }
@@ -370,13 +344,14 @@ export default function MembroPage() {
   }, [memberId]);
 
   React.useEffect(() => {
-    if (!firebaseDb) {
+    const db = firebaseDb;
+    if (!db) {
       return;
     }
 
     let isActive = true;
     const loadMembers = async () => {
-      if (!firebaseDb) {
+      if (!db) {
         console.error('Firebase não inicializado');
         setIsMembersLoading(false);
         return;
@@ -384,7 +359,7 @@ export default function MembroPage() {
 
       setIsMembersLoading(true);
       try {
-        const snapshot = await getDocs(collection(firebaseDb, 'members'));
+        const snapshot = await getDocs(collection(db, 'members'));
         if (!isActive) {
           return;
         }
@@ -417,65 +392,58 @@ export default function MembroPage() {
   }, []);
 
   React.useEffect(() => {
-    if (!firebaseDb || !memberId) {
+    const db = firebaseDb;
+    if (!db || !memberId) {
       return;
     }
 
     let isActive = true;
     const loadTasks = async () => {
-      if (!firebaseDb) {
+      if (!db) {
         console.error('Firebase não inicializado');
         return;
       }
 
       try {
-        const snapshot = await getDocs(collection(firebaseDb, 'projects'));
-        if (!isActive) {
-          return;
-        }
+        const q = query(
+          collectionGroup(db, 'activities'),
+          where('ownerId', '==', memberId)
+        );
 
-        const tasksFromDb: MemberTask[] = [];
-        snapshot.docs.forEach((docSnapshot) => {
-          const data = docSnapshot.data() as {
-            name?: string;
-            Activities?: Array<{
-              id: string;
-              name: string;
-              dueAt?: string;
+        const snap = await getDocs(q);
+
+        setProjectTasks(
+          snap.docs.map((d) => {
+            const data = d.data() as {
+              id?: string;
+              name?: string;
+              description?: string;
+              dueAt?: FirestoreDateValue;
+              owner?: string;
+              ownerId?: string;
               status?: string;
               priority?: string;
-              ownerId?: string;
-              owner?: string;
-              description?: string;
-            }>;
-          };
-          if (!Array.isArray(data.Activities)) {
-            return;
-          }
+              projectId?: string;
+              projectName?: string;
+            };
+            const parentProjectId = d.ref.parent?.parent?.id;
 
-          data.Activities.forEach((activity) => {
-            if (activity.ownerId !== memberId) {
-              return;
-            }
-
-            tasksFromDb.push({
-              id: `${docSnapshot.id}-${activity.id}`,
-              activityId: activity.id,
-              projectId: docSnapshot.id,
-              projectName: data.name ?? 'Projeto',
-              source: 'project',
-              title: activity.name ?? 'Tarefa',
-              due: activity.dueAt ?? '',
-              status: activity.status ?? 'Planejado',
-              priority: activity.priority ?? 'Media',
-              owner: activity.owner,
-              ownerId: activity.ownerId,
-              description: activity.description
-            });
-          });
-        });
-
-        setProjectTasks(tasksFromDb);
+            return {
+              id: d.id,
+              activityId: data.id ?? d.id,
+              projectId: data.projectId ?? parentProjectId,
+              projectName: data.projectName,
+              source: 'project' as const,
+              title: data.name ?? 'Atividade',
+              description: data.description ?? '',
+              due: firestoreDateToLabel(data.dueAt ?? ''),
+              owner: data.owner ?? '',
+              ownerId: data.ownerId,
+              status: data.status ?? statusOptions[1],
+              priority: data.priority ?? priorityOptions[1]
+            } satisfies MemberTask;
+          })
+        );
       } catch (error) {
         console.error('Falha ao carregar tarefas:', error);
         toast.error('Não foi possível carregar tarefas.');
@@ -494,7 +462,7 @@ export default function MembroPage() {
     setEditTask({
       name: task.title,
       description: task.description ?? '',
-      dueDate: toInputDate(task.due),
+      dueDate: firestoreDateToInput(task.due),
       owner: task.owner ?? '',
       ownerId: task.ownerId ?? '',
       status: task.status ?? statusOptions[1],
@@ -508,11 +476,12 @@ export default function MembroPage() {
   );
 
   const handleUpdateTask = async () => {
-    if (!activeTask?.projectId || !activeTask.activityId) {
+    if (!activeTask?.id) {
       toast.error('Atividade nao encontrada.');
       return;
     }
-    if (!firebaseDb) {
+    const db = firebaseDb;
+    if (!db) {
       toast.error('Firebase nao configurado.');
       return;
     }
@@ -524,68 +493,91 @@ export default function MembroPage() {
       toast.error('Informe o responsável.');
       return;
     }
+    if (!activeTask.projectId) {
+      toast.error('Projeto da atividade nao encontrado.');
+      return;
+    }
+
+    const activityId = activeTask.activityId ?? activeTask.id;
+    if (!activityId) {
+      toast.error('Atividade inválida.');
+      return;
+    }
 
     setIsSavingEdit(true);
     try {
-      const projectRef = doc(firebaseDb, 'projects', activeTask.projectId);
-      const snapshot = await getDoc(projectRef);
+      const activityRef = doc(
+        db,
+        'projects',
+        activeTask.projectId,
+        'activities',
+        activityId
+      );
+      const snapshot = await getDoc(activityRef);
+
       if (!snapshot.exists()) {
-        toast.error('Projeto nao encontrado.');
+        toast.error('Atividade nao encontrada.');
         return;
       }
 
-      const data = snapshot.data() as { Activities?: MemberTask[] };
-      const nextActivities = Array.isArray(data.Activities)
-        ? data.Activities.map((activity) => {
-          if (activity.id !== activeTask.activityId) {
-            return activity;
-          }
-          return {
-            ...activity,
-            name: editTask.name.trim(),
-            description: editTask.description.trim(),
-            dueAt: formatDateLabel(editTask.dueDate),
-            owner: editTask.owner.trim(),
-            ownerId: editTask.ownerId || undefined,
-            status: editTask.status,
-            priority: editTask.priority
-          };
-        })
-        : [];
+      const dueAtValue = editTask.dueDate
+        ? inputDateToTimestamp(editTask.dueDate)
+        : null;
+      if (editTask.dueDate && !dueAtValue) {
+        toast.error('Data inválida.');
+        return;
+      }
 
-      await updateDoc(projectRef, {
-        Activities: nextActivities,
+      const resolvedOwnerId = editTask.ownerId || activeTask.ownerId || null;
+      const dueAtLabel = editTask.dueDate
+        ? firestoreDateToLabel(dueAtValue ?? editTask.dueDate)
+        : '';
+
+      const updatePayload = {
+        name: editTask.name.trim(),
+        description: editTask.description.trim(),
+        owner: editTask.owner.trim(),
+        ownerId: resolvedOwnerId,
+        status: editTask.status,
+        priority: editTask.priority,
+        dueAt: editTask.dueDate ? dueAtValue : null,
         updatedAt: serverTimestamp()
-      });
+      };
+
+      await updateDoc(activityRef, updatePayload);
 
       setProjectTasks((current) =>
         current.map((task) =>
           task.id === activeTask.id
             ? {
-              ...task,
-              title: editTask.name.trim(),
-              description: editTask.description.trim(),
-              due: formatDateLabel(editTask.dueDate),
-              owner: editTask.owner.trim(),
-              ownerId: editTask.ownerId || undefined,
-              status: editTask.status,
-              priority: editTask.priority
-            }
+                ...task,
+                title: editTask.name.trim(),
+                description: editTask.description.trim(),
+                due: dueAtLabel,
+                owner: editTask.owner.trim(),
+                ownerId: resolvedOwnerId ?? undefined,
+                status: editTask.status,
+                priority: editTask.priority,
+                projectId: activeTask.projectId,
+                activityId
+              }
             : task
         )
       );
       setActiveTask((current) =>
         current
           ? {
-            ...current,
-            title: editTask.name.trim(),
-            description: editTask.description.trim(),
-            due: formatDateLabel(editTask.dueDate),
-            owner: editTask.owner.trim(),
-            ownerId: editTask.ownerId || undefined,
-            status: editTask.status,
-            priority: editTask.priority
-          }
+              ...current,
+              title: editTask.name.trim(),
+              description: editTask.description.trim(),
+              due: dueAtLabel,
+              owner: editTask.owner.trim(),
+              ownerId: resolvedOwnerId ?? undefined,
+              status: editTask.status,
+              priority: editTask.priority,
+              projectId: activeTask.projectId,
+              activityId
+            }
           : current
       );
       toast.success('Atividade atualizada.');
@@ -609,7 +601,8 @@ export default function MembroPage() {
   };
 
   const handleSaveMemberInfo = async () => {
-    if (!firebaseDb || !memberId) {
+    const db = firebaseDb;
+    if (!db || !memberId) {
       toast.error('Membro nao encontrado.');
       return;
     }
@@ -624,7 +617,7 @@ export default function MembroPage() {
 
     setIsSavingMemberEdit(true);
     try {
-      const memberRef = doc(firebaseDb, 'members', memberId);
+      const memberRef = doc(db, 'members', memberId);
       await updateDoc(memberRef, {
         name: memberEditForm.name.trim(),
         email: memberEditForm.email.trim(),
@@ -649,6 +642,15 @@ export default function MembroPage() {
     } finally {
       setIsSavingMemberEdit(false);
     }
+  };
+
+  const isDue = (data: string) => {
+    const [day, month, year] = data.split('/').map(Number);
+
+    // mês no JS começa em 0
+    const date = new Date(year, month - 1, day);
+
+    return date < new Date();
   };
 
   return (
@@ -684,7 +686,10 @@ export default function MembroPage() {
                               {task.title}
                             </span>
                             <span className='text-muted-foreground text-xs'>
-                              Prazo: {task.due}
+                              {task.description}
+                            </span>
+                            <span className='text-muted-foreground text-xs'>
+                              Prazo: {isDue(task.due) ? 'Vencido' : task.due}
                             </span>
                           </div>
                           <div className='flex flex-col items-end gap-1'>
@@ -759,7 +764,9 @@ export default function MembroPage() {
                                 <Badge className={statusStyles[task.status]}>
                                   {task.status}
                                 </Badge>
-                                <Badge className={priorityStyles[task.priority]}>
+                                <Badge
+                                  className={priorityStyles[task.priority]}
+                                >
                                   {task.priority}
                                 </Badge>
                               </div>
@@ -861,7 +868,6 @@ export default function MembroPage() {
             </CardContent>
           </Card>
         </div>
-
       </div>
       <Dialog open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen}>
         <DialogContent>
@@ -1084,7 +1090,10 @@ export default function MembroPage() {
                 />
               </div>
               <div className='space-y-1'>
-                <label className='text-sm font-medium' htmlFor='memberEditEmail'>
+                <label
+                  className='text-sm font-medium'
+                  htmlFor='memberEditEmail'
+                >
                   Email
                 </label>
                 <Input
@@ -1103,7 +1112,10 @@ export default function MembroPage() {
             </div>
             <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
               <div className='space-y-1'>
-                <label className='text-sm font-medium' htmlFor='memberEditSector'>
+                <label
+                  className='text-sm font-medium'
+                  htmlFor='memberEditSector'
+                >
                   Setor
                 </label>
                 <Select

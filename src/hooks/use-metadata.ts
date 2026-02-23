@@ -1,18 +1,12 @@
-'use client';
+import React from 'react';
 
-import * as React from 'react';
+export default function useMetadata(metadata: { title: string }) {
+  /**
+   * Hook para atualizar o título da página no client.
+   * @param metadata Objeto com o título da página.
+   */
 
-type UseMetadataParams = {
-  title: string;
-};
-
-export default function useMetadata({ title }: UseMetadataParams) {
   React.useEffect(() => {
-    const previousTitle = document.title;
-    document.title = title;
-
-    return () => {
-      document.title = previousTitle;
-    };
-  }, [title]);
+    document.title = metadata.title;
+  }, [metadata.title]);
 }

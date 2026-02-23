@@ -1,0 +1,7 @@
+from firebase_functions.options import set_global_options
+
+from notifyAboutUpcomingActivities import notify_members_about_upcoming_activities
+from notifyOnNewActivities import notify_owner_on_activity_created
+
+# Cost control for this codebase.
+set_global_options(max_instances=10)
