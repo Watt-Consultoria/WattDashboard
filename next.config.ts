@@ -10,6 +10,16 @@ const baseConfig: NextConfig = {
         protocol: 'https',
         hostname: 'api.slingacademy.com',
         port: ''
+      },
+      {
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+        port: ''
+      },
+      {
+        protocol: 'https',
+        hostname: 'storage.googleapis.com',
+        port: ''
       }
     ]
   },

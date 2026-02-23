@@ -1,4 +1,4 @@
-import { firebaseDb } from '@/lib/firebase/client';
+import { firebaseDb, firebaseStorage } from '@/lib/firebase/client';
 import {
   addDoc,
   collection,
@@ -8,6 +8,7 @@ import {
   serverTimestamp,
   where
 } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 
 export type FormType = 'interno' | 'externo';
 
@@ -17,6 +18,8 @@ export type FormAnswerType =
   | 'cpf'
   | 'imageFile'
   | 'pdfFile';
+
+export type FileFormAnswerType = Extract<FormAnswerType, 'imageFile' | 'pdfFile'>;
 
 export type FormQuestion = {
   tituloPergunta: string;
@@ -48,6 +51,21 @@ export type StoredFormResponse = {
   respostas: FormResponseInput['respostas'];
   createdAt?: unknown;
   updatedAt?: unknown;
+};
+
+export type UploadExternalFormFileInput = {
+  formId: string;
+  perguntaTitulo: string;
+  tipoResposta: FileFormAnswerType;
+  file: File;
+};
+
+export type UploadedExternalFormFile = {
+  downloadUrl: string;
+  storagePath: string;
+  originalFileName: string;
+  contentType: string;
+  sizeInBytes: number;
 };
 
 export const PSEL_REQUIRED_QUESTIONS = [
@@ -162,6 +180,12 @@ function toMillis(value: unknown) {
   }
 
   return 0;
+}
+
+function getFileExtension(fileName: string) {
+  const dotIndex = fileName.lastIndexOf('.');
+  if (dotIndex < 0) return '';
+  return fileName.slice(dotIndex).toLowerCase();
 }
 
 function normalizeComparableText(value: string) {
@@ -280,6 +304,43 @@ export async function submitExternalFormResponse(
   });
 
   return { id: docRef.id };
+}
+
+export async function uploadExternalFormFile(
+  input: UploadExternalFormFileInput
+): Promise<UploadedExternalFormFile> {
+  if (!firebaseStorage) {
+    throw new Error('Firebase Storage nao configurado.');
+  }
+
+  const timestamp = Date.now();
+  const randomId =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+  const perguntaSlug = toFormSlug(input.perguntaTitulo) || 'arquivo';
+  const extension = getFileExtension(input.file.name);
+  const storagePath = [
+    'externForms',
+    input.formId,
+    'respostas',
+    `${timestamp}-${randomId}`,
+    `${perguntaSlug}${extension}`
+  ].join('/');
+
+  const storageRef = ref(firebaseStorage, storagePath);
+  await uploadBytes(storageRef, input.file, {
+    contentType: input.file.type || undefined
+  });
+  const downloadUrl = await getDownloadURL(storageRef);
+
+  return {
+    downloadUrl,
+    storagePath,
+    originalFileName: input.file.name,
+    contentType: input.file.type || '',
+    sizeInBytes: input.file.size
+  };
 }
 
 export async function getLatestExternalPselForm() {
