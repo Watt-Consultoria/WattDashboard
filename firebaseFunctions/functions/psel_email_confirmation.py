@@ -6,10 +6,30 @@ import unicodedata
 from email.message import EmailMessage
 from typing import Any
 
-from firebase_admin import firestore
+import firebase_admin
+from firebase_admin import credentials, firestore
 from firebase_functions import firestore_fn, logger
 
-from remake import get_db
+
+def _init_firebase():
+    if firebase_admin._apps:
+        return
+
+    # Production: use ADC. Dev/test: allow explicit service account path.
+    cred_path = (
+        os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH")
+        or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    )
+    if cred_path:
+        firebase_admin.initialize_app(credentials.Certificate(cred_path))
+    else:
+        firebase_admin.initialize_app()
+
+
+def get_db():
+    _init_firebase()
+    return firestore.client()
+
 
 EMAIL_FIELD_ALIASES = {
     "email",
