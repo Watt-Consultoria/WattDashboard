@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { faAngleRight, faCheck } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -731,22 +733,29 @@ export default function ExternalFormPage() {
                   onClick={handlePreviousStep}
                   disabled={isSubmitting}
                 >
-                  Etapa anterior
+                  Voltar
                 </Button>
               ) : null}
 
               {!isLastStep ? (
-                <Button type='button' onClick={handleNextStep} disabled={isSubmitting}>
-                  Proxima etapa
+                <Button
+                  type='button'
+                  onClick={handleNextStep}
+                  disabled={isSubmitting}
+                  aria-label='Proxima etapa'
+                  className='px-4'
+                >
+                  <FontAwesomeIcon icon={faAngleRight} />
                 </Button>
               ) : (
                 <Button
                   type='submit'
                   form={htmlFormId}
                   disabled={isSubmitting}
-                  className='sm:min-w-52'
+                  aria-label='Finalizar envio'
+                  className='px-4 sm:min-w-16'
                 >
-                  {isSubmitting ? 'Enviando formulario...' : 'Finalizar envio'}
+                  {isSubmitting ? 'Enviando...' : <FontAwesomeIcon icon={faCheck} />}
                 </Button>
               )}
             </div>
@@ -778,3 +787,4 @@ export default function ExternalFormPage() {
     </main>
   );
 }
+
