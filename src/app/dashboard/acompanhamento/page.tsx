@@ -879,7 +879,7 @@ export default function AcompanhamentoPage() {
   };
 
   const membersCard = (
-    <Card className='flex h-full flex-col lg:h-105'>
+    <Card className='hover:bg-accent flex h-full flex-col lg:h-105'>
       <CardHeader>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div>
@@ -923,15 +923,15 @@ export default function AcompanhamentoPage() {
               filteredMembers.map((member) => (
                 <div
                   key={member.id}
-                  className='flex w-full items-start justify-between gap-3 rounded-md border p-3'
+                  className='hover:bg-accent flex w-full items-start justify-between gap-3 rounded-md border p-3 transition-all duration-300 ease-in-out'
                 >
                   <Link
                     href={`/dashboard/acompanhamento/membros/${member.id}`}
-                    className='hover:bg-accent focus-visible:ring-ring/50 flex flex-1 flex-col transition-colors focus-visible:ring-[3px] focus-visible:outline-none'
+                    className='focus-visible:ring-ring/50 flex flex-1 flex-col transition-colors focus-visible:ring-[3px] focus-visible:outline-none'
                   >
                     <span className='text-sm font-medium'>{member.name}</span>
                     <span className='text-muted-foreground text-xs'>
-                      {member.role} - {member.activity}
+                      {member.role} - {member.activity || 'Sem atividade'}
                     </span>
                     {member.tags && member.tags.length > 0 && (
                       <div className='mt-1 flex flex-wrap gap-1'>
