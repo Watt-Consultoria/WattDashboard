@@ -30,6 +30,7 @@ import type {
   CandidateForm,
   CandidateTaskStatus
 } from '@/types/candidate/candidate';
+import { toast } from 'sonner';
 
 const taskStatusLabel: Record<CandidateTaskStatus, string> = {
   PENDENTE: 'Pendente',
@@ -76,6 +77,7 @@ export default function PSeletivoPage() {
         setLoadError('');
 
         const forms = await candidateService.getPselForms();
+
         if (!isMounted) return;
 
         setPselForms(forms);

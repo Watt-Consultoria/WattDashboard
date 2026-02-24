@@ -19,7 +19,10 @@ export type FormAnswerType =
   | 'imageFile'
   | 'pdfFile';
 
-export type FileFormAnswerType = Extract<FormAnswerType, 'imageFile' | 'pdfFile'>;
+export type FileFormAnswerType = Extract<
+  FormAnswerType,
+  'imageFile' | 'pdfFile'
+>;
 
 export type FormQuestion = {
   tituloPergunta: string;
@@ -40,8 +43,9 @@ export type StoredForm = CreateFormInput & {
 
 export type FormResponseInput = {
   respostas: Array<{
-    tituloPergunta: string;
-    tipoResposta: FormAnswerType;
+    perguntaId: string;
+    perguntaTitulo: string;
+    tipo: FormAnswerType;
     valor: string;
   }>;
 };
@@ -134,7 +138,12 @@ export const PSEL_REQUIRED_QUESTIONS = [
     key: 'curriculumVitaeUrl',
     titulo: 'Curriculum Vitae',
     tipoResposta: 'pdfFile',
-    aliases: ['curriculum vitae', 'curriculo', 'curriculo vitae', 'curriculum vitae url']
+    aliases: [
+      'curriculum vitae',
+      'curriculo',
+      'curriculo vitae',
+      'curriculum vitae url'
+    ]
   },
   {
     key: 'historicoEscolarUrl',
@@ -198,7 +207,9 @@ function normalizeComparableText(value: string) {
 
 export function getMissingPselQuestionTitles(perguntas: FormQuestion[]) {
   const normalizedQuestionTitles = new Set(
-    perguntas.map((pergunta) => normalizeComparableText(pergunta.tituloPergunta))
+    perguntas.map((pergunta) =>
+      normalizeComparableText(pergunta.tituloPergunta)
+    )
   );
 
   return PSEL_REQUIRED_QUESTIONS.filter((requiredQuestion) => {
@@ -297,11 +308,14 @@ export async function submitExternalFormResponse(
     throw new Error('Firebase nao configurado.');
   }
 
-  const docRef = await addDoc(collection(firebaseDb, 'externForms', formId, 'respostas'), {
-    respostas: input.respostas,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  });
+  const docRef = await addDoc(
+    collection(firebaseDb, 'externForms', formId, 'respostas'),
+    {
+      respostas: input.respostas,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }
+  );
 
   return { id: docRef.id };
 }
