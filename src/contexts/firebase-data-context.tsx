@@ -37,6 +37,7 @@ export type Member = {
   name: string;
   email?: string;
   role?: string;
+  tags?: string[];
   sector?: string;
   cpf?: string;
   activity?: string;

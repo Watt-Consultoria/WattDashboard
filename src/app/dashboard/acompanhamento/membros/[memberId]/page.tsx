@@ -100,6 +100,7 @@ type MemberInfo = {
   sector: string;
   cpf: string;
   role: string;
+  tags?: string[];
 };
 
 const priorityStyles: Record<string, string> = {
@@ -226,8 +227,11 @@ export default function MembroPage() {
     email: '',
     sector: '',
     cpf: '',
-    role: ''
+    role: '',
+    tags: [] as string[]
   });
+  const [newTag, setNewTag] = React.useState('');
+
   const allTasks = React.useMemo(
     () => [...agendaTasks, ...projectTasks],
     [agendaTasks, projectTasks]
@@ -314,7 +318,8 @@ export default function MembroPage() {
           email: data.email ?? '',
           sector: data.sector ?? '',
           cpf: data.cpf ?? '',
-          role: data.role ?? ''
+          role: data.role ?? '',
+          tags: Array.isArray(data.tags) ? data.tags : []
         });
 
         if (Array.isArray(data.agendaTasks)) {
@@ -595,9 +600,27 @@ export default function MembroPage() {
       email: memberInfo.email ?? '',
       sector: memberInfo.sector ?? '',
       cpf: memberInfo.cpf ?? '',
-      role: memberInfo.role ?? ''
+      role: memberInfo.role ?? '',
+      tags: memberInfo.tags ?? []
     });
     setIsMemberEditOpen(true);
+  };
+
+  const handleAddTagToForm = () => {
+    const tag = newTag.trim();
+    if (!tag) return;
+    setMemberEditForm((current) => ({
+      ...current,
+      tags: Array.from(new Set([...(current.tags ?? []), tag]))
+    }));
+    setNewTag('');
+  };
+
+  const handleRemoveTagFromForm = (tagToRemove: string) => {
+    setMemberEditForm((current) => ({
+      ...current,
+      tags: (current.tags ?? []).filter((t: string) => t !== tagToRemove)
+    }));
   };
 
   const handleSaveMemberInfo = async () => {
@@ -624,6 +647,9 @@ export default function MembroPage() {
         sector: memberEditForm.sector.trim(),
         cpf: memberEditForm.cpf.trim(),
         role: memberEditForm.role.trim(),
+        tags: Array.isArray(memberEditForm.tags)
+          ? memberEditForm.tags.map((t: string) => t.trim())
+          : [],
         updatedAt: serverTimestamp()
       });
 
@@ -632,7 +658,10 @@ export default function MembroPage() {
         email: memberEditForm.email.trim(),
         sector: memberEditForm.sector.trim(),
         cpf: memberEditForm.cpf.trim(),
-        role: memberEditForm.role.trim()
+        role: memberEditForm.role.trim(),
+        tags: Array.isArray(memberEditForm.tags)
+          ? memberEditForm.tags.map((t: string) => t.trim())
+          : []
       });
       setIsMemberEditOpen(false);
       toast.success('Informações atualizadas.');
@@ -828,6 +857,22 @@ export default function MembroPage() {
                   <div className='text-muted-foreground text-xs'>Cargo</div>
                   <div className='mt-1 font-medium'>
                     {memberInfo.role || '--'}
+                  </div>
+                </div>
+                <div className='rounded-md border p-3 sm:col-span-2'>
+                  <div className='text-muted-foreground text-xs'>Tags</div>
+                  <div className='mt-1 flex flex-wrap gap-2'>
+                    {memberInfo.tags && memberInfo.tags.length > 0 ? (
+                      memberInfo.tags.map((tag) => (
+                        <Badge key={tag} className='capitalize'>
+                          {tag}
+                        </Badge>
+                      ))
+                    ) : (
+                      <div className='text-muted-foreground text-sm'>
+                        Sem tags
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1182,6 +1227,47 @@ export default function MembroPage() {
                   }))
                 }
               />
+            </div>
+            <div className='space-y-1'>
+              <label className='text-sm font-medium' htmlFor='memberEditTags'>
+                Tags
+              </label>
+              <div className='flex gap-2'>
+                <Input
+                  id='memberEditTags'
+                  placeholder='Adicionar tag'
+                  value={newTag}
+                  disabled={isSavingMemberEdit}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddTagToForm();
+                    }
+                  }}
+                />
+                <Button
+                  type='button'
+                  disabled={isSavingMemberEdit}
+                  onClick={handleAddTagToForm}
+                >
+                  Adicionar
+                </Button>
+              </div>
+              <div className='mt-2 flex flex-wrap gap-2'>
+                {(memberEditForm.tags ?? []).map((tag: string) => (
+                  <div key={tag} className='flex items-center gap-1'>
+                    <Badge className='capitalize'>{tag}</Badge>
+                    <button
+                      type='button'
+                      className='text-muted-foreground text-xs underline-offset-2'
+                      onClick={() => handleRemoveTagFromForm(tag)}
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
           <DialogFooter className='gap-2 sm:gap-2'>

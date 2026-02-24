@@ -1,4 +1,3 @@
-
 'use client';
 
 /**
@@ -33,7 +32,10 @@ export function useFilteredNavItems(items: NavItem[]) {
     const currentMember = members.find(
       (member) => member.id === user?.uid || member.email === user?.email
     );
+
     const role = currentMember?.role?.toLowerCase().trim() ?? '';
+    const tags =
+      currentMember?.tags?.map((tag) => tag.toLowerCase().trim()) ?? [];
     const sector = currentMember?.sector?.toLowerCase().trim() ?? '';
 
     const allowedUrls = new Set(['/dashboard/individual']);
@@ -75,7 +77,9 @@ export function useFilteredNavItems(items: NavItem[]) {
       allowedUrls.add('/dashboard/teamview');
     }
 
-    const allowPSeletivo = true;
+    const allowPSeletivo =
+      tags.includes('psel') ||
+      ['diretor', 'presidente', 'gerente'].includes(role);
     if (allowPSeletivo) {
       allowedUrls.add('/dashboard/pseletivo');
     }
