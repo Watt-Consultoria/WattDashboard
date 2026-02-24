@@ -79,7 +79,7 @@ export function useFilteredNavItems(items: NavItem[]) {
 
     const allowPSeletivo =
       tags.includes('psel') ||
-      ['diretor', 'presidente', 'gerente'].includes(role);
+      ['diretor', 'presidente', 'gerente', 'assessor'].includes(role);
     if (allowPSeletivo) {
       allowedUrls.add('/dashboard/pseletivo');
     }

@@ -99,6 +99,86 @@ class MemberService {
     const member = await memberRepository.getMemberById(memberId);
     return member?.weekSchedule ?? null;
   }
+
+  async addTagToMember(memberId: string, tag: string): Promise<void> {
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) {
+      throw new Error('Tag não pode ser vazia');
+    }
+
+    await memberRepository.addTag(memberId, trimmedTag);
+  }
+
+  async removeTagFromMember(memberId: string, tag: string): Promise<void> {
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) {
+      throw new Error('Tag não pode ser vazia');
+    }
+
+    await memberRepository.removeTag(memberId, trimmedTag);
+  }
+
+  async getMemberTags(memberId: string): Promise<string[]> {
+    const member = await memberRepository.getMemberById(memberId);
+    return member?.tags ?? [];
+  }
+
+  async addTagToMultipleMembers(
+    memberIds: string[],
+    tag: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) {
+      return { success: false, error: 'Tag não pode ser vazia' };
+    }
+
+    if (!memberIds || memberIds.length === 0) {
+      return {
+        success: false,
+        error: 'Selecione ao menos um membro'
+      };
+    }
+
+    try {
+      await memberRepository.addTagToMultipleMembers(memberIds, trimmedTag);
+      return { success: true };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error?.message ?? 'Erro ao adicionar tag aos membros'
+      };
+    }
+  }
+
+  async removeTagFromMultipleMembers(
+    memberIds: string[],
+    tag: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) {
+      return { success: false, error: 'Tag não pode ser vazia' };
+    }
+
+    if (!memberIds || memberIds.length === 0) {
+      return {
+        success: false,
+        error: 'Selecione ao menos um membro'
+      };
+    }
+
+    try {
+      await memberRepository.removeTagFromMultipleMembers(
+        memberIds,
+        trimmedTag
+      );
+      return { success: true };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error?.message ?? 'Erro ao remover tag dos membros'
+      };
+    }
+  }
 }
 
 export default new MemberService();

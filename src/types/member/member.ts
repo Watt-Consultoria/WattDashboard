@@ -15,6 +15,7 @@ export type Member = {
   alerts: Alert[];
   agendaTasks: AgendaTask[];
   weekSchedule?: WeekShedule;
+  tags?: string[];
 };
 
 export type MemberRoleEnum =

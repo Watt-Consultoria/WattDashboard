@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
 import { PieGraph } from '@/features/overview/components/pie-graph';
 import { firebaseDb } from '@/lib/firebase/client';
 import { useFirebaseData } from '@/contexts/firebase-data-context';
@@ -64,9 +65,10 @@ import type {
 } from '@/contexts/firebase-data-context';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPenToSquare } from '@fortawesome/free-regular-svg-icons';
-import { faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faXmark, faTags } from '@fortawesome/free-solid-svg-icons';
 import { useRouter } from 'next/navigation';
 import useMetadata from '@/hooks/use-metadata';
+import memberService from '@/services/memberService';
 
 type Project = {
   id: string;
@@ -94,6 +96,7 @@ type Member = {
   activity: string;
   status: string;
   isLeadership?: boolean;
+  tags?: string[];
 };
 
 const alerts = [
@@ -221,6 +224,20 @@ export default function AcompanhamentoPage() {
   const [isMemberDialogOpen, setIsMemberDialogOpen] = React.useState(false);
   const [isSavingMember, setIsSavingMember] = React.useState(false);
   const [startDate, setStartDate] = React.useState<Date | undefined>(undefined);
+  const [isTagsDialogOpen, setIsTagsDialogOpen] = React.useState(false);
+  const [selectedMemberForTags, setSelectedMemberForTags] =
+    React.useState<Member | null>(null);
+  const [newTag, setNewTag] = React.useState('');
+  const [isSavingTag, setIsSavingTag] = React.useState(false);
+  const [isBulkTagsDialogOpen, setIsBulkTagsDialogOpen] = React.useState(false);
+  const [bulkTagName, setBulkTagName] = React.useState('');
+  const [bulkTagAction, setBulkTagAction] = React.useState<'add' | 'remove'>(
+    'add'
+  );
+  const [selectedMemberIds, setSelectedMemberIds] = React.useState<Set<string>>(
+    new Set()
+  );
+  const [isSavingBulkTag, setIsSavingBulkTag] = React.useState(false);
 
   const resetProjectForm = React.useCallback(() => {
     setNewProject({
@@ -327,7 +344,8 @@ export default function AcompanhamentoPage() {
       role: member.role ?? 'Sem cargo',
       activity: member.activity ?? 'Sem atividade',
       status: member.status ?? 'offline',
-      isLeadership: member.isLeadership
+      isLeadership: member.isLeadership,
+      tags: member.tags ?? []
     }),
     []
   );
@@ -853,6 +871,13 @@ export default function AcompanhamentoPage() {
     </div>
   );
 
+  const openBulkTagsDialog = () => {
+    setSelectedMemberIds(new Set());
+    setBulkTagName('');
+    setBulkTagAction('add');
+    setIsBulkTagsDialogOpen(true);
+  };
+
   const membersCard = (
     <Card className='flex h-full flex-col lg:h-105'>
       <CardHeader>
@@ -861,7 +886,18 @@ export default function AcompanhamentoPage() {
             <CardTitle>Membros da equipe</CardTitle>
             <CardDescription>Última atividade registrada</CardDescription>
           </div>
-          <Badge variant='secondary'>Total: {contextMembers.length}</Badge>
+          <div className='flex items-center gap-2'>
+            <Button
+              size='sm'
+              variant='outline'
+              onClick={openBulkTagsDialog}
+              className='gap-2'
+            >
+              <FontAwesomeIcon icon={faTags} className='h-3 w-3' />
+              Tags
+            </Button>
+            <Badge variant='secondary'>Total: {contextMembers.length}</Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className='flex min-h-0 flex-1 flex-col'>
@@ -885,19 +921,48 @@ export default function AcompanhamentoPage() {
               </div>
             ) : (
               filteredMembers.map((member) => (
-                <Link
+                <div
                   key={member.id}
-                  href={`/dashboard/acompanhamento/membros/${member.id}`}
-                  className='hover:bg-accent focus-visible:ring-ring/50 flex w-full items-start justify-between gap-3 rounded-md border p-3 text-left transition-colors focus-visible:ring-[3px] focus-visible:outline-none'
+                  className='flex w-full items-start justify-between gap-3 rounded-md border p-3'
                 >
-                  <div className='flex flex-col'>
+                  <Link
+                    href={`/dashboard/acompanhamento/membros/${member.id}`}
+                    className='hover:bg-accent focus-visible:ring-ring/50 flex flex-1 flex-col transition-colors focus-visible:ring-[3px] focus-visible:outline-none'
+                  >
                     <span className='text-sm font-medium'>{member.name}</span>
                     <span className='text-muted-foreground text-xs'>
                       {member.role} - {member.activity}
                     </span>
+                    {member.tags && member.tags.length > 0 && (
+                      <div className='mt-1 flex flex-wrap gap-1'>
+                        {member.tags.map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant='secondary'
+                            className='text-[10px]'
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </Link>
+                  <div className='flex items-center gap-1'>
+                    <Button
+                      type='button'
+                      size='icon'
+                      variant='ghost'
+                      className='h-8 w-8 shrink-0 cursor-pointer rounded-md border hover:bg-white/10 [&_svg]:!h-[0.875em] [&_svg]:!w-[0.875em]'
+                      onClick={() => openTagsDialog(member)}
+                      aria-label='Gerenciar tags'
+                    >
+                      <FontAwesomeIcon icon={faTags} />
+                    </Button>
+                    <Badge variant='outline' className='shrink-0'>
+                      {member.sector || '--'}
+                    </Badge>
                   </div>
-                  <Badge variant='outline'>{member.sector || '--'}</Badge>
-                </Link>
+                </div>
               ))
             )}
           </div>
@@ -997,6 +1062,158 @@ export default function AcompanhamentoPage() {
       toast.error('Não foi possível salvar o membro.');
     } finally {
       setIsSavingMember(false);
+    }
+  };
+
+  const openTagsDialog = (member: Member) => {
+    setSelectedMemberForTags(member);
+    setIsTagsDialogOpen(true);
+  };
+
+  const handleAddTag = async () => {
+    if (!selectedMemberForTags) return;
+
+    const trimmedTag = newTag.trim();
+    if (!trimmedTag) {
+      toast.error('Informe o nome da tag.');
+      return;
+    }
+
+    setIsSavingTag(true);
+    try {
+      await memberService.addTagToMember(selectedMemberForTags.id, trimmedTag);
+      toast.success('Tag adicionada com sucesso.');
+      setNewTag('');
+      // Atualizar o membro localmente
+      setSelectedMemberForTags((current) => {
+        if (!current) return current;
+        const updatedTags = [...(current.tags ?? []), trimmedTag];
+        return { ...current, tags: updatedTags };
+      });
+    } catch (error: any) {
+      if (error?.message?.includes('já existe')) {
+        toast.error('Esta tag já existe para este membro.');
+      } else {
+        console.error('Erro ao adicionar tag:', error);
+        toast.error('Não foi possível adicionar a tag.');
+      }
+    } finally {
+      setIsSavingTag(false);
+    }
+  };
+
+  const handleRemoveTag = async (tag: string) => {
+    if (!selectedMemberForTags) return;
+
+    setIsSavingTag(true);
+    try {
+      await memberService.removeTagFromMember(selectedMemberForTags.id, tag);
+      toast.success('Tag removida com sucesso.');
+      // Atualizar o membro localmente
+      setSelectedMemberForTags((current) => {
+        if (!current) return current;
+        const updatedTags = (current.tags ?? []).filter((t) => t !== tag);
+        return { ...current, tags: updatedTags };
+      });
+    } catch (error) {
+      console.error('Erro ao remover tag:', error);
+      toast.error('Não foi possível remover a tag.');
+    } finally {
+      setIsSavingTag(false);
+    }
+  };
+
+  const toggleMemberSelection = (memberId: string) => {
+    setSelectedMemberIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(memberId)) {
+        newSet.delete(memberId);
+      } else {
+        newSet.add(memberId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleAllMembers = () => {
+    if (selectedMemberIds.size === filteredMembers.length) {
+      setSelectedMemberIds(new Set());
+    } else {
+      setSelectedMemberIds(new Set(filteredMembers.map((m) => m.id)));
+    }
+  };
+
+  const handleAddBulkTag = async () => {
+    const trimmedTag = bulkTagName.trim();
+    if (!trimmedTag) {
+      toast.error('Informe o nome da tag.');
+      return;
+    }
+
+    if (selectedMemberIds.size === 0) {
+      toast.error('Selecione ao menos um membro.');
+      return;
+    }
+
+    setIsSavingBulkTag(true);
+    try {
+      const result = await memberService.addTagToMultipleMembers(
+        Array.from(selectedMemberIds),
+        trimmedTag
+      );
+
+      if (result.success) {
+        toast.success(
+          `Tag "${trimmedTag}" adicionada a ${selectedMemberIds.size} membro(s).`
+        );
+        setBulkTagName('');
+        setSelectedMemberIds(new Set());
+        setIsBulkTagsDialogOpen(false);
+      } else {
+        toast.error(result.error ?? 'Erro ao adicionar tag aos membros.');
+      }
+    } catch (error: any) {
+      console.error('Erro ao adicionar tag em lote:', error);
+      toast.error('Não foi possível adicionar a tag.');
+    } finally {
+      setIsSavingBulkTag(false);
+    }
+  };
+
+  const handleRemoveBulkTag = async () => {
+    const trimmedTag = bulkTagName.trim();
+    if (!trimmedTag) {
+      toast.error('Informe o nome da tag.');
+      return;
+    }
+
+    if (selectedMemberIds.size === 0) {
+      toast.error('Selecione ao menos um membro.');
+      return;
+    }
+
+    setIsSavingBulkTag(true);
+    try {
+      const result = await memberService.removeTagFromMultipleMembers(
+        Array.from(selectedMemberIds),
+        trimmedTag
+      );
+
+      if (result.success) {
+        toast.success(
+          `Tag "${trimmedTag}" removida de ${selectedMemberIds.size} membro(s).`
+        );
+        setBulkTagName('');
+        setSelectedMemberIds(new Set());
+        setIsBulkTagsDialogOpen(false);
+      } else {
+        toast.error(result.error ?? 'Erro ao remover tag dos membros.');
+      }
+    } catch (error: any) {
+      console.error('Erro ao remover tag em lote:', error);
+      toast.error('Não foi possível remover a tag.');
+    } finally {
+      setIsSavingBulkTag(false);
     }
   };
 
@@ -1370,6 +1587,266 @@ export default function AcompanhamentoPage() {
               disabled={isDeletingProject}
             >
               {isDeletingProject ? 'Excluindo...' : 'Excluir'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={isTagsDialogOpen}
+        onOpenChange={(open) => {
+          setIsTagsDialogOpen(open);
+          if (!open) {
+            setSelectedMemberForTags(null);
+            setNewTag('');
+          }
+        }}
+      >
+        <DialogContent className='max-h-[90vh] w-[95vw] max-w-[95vw] overflow-y-auto sm:max-w-lg'>
+          <DialogHeader>
+            <DialogTitle>Gerenciar tags</DialogTitle>
+            <DialogDescription>
+              {selectedMemberForTags
+                ? `Tags de ${selectedMemberForTags.name}`
+                : 'Adicione ou remova tags do membro'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4'>
+            <div className='space-y-2'>
+              <label className='text-sm font-medium' htmlFor='newTag'>
+                Adicionar nova tag
+              </label>
+              <div className='flex flex-col gap-2 sm:flex-row'>
+                <Input
+                  id='newTag'
+                  placeholder='Nome da tag'
+                  value={newTag}
+                  disabled={isSavingTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddTag();
+                    }
+                  }}
+                />
+                <Button
+                  type='button'
+                  onClick={handleAddTag}
+                  disabled={isSavingTag || !newTag.trim()}
+                >
+                  Adicionar
+                </Button>
+              </div>
+            </div>
+            <div className='space-y-2'>
+              <label className='text-sm font-medium'>Tags atuais</label>
+              {selectedMemberForTags?.tags &&
+              selectedMemberForTags.tags.length > 0 ? (
+                <div className='flex flex-wrap gap-2'>
+                  {selectedMemberForTags.tags.map((tag) => (
+                    <div
+                      key={tag}
+                      className='flex items-center gap-2 rounded-md border p-2'
+                    >
+                      <Badge className='capitalize'>{tag}</Badge>
+                      <Button
+                        type='button'
+                        size='icon'
+                        variant='ghost'
+                        className='h-6 w-6'
+                        onClick={() => handleRemoveTag(tag)}
+                        disabled={isSavingTag}
+                        aria-label={`Remover tag ${tag}`}
+                      >
+                        <FontAwesomeIcon icon={faXmark} className='h-3 w-3' />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className='text-muted-foreground rounded-md border p-4 text-center text-sm'>
+                  Nenhuma tag adicionada ainda
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type='button'
+              onClick={() => setIsTagsDialogOpen(false)}
+              disabled={isSavingTag}
+            >
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={isBulkTagsDialogOpen}
+        onOpenChange={(open) => {
+          setIsBulkTagsDialogOpen(open);
+          if (!open) {
+            setSelectedMemberIds(new Set());
+            setBulkTagName('');
+            setBulkTagAction('add');
+          }
+        }}
+      >
+        <DialogContent className='max-h-[90vh] w-[95vw] max-w-[95vw] overflow-y-auto sm:max-w-2xl'>
+          <DialogHeader>
+            <DialogTitle>
+              {bulkTagAction === 'add'
+                ? 'Adicionar tag a múltiplos membros'
+                : 'Remover tag de múltiplos membros'}
+            </DialogTitle>
+            <DialogDescription>
+              {bulkTagAction === 'add'
+                ? 'Selecione os membros e defina uma tag para adicionar a todos'
+                : 'Selecione os membros e defina uma tag para remover de todos'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4'>
+            <div className='grid gap-3 sm:grid-cols-2'>
+              <div className='space-y-2'>
+                <label className='text-sm font-medium' htmlFor='bulkTagAction'>
+                  Ação
+                </label>
+                <Select
+                  value={bulkTagAction}
+                  disabled={isSavingBulkTag}
+                  onValueChange={(value) =>
+                    setBulkTagAction(value as 'add' | 'remove')
+                  }
+                >
+                  <SelectTrigger id='bulkTagAction'>
+                    <SelectValue placeholder='Selecione a ação' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='add'>Adicionar tag</SelectItem>
+                    <SelectItem value='remove'>Remover tag</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className='space-y-2'>
+                <label className='text-sm font-medium' htmlFor='bulkTagName'>
+                  Nome da tag
+                </label>
+                <Input
+                  id='bulkTagName'
+                  placeholder='Digite o nome da tag'
+                  value={bulkTagName}
+                  disabled={isSavingBulkTag}
+                  onChange={(e) => setBulkTagName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (bulkTagAction === 'add') {
+                        handleAddBulkTag();
+                      } else {
+                        handleRemoveBulkTag();
+                      }
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <label className='text-sm font-medium'>
+                  Selecionar membros ({selectedMemberIds.size} selecionado
+                  {selectedMemberIds.size !== 1 ? 's' : ''})
+                </label>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='ghost'
+                  onClick={toggleAllMembers}
+                  disabled={isSavingBulkTag}
+                >
+                  {selectedMemberIds.size === filteredMembers.length
+                    ? 'Desmarcar todos'
+                    : 'Selecionar todos'}
+                </Button>
+              </div>
+              <ScrollArea className='h-60 rounded-md border p-4 sm:h-72 lg:h-80'>
+                <div className='space-y-3'>
+                  {filteredMembers.length === 0 ? (
+                    <div className='text-muted-foreground text-center text-sm'>
+                      Nenhum membro disponível no setor selecionado.
+                    </div>
+                  ) : (
+                    filteredMembers.map((member) => (
+                      <div
+                        key={member.id}
+                        className='flex items-start gap-3 rounded-md border p-3'
+                      >
+                        <Checkbox
+                          id={`member-${member.id}`}
+                          checked={selectedMemberIds.has(member.id)}
+                          onCheckedChange={() =>
+                            toggleMemberSelection(member.id)
+                          }
+                          disabled={isSavingBulkTag}
+                          className='mt-0.5'
+                        />
+                        <label
+                          htmlFor={`member-${member.id}`}
+                          className='flex flex-1 cursor-pointer flex-col'
+                        >
+                          <span className='text-sm font-medium'>
+                            {member.name}
+                          </span>
+                          <span className='text-muted-foreground text-xs'>
+                            {member.role} - {member.sector || '--'}
+                          </span>
+                          {member.tags && member.tags.length > 0 && (
+                            <div className='mt-1 flex flex-wrap gap-1'>
+                              {member.tags.map((tag: string) => (
+                                <Badge
+                                  key={tag}
+                                  variant='secondary'
+                                  className='text-[10px]'
+                                >
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </label>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='secondary'
+              onClick={() => setIsBulkTagsDialogOpen(false)}
+              disabled={isSavingBulkTag}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type='button'
+              onClick={
+                bulkTagAction === 'add' ? handleAddBulkTag : handleRemoveBulkTag
+              }
+              disabled={
+                isSavingBulkTag ||
+                !bulkTagName.trim() ||
+                selectedMemberIds.size === 0
+              }
+            >
+              {isSavingBulkTag
+                ? bulkTagAction === 'add'
+                  ? 'Adicionando...'
+                  : 'Removendo...'
+                : bulkTagAction === 'add'
+                  ? `Adicionar a ${selectedMemberIds.size} membro(s)`
+                  : `Remover de ${selectedMemberIds.size} membro(s)`}
             </Button>
           </DialogFooter>
         </DialogContent>
