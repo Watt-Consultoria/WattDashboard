@@ -51,6 +51,25 @@ function toMillis(value: unknown): number {
   return 0;
 }
 
+/**
+ * Remove propriedades undefined de um objeto recursivamente
+ */
+function limparObjeto(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map((item) => limparObjeto(item));
+  }
+  if (obj !== null && typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined && value !== null) {
+        cleaned[key] = limparObjeto(value);
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+}
+
 class FormRepository implements IFormRepository {
   async getAllForms(): Promise<Form[]> {
     if (!firebaseDb) throw new FirebaseError('Firebase não está configurado');
@@ -210,7 +229,7 @@ class FormRepository implements IFormRepository {
       descricao: input.descricao?.trim() ?? '',
       tipo: input.tipo,
       slug,
-      perguntas: input.perguntas,
+      perguntas: limparObjeto(input.perguntas),
       ativa: true,
       criadoEm: now,
       atualizadoEm: now
@@ -253,7 +272,9 @@ class FormRepository implements IFormRepository {
       if (!Array.isArray(input.perguntas) || input.perguntas.length === 0) {
         throw new Error('Formulário deve conter pelo menos uma pergunta');
       }
-      updateData.perguntas = input.perguntas satisfies FormQuestion[];
+      updateData.perguntas = limparObjeto(
+        input.perguntas
+      ) satisfies FormQuestion[];
     }
 
     if (input.ativa !== undefined) {

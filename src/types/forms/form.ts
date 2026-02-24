@@ -6,6 +6,7 @@ export type FormQuestionType =
   | 'shortText'
   | 'paragraph'
   | 'rating'
+  | 'number'
   | 'multipleChoice'
   | 'checkbox'
   | 'select'
@@ -85,6 +86,7 @@ export const FORM_QUESTION_TYPE_LABELS: Record<FormQuestionType, string> = {
   shortText: 'Resposta curta',
   paragraph: 'Parágrafo',
   rating: 'Classificação',
+  number: 'Número',
   multipleChoice: 'Múltipla escolha',
   checkbox: 'Caixas de seleção',
   select: 'Lista suspensa',

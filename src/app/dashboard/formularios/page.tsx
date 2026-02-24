@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import { AnimatePresence, motion } from 'motion/react';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,8 +21,9 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Textarea } from '@/components/ui/textarea';
-import { VcToggleSwitch } from '@/components/vc-toggle-switch';
+import { QuestionEditModal } from '@/components/modal/question-edit-modal';
+import { QuestionAddModal } from '@/components/modal/question-add-modal';
+import { useDragDrop } from '@/hooks/use-drag-drop';
 import formService from '@/services/formService';
 import useMetadata from '@/hooks/use-metadata';
 import type {
@@ -37,10 +37,9 @@ import { FORM_QUESTION_TYPE_LABELS } from '@/types/forms/form';
 import {
   IconMinus,
   IconPlus,
-  IconArrowUp,
-  IconArrowDown,
   IconEdit,
-  IconX
+  IconX,
+  IconGripVertical
 } from '@tabler/icons-react';
 
 type Pergunta = FormQuestion & {
@@ -71,6 +70,25 @@ function temOpcoes(tipo: FormQuestionType): boolean {
   return TIPOS_COM_OPCOES.includes(tipo);
 }
 
+/**
+ * Remove propriedades undefined de um objeto
+ */
+function limparObjeto(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map((item) => limparObjeto(item));
+  }
+  if (obj !== null && typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined && value !== null) {
+        cleaned[key] = limparObjeto(value);
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+}
+
 export default function FormulariosPage() {
   useMetadata({ title: 'Formulários' });
 
@@ -86,17 +104,26 @@ export default function FormulariosPage() {
   const [tipoFormulario, setTipoFormulario] =
     React.useState<FormType>('interno');
   const [perguntas, setPerguntas] = React.useState<Pergunta[]>([]);
-  const [novaPerguntaTitulo, setNovaPerguntaTitulo] = React.useState('');
-  const [novaPerguntaTipo, setNovaPerguntaTipo] =
-    React.useState<FormQuestionType>('shortText');
-  const [novaPerguntaObrigatoria, setNovaPerguntaObrigatoria] =
-    React.useState(true);
   const [isSaving, setIsSaving] = React.useState(false);
 
-  // Estado para edição de pergunta individual
+  // Estado para edição de pergunta individual em modal
   const [editingQuestion, setEditingQuestion] =
     React.useState<EditingQuestion | null>(null);
-  const [novaOpcao, setNovaOpcao] = React.useState('');
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+
+  // Estado para adição de pergunta em modal
+  const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
+
+  // Hook para drag and drop
+  const {
+    draggedIndex,
+    dragOverIndex,
+    handleDragStart,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleDragEnd
+  } = useDragDrop(perguntas, setPerguntas);
 
   const podeEditarPerguntas = !isSaving;
 
@@ -133,12 +160,10 @@ export default function FormulariosPage() {
     setDescricaoFormulario('');
     setTipoFormulario('interno');
     setPerguntas([]);
-    setNovaPerguntaTitulo('');
-    setNovaPerguntaTipo('shortText');
-    setNovaPerguntaObrigatoria(true);
     setError('');
     setEditingQuestion(null);
-    setNovaOpcao('');
+    setIsModalOpen(false);
+    setIsAddModalOpen(false);
   }
 
   function abrirEdicaoPergunta(pergunta: Pergunta) {
@@ -146,26 +171,24 @@ export default function FormulariosPage() {
       ...pergunta,
       newItems: pergunta.items ? [...pergunta.items] : []
     });
-    setNovaOpcao('');
+    setIsModalOpen(true);
   }
 
   function fecharEdicaoPergunta() {
     setEditingQuestion(null);
-    setNovaOpcao('');
+    setIsModalOpen(false);
   }
 
-  function salvarEdicaoPergunta() {
-    if (!editingQuestion) return;
-
-    const perguntaId = editingQuestion.id || editingQuestion.tempId;
-    const itemsParaSalvar = temOpcoes(editingQuestion.tipo)
-      ? editingQuestion.newItems
+  function salvarEdicaoPergunta(pergunta: EditingQuestion) {
+    const perguntaId = pergunta.id || pergunta.tempId;
+    const itemsParaSalvar = temOpcoes(pergunta.tipo)
+      ? pergunta.newItems
       : undefined;
 
     setPerguntas((current) =>
       current.map((p) => {
         if (p.id === perguntaId || p.tempId === perguntaId) {
-          const updated = { ...p, ...editingQuestion };
+          const updated = { ...p, ...pergunta };
           if (itemsParaSalvar) {
             updated.items = itemsParaSalvar;
           }
@@ -178,38 +201,6 @@ export default function FormulariosPage() {
     fecharEdicaoPergunta();
   }
 
-  function adicionarOpcao() {
-    if (!editingQuestion || !novaOpcao.trim()) return;
-
-    const novoId = Math.random().toString(36).substr(2, 9);
-    const novoItem: FormQuestionItem = {
-      id: novoId,
-      valor: novaOpcao.trim()
-    };
-
-    setEditingQuestion((current) =>
-      current
-        ? {
-            ...current,
-            newItems: [...(current.newItems || []), novoItem]
-          }
-        : null
-    );
-
-    setNovaOpcao('');
-  }
-
-  function removerOpcao(itemId: string) {
-    setEditingQuestion((current) =>
-      current
-        ? {
-            ...current,
-            newItems: (current.newItems || []).filter((i) => i.id !== itemId)
-          }
-        : null
-    );
-  }
-
   function editarFormulario(form: Form) {
     setEditingFormId(form.id);
     setNomeFormulario(form.nome);
@@ -219,28 +210,26 @@ export default function FormulariosPage() {
     setError('');
   }
 
-  function adicionarPergunta() {
-    const titulo = novaPerguntaTitulo.trim();
-
-    if (!titulo) {
-      setError('Digite o título da pergunta antes de adicionar.');
-      return;
-    }
-
+  function adicionarPergunta(quartaQuestion: {
+    titulo: string;
+    tipo: FormQuestionType;
+    obrigatoria: boolean;
+    descricao?: string;
+    items?: FormQuestionItem[];
+  }) {
     const tempId = generateTempId();
     const novaPergunta: Pergunta = {
       id: typeof tempId === 'string' ? tempId : `temp-${tempId}`,
-      titulo,
-      tipo: novaPerguntaTipo,
-      obrigatoria: novaPerguntaObrigatoria,
+      titulo: quartaQuestion.titulo,
+      tipo: quartaQuestion.tipo,
+      obrigatoria: quartaQuestion.obrigatoria,
+      descricao: quartaQuestion.descricao,
+      items: quartaQuestion.items,
       tempId
     };
 
     setPerguntas((current) => [...current, novaPergunta]);
-    setNovaPerguntaTitulo('');
-    setNovaPerguntaTipo('shortText');
-    setNovaPerguntaObrigatoria(true);
-    setError('');
+    setIsAddModalOpen(false);
   }
 
   function removerPergunta(perguntaId: string | number) {
@@ -254,28 +243,6 @@ export default function FormulariosPage() {
     ) {
       fecharEdicaoPergunta();
     }
-  }
-
-  function moverPergunta(perguntaId: string | number, direcao: 'up' | 'down') {
-    setPerguntas((current) => {
-      const index = current.findIndex(
-        (p) => p.id === perguntaId || p.tempId === perguntaId
-      );
-      if (index === -1) return current;
-
-      const newIndex =
-        direcao === 'up'
-          ? Math.max(0, index - 1)
-          : Math.min(current.length - 1, index + 1);
-      if (newIndex === index) return current;
-
-      const newPerguntas = [...current];
-      [newPerguntas[index], newPerguntas[newIndex]] = [
-        newPerguntas[newIndex],
-        newPerguntas[index]
-      ];
-      return newPerguntas;
-    });
   }
 
   async function finalizarCriacao(event: React.FormEvent<HTMLFormElement>) {
@@ -299,7 +266,7 @@ export default function FormulariosPage() {
         nome: nomeFormulario.trim(),
         descricao: descricaoFormulario.trim(),
         tipo: tipoFormulario,
-        perguntas: perguntas.map(({ tempId, ...p }) => p)
+        perguntas: perguntas.map(({ tempId, ...p }) => limparObjeto(p))
       };
 
       if (editingFormId) {
@@ -413,79 +380,18 @@ export default function FormulariosPage() {
                 </Select>
               </div>
 
-              {/* Nova pergunta */}
+              {/* Botão para adicionar pergunta */}
               <div className='space-y-2 border-t pt-3'>
-                <Label className='text-xs font-semibold'>
-                  Adicionar pergunta
-                </Label>
-
-                <div className='space-y-1.5'>
-                  <Label htmlFor='nova-pergunta-titulo' className='text-xs'>
-                    Título
-                  </Label>
-                  <Input
-                    id='nova-pergunta-titulo'
-                    placeholder='Título...'
-                    value={novaPerguntaTitulo}
-                    onChange={(event) =>
-                      setNovaPerguntaTitulo(event.target.value)
-                    }
-                    disabled={!podeEditarPerguntas}
-                    className='text-sm'
-                  />
-                </div>
-
-                <div className='space-y-1.5'>
-                  <Label htmlFor='nova-pergunta-tipo' className='text-xs'>
-                    Tipo
-                  </Label>
-                  <Select
-                    value={novaPerguntaTipo}
-                    onValueChange={(value) =>
-                      setNovaPerguntaTipo(value as FormQuestionType)
-                    }
-                    disabled={!podeEditarPerguntas}
-                  >
-                    <SelectTrigger id='nova-pergunta-tipo' className='text-sm'>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TIPOS_RESPOSTA.map((tipo) => (
-                        <SelectItem key={tipo.value} value={tipo.value}>
-                          {tipo.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className='flex items-center gap-2'>
-                  <Checkbox
-                    id='nova-pergunta-obrigatoria'
-                    checked={novaPerguntaObrigatoria}
-                    onCheckedChange={(checked) =>
-                      setNovaPerguntaObrigatoria(Boolean(checked))
-                    }
-                    disabled={!podeEditarPerguntas}
-                  />
-                  <label
-                    htmlFor='nova-pergunta-obrigatoria'
-                    className='text-xs leading-none font-medium'
-                  >
-                    Obrigatória
-                  </label>
-                </div>
-
                 <Button
                   type='button'
                   variant='outline'
                   size='sm'
-                  onClick={adicionarPergunta}
+                  onClick={() => setIsAddModalOpen(true)}
                   disabled={!podeEditarPerguntas}
                   className='w-full text-xs'
                 >
                   <IconPlus className='mr-1 size-3.5' />
-                  Adicionar
+                  Adicionar pergunta
                 </Button>
               </div>
 
@@ -526,17 +432,7 @@ export default function FormulariosPage() {
         {/* Seção principal: Perguntas + Lista de formulários */}
         <div className='space-y-4 lg:col-span-2'>
           {/* Perguntas adicionadas */}
-          <AnimatePresence mode='wait' initial={false}>
-            {!editingQuestion ? (
-              <motion.div
-                key='question-list'
-                className='h-[34rem] sm:h-[38rem]'
-                initial={{ opacity: 0, y: 14, scale: 0.995 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.995 }}
-                transition={{ duration: 0.22, ease: 'easeOut' }}
-              >
-                <Card className='flex h-full flex-col overflow-hidden'>
+          <Card>
             <CardHeader className='pb-3'>
               <CardTitle className='text-base'>
                 Perguntas ({perguntas.length})
@@ -544,57 +440,37 @@ export default function FormulariosPage() {
               <CardDescription className='text-xs'>
                 {perguntas.length === 0
                   ? 'Nenhuma ainda'
-                  : 'Clique para editar ou reordenar'}
+                  : 'Arraste para reordenar ou clique para editar'}
               </CardDescription>
             </CardHeader>
-            <CardContent className='flex-1 overflow-hidden'>
-              <ScrollArea className='h-full w-full'>
-                <div className='max-w-full space-y-2 pr-3'>
+            <CardContent>
+              <ScrollArea className='h-80 sm:h-96'>
+                <div className='space-y-2 pr-3'>
                   {perguntas.length === 0 ? (
                     <p className='text-muted-foreground py-6 text-center text-xs'>
                       Adicione uma pergunta
                     </p>
                   ) : null}
-                  {perguntas.map((pergunta, index) => {
-                    const isFirst = index === 0;
-                    const isLast = index === perguntas.length - 1;
-
-                    return (
-                      <div
-                        key={pergunta.id || pergunta.tempId}
-                        className='group hover:border-primary/50 hover:bg-muted/50 flex min-w-0 items-start gap-2 overflow-hidden rounded-md border p-2.5 transition-colors'
-                      >
-                        <div className='shrink-0 flex flex-col gap-1'>
-                          <Button
-                            type='button'
-                            variant='ghost'
-                            size='sm'
-                            onClick={() =>
-                              moverPergunta(
-                                pergunta.id || pergunta.tempId!,
-                                'up'
-                              )
-                            }
-                            disabled={isFirst || !podeEditarPerguntas}
-                            className='h-5 w-5 opacity-0 transition-opacity group-hover:opacity-100'
-                          >
-                            <IconArrowUp className='size-2.5' />
-                          </Button>
-                          <Button
-                            type='button'
-                            variant='ghost'
-                            size='sm'
-                            onClick={() =>
-                              moverPergunta(
-                                pergunta.id || pergunta.tempId!,
-                                'down'
-                              )
-                            }
-                            disabled={isLast || !podeEditarPerguntas}
-                            className='h-5 w-5 opacity-0 transition-opacity group-hover:opacity-100'
-                          >
-                            <IconArrowDown className='size-2.5' />
-                          </Button>
+                  {perguntas.map((pergunta, index) => (
+                    <div
+                      key={pergunta.id || pergunta.tempId}
+                      draggable={podeEditarPerguntas}
+                      onDragStart={(e) => handleDragStart(index, e as any)}
+                      onDragOver={(e) => handleDragOver(index, e as any)}
+                      onDragLeave={(e) => handleDragLeave(e as any)}
+                      onDrop={(e) => handleDrop(index, e as any)}
+                      onDragEnd={(e) => handleDragEnd(e as any)}
+                      className={`group rounded-md border p-2.5 transition-all ${
+                        draggedIndex === index
+                          ? 'bg-muted opacity-50'
+                          : dragOverIndex === index
+                            ? 'border-primary/50 bg-primary/5'
+                            : 'hover:border-primary/50 hover:bg-muted/50'
+                      } ${podeEditarPerguntas ? 'cursor-move' : 'cursor-default'}`}
+                    >
+                      <div className='flex items-start gap-2'>
+                        <div className='text-muted-foreground flex shrink-0 items-center pt-0.5 opacity-0 transition-opacity group-hover:opacity-100'>
+                          <IconGripVertical className='size-4' />
                         </div>
 
                         <div className='min-w-0 flex-1 space-y-1'>
@@ -621,7 +497,7 @@ export default function FormulariosPage() {
                           </div>
                         </div>
 
-                        <div className='shrink-0 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
+                        <div className='flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
                           <Button
                             type='button'
                             variant='ghost'
@@ -646,200 +522,29 @@ export default function FormulariosPage() {
                           </Button>
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               </ScrollArea>
             </CardContent>
-                </Card>
-              </motion.div>
-            ) : (
-              <motion.div
-                key='question-edit'
-                className='h-[34rem] sm:h-[38rem]'
-                initial={{ opacity: 0, y: 14, scale: 0.995 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.995 }}
-                transition={{ duration: 0.22, ease: 'easeOut' }}
-              >
-                <Card className='flex h-full flex-col overflow-hidden'>
-              <CardHeader className='pb-3'>
-                <CardTitle className='text-base'>Editar pergunta</CardTitle>
-                <CardDescription className='text-xs'>
-                  Configure as propriedades da pergunta
-                </CardDescription>
-              </CardHeader>
-              <CardContent className='flex-1 space-y-3 overflow-y-auto'>
-                {/* Título */}
-                <div className='space-y-1.5'>
-                  <Label htmlFor='edit-titulo' className='text-xs'>
-                    Título
-                  </Label>
-                  <Input
-                    id='edit-titulo'
-                    placeholder='Título...'
-                    value={editingQuestion.titulo}
-                    onChange={(e) =>
-                      setEditingQuestion((current) =>
-                        current ? { ...current, titulo: e.target.value } : null
-                      )
-                    }
-                    className='text-sm'
-                  />
-                </div>
+          </Card>
 
-                {/* Descrição */}
-                <div className='space-y-1.5'>
-                  <Label htmlFor='edit-descricao' className='text-xs'>
-                    Descrição (opcional)
-                  </Label>
-                  <Textarea
-                    id='edit-descricao'
-                    placeholder='Descrição...'
-                    value={editingQuestion.descricao || ''}
-                    onChange={(e) =>
-                      setEditingQuestion((current) =>
-                        current
-                          ? { ...current, descricao: e.target.value }
-                          : null
-                      )
-                    }
-                    className='min-h-16 text-sm'
-                  />
-                </div>
+          {/* Modal de edição de pergunta */}
+          <QuestionEditModal
+            isOpen={isModalOpen}
+            question={editingQuestion}
+            onClose={fecharEdicaoPergunta}
+            onSave={salvarEdicaoPergunta}
+            loading={isSaving}
+          />
 
-                {/* Tipo */}
-                <div className='space-y-1.5'>
-                  <Label htmlFor='edit-tipo' className='text-xs'>
-                    Tipo
-                  </Label>
-                  <Select
-                    value={editingQuestion.tipo}
-                    onValueChange={(value) =>
-                      setEditingQuestion((current) =>
-                        current
-                          ? {
-                              ...current,
-                              tipo: value as FormQuestionType,
-                              newItems: temOpcoes(value as FormQuestionType)
-                                ? current.newItems
-                                : undefined
-                            }
-                          : null
-                      )
-                    }
-                  >
-                    <SelectTrigger id='edit-tipo' className='text-sm'>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TIPOS_RESPOSTA.map((tipo) => (
-                        <SelectItem key={tipo.value} value={tipo.value}>
-                          {tipo.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Obrigatória */}
-                <div className='flex items-center gap-2'>
-                  <Checkbox
-                    id='edit-obrigatoria'
-                    checked={editingQuestion.obrigatoria}
-                    onCheckedChange={(checked) =>
-                      setEditingQuestion((current) =>
-                        current
-                          ? { ...current, obrigatoria: Boolean(checked) }
-                          : null
-                      )
-                    }
-                  />
-                  <label
-                    htmlFor='edit-obrigatoria'
-                    className='text-xs leading-none font-medium'
-                  >
-                    Pergunta obrigatória
-                  </label>
-                </div>
-
-                {/* Opções - se aplicável */}
-                {temOpcoes(editingQuestion.tipo) && (
-                  <div className='space-y-2 border-t pt-3'>
-                    <Label className='text-xs font-semibold'>Opções</Label>
-
-                    <div className='max-h-32 space-y-2 overflow-y-auto'>
-                      {(editingQuestion.newItems || []).map((item, idx) => (
-                        <div
-                          key={item.id}
-                          className='bg-muted flex items-center gap-2 rounded-md p-2'
-                        >
-                          <span className='flex-1 truncate text-xs font-medium'>
-                            {idx + 1}. {item.valor}
-                          </span>
-                          <Button
-                            type='button'
-                            variant='ghost'
-                            size='sm'
-                            onClick={() => removerOpcao(item.id)}
-                            className='h-5 w-5'
-                          >
-                            <IconX className='size-3' />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className='flex gap-1.5'>
-                      <Input
-                        placeholder='Nova opção...'
-                        value={novaOpcao}
-                        onChange={(e) => setNovaOpcao(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            adicionarOpcao();
-                          }
-                        }}
-                        className='text-sm'
-                      />
-                      <Button
-                        type='button'
-                        variant='outline'
-                        size='sm'
-                        onClick={adicionarOpcao}
-                        className='px-2'
-                      >
-                        <IconPlus className='size-3.5' />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Botões de ação */}
-                <div className='flex gap-2 pt-3'>
-                  <Button
-                    type='button'
-                    size='sm'
-                    onClick={salvarEdicaoPergunta}
-                    className='flex-1 text-sm'
-                  >
-                    Salvar
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    size='sm'
-                    onClick={fecharEdicaoPergunta}
-                    className='flex-1 text-sm'
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-              </CardContent>
-                </Card>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Modal de adição de pergunta */}
+          <QuestionAddModal
+            isOpen={isAddModalOpen}
+            onClose={() => setIsAddModalOpen(false)}
+            onSave={adicionarPergunta}
+            loading={isSaving}
+          />
 
           {/* Lista de formulários */}
           <Card>

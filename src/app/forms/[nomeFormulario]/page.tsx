@@ -240,9 +240,9 @@ export default function PublicFormPage() {
         <div className='bg-primary/10 absolute -top-24 -left-24 h-64 w-64 rounded-full blur-3xl' />
         <div className='bg-primary/15 absolute right-[-80px] bottom-[-60px] h-80 w-80 rounded-full blur-3xl' />
 
-        <Card className='relative w-full max-w-2xl border-primary/30 shadow-2xl'>
+        <Card className='border-primary/30 relative w-full max-w-2xl shadow-2xl'>
           <CardContent className='space-y-6 p-8 text-center sm:p-10'>
-            <div className='bg-primary/15 text-primary mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-primary/30'>
+            <div className='bg-primary/15 text-primary border-primary/30 mx-auto flex h-20 w-20 items-center justify-center rounded-full border'>
               <FontAwesomeIcon icon={faCheck} className='text-4xl' />
             </div>
 
@@ -252,15 +252,18 @@ export default function PublicFormPage() {
               </h1>
               <p className='text-muted-foreground text-sm sm:text-base'>
                 Recebemos suas respostas para{' '}
-                <span className='text-foreground font-medium'>{formData.nome}</span>.
+                <span className='text-foreground font-medium'>
+                  {formData.nome}
+                </span>
+                .
               </p>
             </div>
 
             <div className='bg-muted/40 rounded-lg border p-4 text-left'>
               <p className='text-sm font-medium'>Proximos passos</p>
               <p className='text-muted-foreground mt-1 text-sm'>
-                A equipe responsavel vai analisar sua inscricao e entrar em contato
-                pelos canais informados no formulario.
+                A equipe responsavel vai analisar sua inscricao e entrar em
+                contato pelos canais informados no formulario.
               </p>
             </div>
 
@@ -460,6 +463,25 @@ export default function PublicFormPage() {
                               </Button>
                             ))}
                           </div>
+                        )}
+
+                        {/* Number input */}
+                        {pergunta.tipo === 'number' && (
+                          <Input
+                            id={`pergunta-${pergunta.id}`}
+                            type='number'
+                            value={typeof value === 'string' ? value : ''}
+                            onChange={(e) =>
+                              updateAnswer(pergunta.id, e.target.value)
+                            }
+                            placeholder='Digite um número'
+                            aria-invalid={isMissing}
+                            className={cn(
+                              isMissing
+                                ? 'border-destructive ring-destructive/25'
+                                : ''
+                            )}
+                          />
                         )}
 
                         {/* Multiple Choice */}
