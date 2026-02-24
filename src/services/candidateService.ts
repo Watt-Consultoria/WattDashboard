@@ -161,7 +161,8 @@ function mapResponseToCandidate(
       : '#',
     imagemUrl,
     tarefas: [],
-    informacoesAdicionais: informacoesAdicionaisArray
+    informacoesAdicionais: informacoesAdicionaisArray,
+    tags: response.tags ?? []
   };
 }
 
@@ -191,6 +192,96 @@ class CandidateService {
         normalizeText(field).includes(normalizedQuery)
       );
     });
+  }
+
+  async addTagToCandidate(
+    formId: string,
+    candidateId: string,
+    tag: string
+  ): Promise<void> {
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) {
+      throw new Error('Tag não pode ser vazia');
+    }
+
+    await candidateRepository.addTag(formId, candidateId, trimmedTag);
+  }
+
+  async removeTagFromCandidate(
+    formId: string,
+    candidateId: string,
+    tag: string
+  ): Promise<void> {
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) {
+      throw new Error('Tag não pode ser vazia');
+    }
+
+    await candidateRepository.removeTag(formId, candidateId, trimmedTag);
+  }
+
+  async addTagToMultipleCandidates(
+    formId: string,
+    candidateIds: string[],
+    tag: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) {
+      return { success: false, error: 'Tag não pode ser vazia' };
+    }
+
+    if (!candidateIds || candidateIds.length === 0) {
+      return {
+        success: false,
+        error: 'Selecione ao menos um candidato'
+      };
+    }
+
+    try {
+      await candidateRepository.addTagToMultipleCandidates(
+        formId,
+        candidateIds,
+        trimmedTag
+      );
+      return { success: true };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error?.message ?? 'Erro ao adicionar tag aos candidatos'
+      };
+    }
+  }
+
+  async removeTagFromMultipleCandidates(
+    formId: string,
+    candidateIds: string[],
+    tag: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) {
+      return { success: false, error: 'Tag não pode ser vazia' };
+    }
+
+    if (!candidateIds || candidateIds.length === 0) {
+      return {
+        success: false,
+        error: 'Selecione ao menos um candidato'
+      };
+    }
+
+    try {
+      await candidateRepository.removeTagFromMultipleCandidates(
+        formId,
+        candidateIds,
+        trimmedTag
+      );
+      return { success: true };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error?.message ?? 'Erro ao remover tag dos candidatos'
+      };
+    }
   }
 }
 

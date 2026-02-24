@@ -525,7 +525,8 @@ export default function FormulariosPage() {
         {/* Seção principal: Perguntas + Lista de formulários */}
         <div className='space-y-4 lg:col-span-2'>
           {/* Perguntas adicionadas */}
-          <Card>
+          {!editingQuestion && (
+            <Card>
             <CardHeader className='pb-3'>
               <CardTitle className='text-base'>
                 Perguntas ({perguntas.length})
@@ -640,7 +641,8 @@ export default function FormulariosPage() {
                 </div>
               </ScrollArea>
             </CardContent>
-          </Card>
+            </Card>
+          )}
 
           {/* Modal de edição de pergunta */}
           {editingQuestion && (

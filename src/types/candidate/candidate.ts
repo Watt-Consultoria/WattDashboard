@@ -30,6 +30,7 @@ export type Candidate = {
   imagemUrl: string;
   tarefas: CandidateTask[];
   informacoesAdicionais: CandidateAdditionalInfo[];
+  tags?: string[];
 };
 
 export type CandidateForm = {
@@ -54,6 +55,7 @@ export type CandidateFormAnswer = {
 export type CandidateFormResponse = {
   id: string;
   respostas: CandidateFormAnswer[];
+  tags?: string[];
   createdAt?: unknown;
   updatedAt?: unknown;
 };
