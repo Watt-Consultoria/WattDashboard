@@ -78,6 +78,12 @@ export default function PSeletivoPage() {
     React.useState<Candidate | null>(null);
   const [newTag, setNewTag] = React.useState('');
   const [isSavingTag, setIsSavingTag] = React.useState(false);
+  const [isDisqualifyingCandidateId, setIsDisqualifyingCandidateId] =
+    React.useState<string | null>(null);
+  const [isDisqualifyDialogOpen, setIsDisqualifyDialogOpen] =
+    React.useState(false);
+  const [selectedCandidateForDisqualification, setSelectedCandidateForDisqualification] =
+    React.useState<Candidate | null>(null);
   const [isBulkTagsDialogOpen, setIsBulkTagsDialogOpen] = React.useState(false);
   const [bulkTagName, setBulkTagName] = React.useState('');
   const [bulkTagAction, setBulkTagAction] = React.useState<'add' | 'remove'>(
@@ -395,6 +401,52 @@ export default function PSeletivoPage() {
     }
   };
 
+  const openDisqualifyDialog = (candidate: Candidate) => {
+    const isAlreadyDisqualified =
+      candidate.etapa.trim().toLowerCase() === 'desclassificado';
+    if (isAlreadyDisqualified) {
+      toast.error('Candidato ja esta desclassificado.');
+      return;
+    }
+
+    setSelectedCandidateForDisqualification(candidate);
+    setIsDisqualifyDialogOpen(true);
+  };
+
+  const handleConfirmDisqualifyCandidate = async () => {
+    if (!selectedFormId || !selectedCandidateForDisqualification) return;
+
+    const candidate = selectedCandidateForDisqualification;
+
+    setIsDisqualifyingCandidateId(candidate.id);
+    try {
+      await candidateService.disqualifyCandidate(selectedFormId, candidate.id);
+
+      setMembers((current) =>
+        current.map((member) =>
+          member.id === candidate.id
+            ? { ...member, etapa: 'Desclassificado' }
+            : member
+        )
+      );
+
+      setSelectedCandidateForTags((current) =>
+        current && current.id === candidate.id
+          ? { ...current, etapa: 'Desclassificado' }
+          : current
+      );
+
+      toast.success('Candidato desclassificado com sucesso.');
+      setIsDisqualifyDialogOpen(false);
+      setSelectedCandidateForDisqualification(null);
+    } catch (error) {
+      console.error('Erro ao desclassificar candidato:', error);
+      toast.error('Nao foi possivel desclassificar o candidato.');
+    } finally {
+      setIsDisqualifyingCandidateId(null);
+    }
+  };
+
   const filteredMembers = React.useMemo(() => {
     return candidateService.filterCandidates(members, query);
   }, [members, query]);
@@ -515,6 +567,21 @@ export default function PSeletivoPage() {
                           aria-label='Gerenciar tags'
                         >
                           <FontAwesomeIcon icon={faTags} />
+                        </Button>
+                        <Button
+                          type='button'
+                          size='icon'
+                          variant='destructive'
+                          className='h-8 w-8 shrink-0 rounded-full'
+                          onClick={() => openDisqualifyDialog(member)}
+                          disabled={
+                            Boolean(isDisqualifyingCandidateId) ||
+                            member.etapa.trim().toLowerCase() ===
+                              'desclassificado'
+                          }
+                          aria-label={`Desclassificar ${member.nome} ${member.sobrenome}`}
+                        >
+                          <FontAwesomeIcon icon={faXmark} />
                         </Button>
                         <Dialog>
                           <DialogTrigger asChild>
@@ -673,6 +740,53 @@ export default function PSeletivoPage() {
           </div>
         </div>
       </div>
+
+      {/* Diálogo de desclassificação */}
+      <Dialog
+        open={isDisqualifyDialogOpen}
+        onOpenChange={(open) => {
+          if (isDisqualifyingCandidateId) return;
+          setIsDisqualifyDialogOpen(open);
+          if (!open) {
+            setSelectedCandidateForDisqualification(null);
+          }
+        }}
+      >
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>Desclassificar candidato</DialogTitle>
+            <DialogDescription>
+              {selectedCandidateForDisqualification
+                ? `Deseja desclassificar ${selectedCandidateForDisqualification.nome} ${selectedCandidateForDisqualification.sobrenome}?`
+                : 'Confirme a desclassificacao do candidato.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='secondary'
+              onClick={() => {
+                setIsDisqualifyDialogOpen(false);
+                setSelectedCandidateForDisqualification(null);
+              }}
+              disabled={Boolean(isDisqualifyingCandidateId)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type='button'
+              variant='destructive'
+              onClick={handleConfirmDisqualifyCandidate}
+              disabled={
+                !selectedCandidateForDisqualification ||
+                Boolean(isDisqualifyingCandidateId)
+              }
+            >
+              {isDisqualifyingCandidateId ? 'Desclassificando...' : 'Desclassificar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Diálogo de tags individual */}
       <Dialog

@@ -11,7 +11,7 @@ import {
   listExternalPselForms
 } from '@/lib/firestore/forms';
 import { firebaseDb } from '@/lib/firebase/client';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import {
   FirebaseError,
   MissingParameterError,
@@ -19,6 +19,14 @@ import {
 } from '@/errors/repositoryErrors';
 
 class CandidateRepository implements ICandidateRepository {
+  private normalizeFieldKey(value: string): string {
+    return value
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+  }
+
   async listPselForms(): Promise<CandidateForm[]> {
     // Recupera formulários do tipo 'cadastroPsel' do novo fluxo
     const newForms = await formRepository.listFormsByType('cadastroPsel');
@@ -146,6 +154,77 @@ class CandidateRepository implements ICandidateRepository {
 
     const updatedTags = currentTags.filter((t) => t !== tag);
     await updateDoc(responseRef, { tags: updatedTags });
+  }
+
+  async setCandidateStage(
+    formId: string,
+    responseId: string,
+    stage: string
+  ): Promise<void> {
+    if (!firebaseDb) throw new FirebaseError('Firebase nÃ£o estÃ¡ configurado');
+    if (!formId || !responseId || !stage) {
+      throw new MissingParameterError(['formId', 'responseId', 'stage']);
+    }
+
+    const trimmedStage = stage.trim();
+    if (!trimmedStage) {
+      throw new ValidationError('Etapa nÃ£o pode ser vazia');
+    }
+
+    const responseRef = doc(
+      firebaseDb,
+      'externForms',
+      formId,
+      'respostas',
+      responseId
+    );
+    const responseSnap = await getDoc(responseRef);
+
+    if (!responseSnap.exists()) {
+      throw new ValidationError('Resposta nÃ£o encontrada');
+    }
+
+    const currentData = responseSnap.data();
+    const currentAnswers = Array.isArray(currentData.respostas)
+      ? currentData.respostas
+      : [];
+
+    let hasStageField = false;
+
+    const updatedAnswers = currentAnswers.map((answer: any) => {
+      if (!answer || typeof answer !== 'object') return answer;
+
+      const title =
+        typeof answer.perguntaTitulo === 'string'
+          ? answer.perguntaTitulo
+          : typeof answer.tituloPergunta === 'string'
+            ? answer.tituloPergunta
+            : '';
+
+      if (this.normalizeFieldKey(title) !== 'etapa') {
+        return answer;
+      }
+
+      hasStageField = true;
+      return {
+        ...answer,
+        valor: trimmedStage
+      };
+    });
+
+    if (!hasStageField) {
+      updatedAnswers.push({
+        perguntaId: 'etapa',
+        perguntaTitulo: 'Etapa',
+        tipo: 'string',
+        valor: trimmedStage
+      });
+    }
+
+    await updateDoc(responseRef, {
+      respostas: updatedAnswers,
+      updatedAt: serverTimestamp()
+    });
   }
 
   async addTagToMultipleCandidates(

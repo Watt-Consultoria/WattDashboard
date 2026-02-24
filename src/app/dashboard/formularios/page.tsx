@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
 import {
@@ -525,8 +526,17 @@ export default function FormulariosPage() {
         {/* Seção principal: Perguntas + Lista de formulários */}
         <div className='space-y-4 lg:col-span-2'>
           {/* Perguntas adicionadas */}
-          {!editingQuestion && (
-            <Card>
+          <AnimatePresence mode='wait' initial={false}>
+            {!editingQuestion ? (
+              <motion.div
+                key='question-list'
+                className='h-[34rem] sm:h-[38rem]'
+                initial={{ opacity: 0, y: 14, scale: 0.995 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.995 }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+              >
+                <Card className='flex h-full flex-col overflow-hidden'>
             <CardHeader className='pb-3'>
               <CardTitle className='text-base'>
                 Perguntas ({perguntas.length})
@@ -537,9 +547,9 @@ export default function FormulariosPage() {
                   : 'Clique para editar ou reordenar'}
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <ScrollArea className='h-80 sm:h-96'>
-                <div className='space-y-2 pr-3'>
+            <CardContent className='flex-1 overflow-hidden'>
+              <ScrollArea className='h-full w-full'>
+                <div className='max-w-full space-y-2 pr-3'>
                   {perguntas.length === 0 ? (
                     <p className='text-muted-foreground py-6 text-center text-xs'>
                       Adicione uma pergunta
@@ -552,9 +562,9 @@ export default function FormulariosPage() {
                     return (
                       <div
                         key={pergunta.id || pergunta.tempId}
-                        className='group hover:border-primary/50 hover:bg-muted/50 flex items-start gap-2 rounded-md border p-2.5 transition-colors'
+                        className='group hover:border-primary/50 hover:bg-muted/50 flex min-w-0 items-start gap-2 overflow-hidden rounded-md border p-2.5 transition-colors'
                       >
-                        <div className='flex flex-col gap-1'>
+                        <div className='shrink-0 flex flex-col gap-1'>
                           <Button
                             type='button'
                             variant='ghost'
@@ -611,7 +621,7 @@ export default function FormulariosPage() {
                           </div>
                         </div>
 
-                        <div className='flex gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
+                        <div className='shrink-0 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
                           <Button
                             type='button'
                             variant='ghost'
@@ -641,19 +651,25 @@ export default function FormulariosPage() {
                 </div>
               </ScrollArea>
             </CardContent>
-            </Card>
-          )}
-
-          {/* Modal de edição de pergunta */}
-          {editingQuestion && (
-            <Card>
+                </Card>
+              </motion.div>
+            ) : (
+              <motion.div
+                key='question-edit'
+                className='h-[34rem] sm:h-[38rem]'
+                initial={{ opacity: 0, y: 14, scale: 0.995 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.995 }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+              >
+                <Card className='flex h-full flex-col overflow-hidden'>
               <CardHeader className='pb-3'>
                 <CardTitle className='text-base'>Editar pergunta</CardTitle>
                 <CardDescription className='text-xs'>
                   Configure as propriedades da pergunta
                 </CardDescription>
               </CardHeader>
-              <CardContent className='space-y-3'>
+              <CardContent className='flex-1 space-y-3 overflow-y-auto'>
                 {/* Título */}
                 <div className='space-y-1.5'>
                   <Label htmlFor='edit-titulo' className='text-xs'>
@@ -820,8 +836,10 @@ export default function FormulariosPage() {
                   </Button>
                 </div>
               </CardContent>
-            </Card>
-          )}
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Lista de formulários */}
           <Card>

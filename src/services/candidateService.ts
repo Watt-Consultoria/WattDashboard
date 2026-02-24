@@ -220,6 +220,18 @@ class CandidateService {
     await candidateRepository.removeTag(formId, candidateId, trimmedTag);
   }
 
+  async disqualifyCandidate(formId: string, candidateId: string): Promise<void> {
+    if (!formId || !candidateId) {
+      throw new Error('Formulario e candidato sao obrigatorios');
+    }
+
+    await candidateRepository.setCandidateStage(
+      formId,
+      candidateId,
+      'Desclassificado'
+    );
+  }
+
   async addTagToMultipleCandidates(
     formId: string,
     candidateIds: string[],
