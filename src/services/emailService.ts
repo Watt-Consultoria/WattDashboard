@@ -19,14 +19,19 @@ class EmailService {
     to: { email: string; name?: string },
     subject: string,
     html: string,
-    text: string
+    text: string,
+    options?: { from?: { email: string; name: string } }
   ) {
     try {
       const recipients = [new Recipient(to.email, to.name || 'Membro')];
+      const sender = options?.from
+        ? new Sender(options.from.email, options.from.name)
+        : this.sentFrom;
+
       const emailParams = new EmailParams()
-        .setFrom(this.sentFrom)
+        .setFrom(sender)
         .setTo(recipients)
-        .setReplyTo(this.sentFrom)
+        .setReplyTo(sender)
         .setSubject(subject)
         .setHtml(html)
         .setText(text);

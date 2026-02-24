@@ -17,7 +17,10 @@ import {
   DialogTrigger
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import useMetadata from '@/hooks/use-metadata';
 import {
   Select,
@@ -27,6 +30,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import candidateService from '@/services/candidateService';
+import savedCandidateService from '@/services/savedCandidateService';
 import type {
   Candidate,
   CandidateForm,
@@ -34,7 +38,19 @@ import type {
 } from '@/types/candidate/candidate';
 import { toast } from 'sonner';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTags, faXmark } from '@fortawesome/free-solid-svg-icons';
+import {
+  faTags,
+  faXmark,
+  faUserPlus,
+  faEnvelope
+} from '@fortawesome/free-solid-svg-icons';
+import {
+  EMAIL_TEMPLATES,
+  renderEmailTemplate
+} from '@/types/candidate/email-template';
+import type { EmailTemplate } from '@/types/candidate/email-template';
+
+type ViewMode = 'pre-candidatos' | 'candidatos';
 
 const taskStatusLabel: Record<CandidateTaskStatus, string> = {
   PENDENTE: 'Pendente',
@@ -72,6 +88,19 @@ export default function PSeletivoPage() {
   const [loadError, setLoadError] = React.useState('');
   const [copyMessage, setCopyMessage] = React.useState('');
 
+  // View mode: pré-candidatos (respostas do formulário) ou candidatos (salvos)
+  const [viewMode, setViewMode] = React.useState<ViewMode>('pre-candidatos');
+  const [savedCandidates, setSavedCandidates] = React.useState<Candidate[]>([]);
+  const [isLoadingSavedCandidates, setIsLoadingSavedCandidates] =
+    React.useState(false);
+  const [isSavingAsCandidate, setIsSavingAsCandidate] = React.useState<
+    string | null
+  >(null);
+  // Set de IDs de pré-candidatos já salvos como candidato
+  const [savedPreCandidateIds, setSavedPreCandidateIds] = React.useState<
+    Set<string>
+  >(new Set());
+
   // Estados para tags
   const [isTagsDialogOpen, setIsTagsDialogOpen] = React.useState(false);
   const [selectedCandidateForTags, setSelectedCandidateForTags] =
@@ -82,8 +111,10 @@ export default function PSeletivoPage() {
     React.useState<string | null>(null);
   const [isDisqualifyDialogOpen, setIsDisqualifyDialogOpen] =
     React.useState(false);
-  const [selectedCandidateForDisqualification, setSelectedCandidateForDisqualification] =
-    React.useState<Candidate | null>(null);
+  const [
+    selectedCandidateForDisqualification,
+    setSelectedCandidateForDisqualification
+  ] = React.useState<Candidate | null>(null);
   const [isBulkTagsDialogOpen, setIsBulkTagsDialogOpen] = React.useState(false);
   const [bulkTagName, setBulkTagName] = React.useState('');
   const [bulkTagAction, setBulkTagAction] = React.useState<'add' | 'remove'>(
@@ -92,6 +123,41 @@ export default function PSeletivoPage() {
   const [selectedCandidateIds, setSelectedCandidateIds] = React.useState<
     Set<string>
   >(new Set());
+
+  // Estados para notificação por email
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = React.useState(false);
+  const [selectedEmailTemplate, setSelectedEmailTemplate] =
+    React.useState<EmailTemplate | null>(null);
+  const [emailTemplateValues, setEmailTemplateValues] = React.useState<
+    Record<string, string>
+  >({});
+  const [emailTargetTag, setEmailTargetTag] = React.useState('');
+  const [isSendingEmail, setIsSendingEmail] = React.useState(false);
+  const [emailNotificationMode, setEmailNotificationMode] = React.useState<
+    'tag' | 'individual'
+  >('tag');
+  const [emailSelectedCandidateIds, setEmailSelectedCandidateIds] =
+    React.useState<Set<string>>(new Set());
+  const [showEmailPreview, setShowEmailPreview] = React.useState(false);
+
+  // Coletar todas as tags únicas dos candidatos salvos
+  const allCandidateTags = React.useMemo(() => {
+    const tagsSet = new Set<string>();
+    savedCandidates.forEach((c) => {
+      c.tags?.forEach((tag) => tagsSet.add(tag));
+    });
+    return Array.from(tagsSet).sort();
+  }, [savedCandidates]);
+
+  // Preview renderizado do email
+  const renderedEmailPreview = React.useMemo(() => {
+    if (!selectedEmailTemplate) return null;
+    try {
+      return renderEmailTemplate(selectedEmailTemplate, emailTemplateValues);
+    } catch {
+      return null;
+    }
+  }, [selectedEmailTemplate, emailTemplateValues]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -179,6 +245,58 @@ export default function PSeletivoPage() {
     };
   }, [selectedFormId]);
 
+  // Carregar candidatos salvos quando o viewMode muda para 'candidatos'
+  React.useEffect(() => {
+    let isMounted = true;
+
+    async function loadSavedCandidates() {
+      if (viewMode !== 'candidatos') return;
+
+      try {
+        setIsLoadingSavedCandidates(true);
+        setLoadError('');
+
+        const candidates =
+          await savedCandidateService.listSavedCandidatesAsCandidate();
+        if (!isMounted) return;
+
+        setSavedCandidates(candidates);
+      } catch (error) {
+        if (!isMounted) return;
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível carregar os candidatos.'
+        );
+        setSavedCandidates([]);
+      } finally {
+        if (isMounted) setIsLoadingSavedCandidates(false);
+      }
+    }
+
+    loadSavedCandidates();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [viewMode]);
+
+  // Carregar IDs dos pré-candidatos já salvos
+  React.useEffect(() => {
+    async function loadSavedIds() {
+      if (viewMode !== 'pre-candidatos' || members.length === 0) return;
+
+      try {
+        const allSaved = await savedCandidateService.listSavedCandidates();
+        const ids = new Set(allSaved.map((sc) => sc.respostaIdOrigem));
+        setSavedPreCandidateIds(ids);
+      } catch {
+        // silently fail
+      }
+    }
+    loadSavedIds();
+  }, [viewMode, members]);
+
   const selectedForm = React.useMemo(
     () => pselForms.find((form) => form.id === selectedFormId) ?? null,
     [pselForms, selectedFormId]
@@ -204,13 +322,38 @@ export default function PSeletivoPage() {
     }
   }
 
+  const handleSaveAsCandidate = async (candidate: Candidate) => {
+    if (!selectedFormId) return;
+
+    setIsSavingAsCandidate(candidate.id);
+    try {
+      await savedCandidateService.savePreCandidateAsCandidate(
+        candidate,
+        selectedFormId
+      );
+      toast.success(
+        `${candidate.nome} ${candidate.sobrenome} salvo como candidato.`
+      );
+      setSavedPreCandidateIds((prev) => new Set([...prev, candidate.id]));
+    } catch (error: any) {
+      if (error?.message?.includes('já foi salvo')) {
+        toast.error('Este pré-candidato já foi salvo como candidato.');
+      } else {
+        console.error('Erro ao salvar como candidato:', error);
+        toast.error('Não foi possível salvar como candidato.');
+      }
+    } finally {
+      setIsSavingAsCandidate(null);
+    }
+  };
+
   const openTagsDialog = (candidate: Candidate) => {
     setSelectedCandidateForTags(candidate);
     setIsTagsDialogOpen(true);
   };
 
   const handleAddTag = async () => {
-    if (!selectedCandidateForTags || !selectedFormId) return;
+    if (!selectedCandidateForTags || viewMode !== 'candidatos') return;
 
     const trimmedTag = newTag.trim();
     if (!trimmedTag) {
@@ -220,11 +363,11 @@ export default function PSeletivoPage() {
 
     setIsSavingTag(true);
     try {
-      await candidateService.addTagToCandidate(
-        selectedFormId,
+      await savedCandidateService.addTagToCandidate(
         selectedCandidateForTags.id,
         trimmedTag
       );
+
       toast.success('Tag adicionada com sucesso.');
       setNewTag('');
       // Atualizar o candidato localmente
@@ -233,8 +376,8 @@ export default function PSeletivoPage() {
         const updatedTags = [...(current.tags ?? []), trimmedTag];
         return { ...current, tags: updatedTags };
       });
-      // Atualizar a lista de membros
-      setMembers((current) =>
+      // Atualizar a lista de candidatos
+      setSavedCandidates((current) =>
         current.map((m) =>
           m.id === selectedCandidateForTags.id
             ? { ...m, tags: [...(m.tags ?? []), trimmedTag] }
@@ -254,15 +397,15 @@ export default function PSeletivoPage() {
   };
 
   const handleRemoveTag = async (tag: string) => {
-    if (!selectedCandidateForTags || !selectedFormId) return;
+    if (!selectedCandidateForTags || viewMode !== 'candidatos') return;
 
     setIsSavingTag(true);
     try {
-      await candidateService.removeTagFromCandidate(
-        selectedFormId,
+      await savedCandidateService.removeTagFromCandidate(
         selectedCandidateForTags.id,
         tag
       );
+
       toast.success('Tag removida com sucesso.');
       // Atualizar o candidato localmente
       setSelectedCandidateForTags((current) => {
@@ -270,8 +413,8 @@ export default function PSeletivoPage() {
         const updatedTags = (current.tags ?? []).filter((t) => t !== tag);
         return { ...current, tags: updatedTags };
       });
-      // Atualizar a lista de membros
-      setMembers((current) =>
+      // Atualizar a lista de candidatos
+      setSavedCandidates((current) =>
         current.map((m) =>
           m.id === selectedCandidateForTags.id
             ? { ...m, tags: (m.tags ?? []).filter((t) => t !== tag) }
@@ -314,6 +457,8 @@ export default function PSeletivoPage() {
   };
 
   const handleAddBulkTag = async () => {
+    if (viewMode !== 'candidatos') return;
+
     const trimmedTag = bulkTagName.trim();
     if (!trimmedTag) {
       toast.error('Informe o nome da tag.');
@@ -325,12 +470,9 @@ export default function PSeletivoPage() {
       return;
     }
 
-    if (!selectedFormId) return;
-
     setIsSavingTag(true);
     try {
-      const result = await candidateService.addTagToMultipleCandidates(
-        selectedFormId,
+      const result = await savedCandidateService.addTagToMultipleCandidates(
         Array.from(selectedCandidateIds),
         trimmedTag
       );
@@ -342,10 +484,10 @@ export default function PSeletivoPage() {
         setBulkTagName('');
         setSelectedCandidateIds(new Set());
         setIsBulkTagsDialogOpen(false);
-        // Recarregar candidatos para atualizar tags
-        const responses =
-          await candidateService.getCandidatesByForm(selectedFormId);
-        setMembers(responses);
+        // Recarregar candidatos
+        const candidates =
+          await savedCandidateService.listSavedCandidatesAsCandidate();
+        setSavedCandidates(candidates);
       } else {
         toast.error(result.error ?? 'Erro ao adicionar tag aos candidatos.');
       }
@@ -358,6 +500,8 @@ export default function PSeletivoPage() {
   };
 
   const handleRemoveBulkTag = async () => {
+    if (viewMode !== 'candidatos') return;
+
     const trimmedTag = bulkTagName.trim();
     if (!trimmedTag) {
       toast.error('Informe o nome da tag.');
@@ -369,15 +513,13 @@ export default function PSeletivoPage() {
       return;
     }
 
-    if (!selectedFormId) return;
-
     setIsSavingTag(true);
     try {
-      const result = await candidateService.removeTagFromMultipleCandidates(
-        selectedFormId,
-        Array.from(selectedCandidateIds),
-        trimmedTag
-      );
+      const result =
+        await savedCandidateService.removeTagFromMultipleCandidates(
+          Array.from(selectedCandidateIds),
+          trimmedTag
+        );
 
       if (result.success) {
         toast.success(
@@ -386,10 +528,10 @@ export default function PSeletivoPage() {
         setBulkTagName('');
         setSelectedCandidateIds(new Set());
         setIsBulkTagsDialogOpen(false);
-        // Recarregar candidatos para atualizar tags
-        const responses =
-          await candidateService.getCandidatesByForm(selectedFormId);
-        setMembers(responses);
+        // Recarregar candidatos
+        const candidates =
+          await savedCandidateService.listSavedCandidatesAsCandidate();
+        setSavedCandidates(candidates);
       } else {
         toast.error(result.error ?? 'Erro ao remover tag dos candidatos.');
       }
@@ -414,15 +556,25 @@ export default function PSeletivoPage() {
   };
 
   const handleConfirmDisqualifyCandidate = async () => {
-    if (!selectedFormId || !selectedCandidateForDisqualification) return;
+    if (!selectedCandidateForDisqualification) return;
+    if (viewMode === 'pre-candidatos' && !selectedFormId) return;
 
     const candidate = selectedCandidateForDisqualification;
 
     setIsDisqualifyingCandidateId(candidate.id);
     try {
-      await candidateService.disqualifyCandidate(selectedFormId, candidate.id);
+      if (viewMode === 'candidatos') {
+        await savedCandidateService.disqualifyCandidate(candidate.id);
+      } else {
+        await candidateService.disqualifyCandidate(
+          selectedFormId,
+          candidate.id
+        );
+      }
 
-      setMembers((current) =>
+      const updateList =
+        viewMode === 'candidatos' ? setSavedCandidates : setMembers;
+      updateList((current) =>
         current.map((member) =>
           member.id === candidate.id
             ? { ...member, etapa: 'Desclassificado' }
@@ -447,9 +599,113 @@ export default function PSeletivoPage() {
     }
   };
 
+  // ── Email notification handlers ──
+
+  const handleSelectEmailTemplate = (templateId: string) => {
+    const template = EMAIL_TEMPLATES.find((t) => t.id === templateId) ?? null;
+    setSelectedEmailTemplate(template);
+    setEmailTemplateValues({});
+    setShowEmailPreview(false);
+  };
+
+  const resetEmailDialog = () => {
+    setIsEmailDialogOpen(false);
+    setSelectedEmailTemplate(null);
+    setEmailTemplateValues({});
+    setEmailTargetTag('');
+    setEmailSelectedCandidateIds(new Set());
+    setEmailNotificationMode('tag');
+    setShowEmailPreview(false);
+  };
+
+  const handleToggleEmailCandidate = (candidateId: string) => {
+    setEmailSelectedCandidateIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(candidateId)) {
+        next.delete(candidateId);
+      } else {
+        next.add(candidateId);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleAllEmailCandidates = () => {
+    if (emailSelectedCandidateIds.size === savedCandidates.length) {
+      setEmailSelectedCandidateIds(new Set());
+    } else {
+      setEmailSelectedCandidateIds(new Set(savedCandidates.map((c) => c.id)));
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!selectedEmailTemplate) return;
+
+    const hasTarget =
+      emailNotificationMode === 'tag'
+        ? !!emailTargetTag
+        : emailSelectedCandidateIds.size > 0;
+
+    if (!hasTarget) return;
+
+    setIsSendingEmail(true);
+    try {
+      const rendered = renderEmailTemplate(
+        selectedEmailTemplate,
+        emailTemplateValues
+      );
+
+      const payload: Record<string, unknown> = {
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text
+      };
+
+      if (emailNotificationMode === 'tag') {
+        payload.tag = emailTargetTag;
+      } else {
+        payload.candidateIds = Array.from(emailSelectedCandidateIds);
+      }
+
+      const res = await fetch('/api/candidate/notify-tagged', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success(
+          `Email enviado com sucesso para ${data.sent}/${data.total} candidato(s).`
+        );
+        resetEmailDialog();
+      } else if (res.status === 207) {
+        toast.warning(
+          `Email enviado parcialmente: ${data.sent}/${data.total}. Erros: ${data.errors?.join(', ')}`
+        );
+      } else {
+        toast.error(data.error ?? 'Erro ao enviar emails.');
+      }
+    } catch (error) {
+      console.error('Erro ao enviar emails:', error);
+      toast.error('Não foi possível enviar os emails.');
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  const currentMembers = viewMode === 'candidatos' ? savedCandidates : members;
+
+  const isCurrentlyLoading =
+    viewMode === 'candidatos' ? isLoadingSavedCandidates : isLoadingMembers;
+
   const filteredMembers = React.useMemo(() => {
-    return candidateService.filterCandidates(members, query);
-  }, [members, query]);
+    if (viewMode === 'candidatos') {
+      return savedCandidateService.filterCandidates(currentMembers, query);
+    }
+    return candidateService.filterCandidates(currentMembers, query);
+  }, [currentMembers, query, viewMode]);
 
   return (
     <PageContainer
@@ -463,62 +719,96 @@ export default function PSeletivoPage() {
             <p className='text-sm font-semibold'>
               Total de membros: {filteredMembers.length}
             </p>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              onClick={openBulkTagsDialog}
-              disabled={isLoadingMembers || isLoadingForms}
-              className='w-full gap-2 sm:w-auto'
-            >
-              <FontAwesomeIcon icon={faTags} className='h-3 w-3' />
-              Tags
-            </Button>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              onClick={handleCopyLink}
-              disabled={!selectedFormPublicPath}
-              className='w-full sm:w-auto'
-            >
-              Link
-            </Button>
-            <div className='w-full sm:w-72'>
+            <div className='w-full sm:w-48'>
               <Select
-                value={selectedFormId}
-                onValueChange={setSelectedFormId}
-                disabled={isLoadingForms || pselForms.length === 0}
+                value={viewMode}
+                onValueChange={(value) => setViewMode(value as ViewMode)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder='Selecione o formulario PSEL' />
+                  <SelectValue placeholder='Visualização' />
                 </SelectTrigger>
                 <SelectContent>
-                  {pselForms.map((form) => (
-                    <SelectItem key={form.id} value={form.id}>
-                      {form.nomeFormulario}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value='pre-candidatos'>Pré-candidatos</SelectItem>
+                  <SelectItem value='candidatos'>Candidatos</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {viewMode === 'candidatos' && (
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={openBulkTagsDialog}
+                disabled={isCurrentlyLoading || isLoadingForms}
+                className='w-full gap-2 sm:w-auto'
+              >
+                <FontAwesomeIcon icon={faTags} className='h-3 w-3' />
+                Tags
+              </Button>
+            )}
+            {viewMode === 'candidatos' && (
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={() => setIsEmailDialogOpen(true)}
+                disabled={isCurrentlyLoading || isLoadingForms}
+                className='w-full gap-2 sm:w-auto'
+              >
+                <FontAwesomeIcon icon={faEnvelope} className='h-3 w-3' />
+                Notificar
+              </Button>
+            )}
+            {viewMode === 'pre-candidatos' && (
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={handleCopyLink}
+                disabled={!selectedFormPublicPath}
+                className='w-full sm:w-auto'
+              >
+                Link
+              </Button>
+            )}
+            {viewMode === 'pre-candidatos' && (
+              <div className='w-full sm:w-72'>
+                <Select
+                  value={selectedFormId}
+                  onValueChange={setSelectedFormId}
+                  disabled={isLoadingForms || pselForms.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder='Selecione o formulario PSEL' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pselForms.map((form) => (
+                      <SelectItem key={form.id} value={form.id}>
+                        {form.nomeFormulario}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder='Buscar por nome ou curso...'
             className='w-full lg:max-w-sm'
-            disabled={isLoadingMembers || isLoadingForms}
+            disabled={isCurrentlyLoading || isLoadingForms}
           />
         </div>
 
-        {copyMessage ? (
+        {copyMessage && viewMode === 'pre-candidatos' ? (
           <p className='text-muted-foreground px-1 text-sm'>{copyMessage}</p>
         ) : null}
 
-        {isLoadingMembers ? (
+        {isCurrentlyLoading ? (
           <p className='text-muted-foreground px-1 text-sm'>
-            Carregando candidatos...
+            Carregando{' '}
+            {viewMode === 'candidatos' ? 'candidatos' : 'pré-candidatos'}...
           </p>
         ) : null}
 
@@ -558,31 +848,85 @@ export default function PSeletivoPage() {
                         )}
                       </div>
                       <div className='flex items-center gap-1'>
-                        <Button
-                          type='button'
-                          size='icon'
-                          variant='ghost'
-                          className='h-8 w-8 shrink-0 cursor-pointer rounded-md border hover:bg-white/10 [&_svg]:h-[0.875em]! [&_svg]:w-[0.875em]!'
-                          onClick={() => openTagsDialog(member)}
-                          aria-label='Gerenciar tags'
-                        >
-                          <FontAwesomeIcon icon={faTags} />
-                        </Button>
-                        <Button
-                          type='button'
-                          size='icon'
-                          variant='destructive'
-                          className='h-8 w-8 shrink-0 rounded-full'
-                          onClick={() => openDisqualifyDialog(member)}
-                          disabled={
-                            Boolean(isDisqualifyingCandidateId) ||
-                            member.etapa.trim().toLowerCase() ===
-                              'desclassificado'
-                          }
-                          aria-label={`Desclassificar ${member.nome} ${member.sobrenome}`}
-                        >
-                          <FontAwesomeIcon icon={faXmark} />
-                        </Button>
+                        {viewMode === 'candidatos' && (
+                          <Button
+                            type='button'
+                            size='icon'
+                            variant='ghost'
+                            className='h-8 w-8 shrink-0 cursor-pointer rounded-md border hover:bg-white/10 [&_svg]:h-[0.875em]! [&_svg]:w-[0.875em]!'
+                            onClick={() => openTagsDialog(member)}
+                            aria-label='Gerenciar tags'
+                          >
+                            <FontAwesomeIcon icon={faTags} />
+                          </Button>
+                        )}
+                        {viewMode === 'pre-candidatos' && (
+                          <Button
+                            type='button'
+                            size='icon'
+                            variant='ghost'
+                            className='h-8 w-8 shrink-0 cursor-pointer rounded-md border text-green-600 hover:bg-green-600/10 [&_svg]:h-[0.875em]! [&_svg]:w-[0.875em]!'
+                            onClick={() => handleSaveAsCandidate(member)}
+                            disabled={
+                              isSavingAsCandidate === member.id ||
+                              savedPreCandidateIds.has(member.id)
+                            }
+                            aria-label={
+                              savedPreCandidateIds.has(member.id)
+                                ? 'Já salvo como candidato'
+                                : `Salvar ${member.nome} como candidato`
+                            }
+                            title={
+                              savedPreCandidateIds.has(member.id)
+                                ? 'Já salvo como candidato'
+                                : 'Salvar como candidato'
+                            }
+                          >
+                            <FontAwesomeIcon
+                              icon={faUserPlus}
+                              className={
+                                savedPreCandidateIds.has(member.id)
+                                  ? 'opacity-40'
+                                  : ''
+                              }
+                            />
+                          </Button>
+                        )}
+                        {viewMode === 'candidatos' && (
+                          <Button
+                            type='button'
+                            size='icon'
+                            variant='destructive'
+                            className='h-8 w-8 shrink-0 rounded-full'
+                            onClick={() => openDisqualifyDialog(member)}
+                            disabled={
+                              Boolean(isDisqualifyingCandidateId) ||
+                              member.etapa.trim().toLowerCase() ===
+                                'desclassificado'
+                            }
+                            aria-label={`Desclassificar ${member.nome} ${member.sobrenome}`}
+                          >
+                            <FontAwesomeIcon icon={faXmark} />
+                          </Button>
+                        )}
+                        {viewMode === 'pre-candidatos' &&
+                          !savedPreCandidateIds.has(member.id) && (
+                            <Button
+                              type='button'
+                              size='icon'
+                              variant='destructive'
+                              className='h-8 w-8 shrink-0 rounded-full'
+                              onClick={() => openDisqualifyDialog(member)}
+                              disabled={
+                                Boolean(isDisqualifyingCandidateId) ||
+                                member.etapa.trim().toLowerCase() ===
+                                  'desclassificado'
+                              }
+                              aria-label={`Desclassificar ${member.nome} ${member.sobrenome}`}
+                            >
+                              <FontAwesomeIcon icon={faXmark} />
+                            </Button>
+                          )}
                         <Dialog>
                           <DialogTrigger asChild>
                             <Button
@@ -594,99 +938,102 @@ export default function PSeletivoPage() {
                               i
                             </Button>
                           </DialogTrigger>
-                        <DialogContent className='max-h-[90vh] w-[95vw] overflow-y-auto sm:max-w-xl'>
-                          <DialogHeader>
-                            <DialogTitle>
-                              {member.nome} {member.sobrenome}
-                            </DialogTitle>
-                            <DialogDescription>
-                              Detalhes completos do candidato.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className='space-y-3'>
-                            <CandidateField label='Nome' value={member.nome} />
-                            <CandidateField
-                              label='Sobrenome'
-                              value={member.sobrenome}
-                            />
-                            <CandidateField
-                              label='Curso'
-                              value={member.curso}
-                            />
-                            <CandidateField
-                              label='Periodo'
-                              value={member.periodo}
-                            />
-                            <CandidateField
-                              label='Etapa'
-                              value={member.etapa}
-                            />
-                            <CandidateField
-                              label='Tamanho da camisa'
-                              value={member.tamanhoCamisa}
-                            />
-                            <CandidateField
-                              label='Por onde voce ficou sabendo do PSEL?'
-                              value={member.origemPsel}
-                            />
-                            <CandidateField
-                              label='Telefone para contato'
-                              value={member.telefone}
-                            />
-                            <CandidateField
-                              label='E-mail para contato'
-                              value={member.email}
-                            />
-                            <CandidateField
-                              label='Qual o seu instagram'
-                              value={member.instagram}
-                            />
-                            <CandidateField
-                              label='O que te move'
-                              value={member.oQueMove}
-                            />
-                            <CandidateField
-                              label='Por que voce gostaria de entrar na WATT?'
-                              value={member.porqueWatt}
-                            />
-                            <div className='space-y-1'>
-                              <p className='text-muted-foreground text-xs font-medium'>
-                                Documentos
-                              </p>
-                              <a
-                                href={member.curriculumVitaeUrl}
-                                target='_blank'
-                                rel='noreferrer'
-                                className='text-primary block text-sm hover:underline'
-                              >
-                                Curriculum Vitae
-                              </a>
-                              <a
-                                href={member.historicoEscolarUrl}
-                                target='_blank'
-                                rel='noreferrer'
-                                className='text-primary block text-sm hover:underline'
-                              >
-                                Historico escolar
-                              </a>
-                            </div>
-                            {member.informacoesAdicionais.length > 0 ? (
-                              <div className='space-y-2'>
+                          <DialogContent className='max-h-[90vh] w-[95vw] overflow-y-auto sm:max-w-xl'>
+                            <DialogHeader>
+                              <DialogTitle>
+                                {member.nome} {member.sobrenome}
+                              </DialogTitle>
+                              <DialogDescription>
+                                Detalhes completos do candidato.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className='space-y-3'>
+                              <CandidateField
+                                label='Nome'
+                                value={member.nome}
+                              />
+                              <CandidateField
+                                label='Sobrenome'
+                                value={member.sobrenome}
+                              />
+                              <CandidateField
+                                label='Curso'
+                                value={member.curso}
+                              />
+                              <CandidateField
+                                label='Periodo'
+                                value={member.periodo}
+                              />
+                              <CandidateField
+                                label='Etapa'
+                                value={member.etapa}
+                              />
+                              <CandidateField
+                                label='Tamanho da camisa'
+                                value={member.tamanhoCamisa}
+                              />
+                              <CandidateField
+                                label='Por onde voce ficou sabendo do PSEL?'
+                                value={member.origemPsel}
+                              />
+                              <CandidateField
+                                label='Telefone para contato'
+                                value={member.telefone}
+                              />
+                              <CandidateField
+                                label='E-mail para contato'
+                                value={member.email}
+                              />
+                              <CandidateField
+                                label='Qual o seu instagram'
+                                value={member.instagram}
+                              />
+                              <CandidateField
+                                label='O que te move'
+                                value={member.oQueMove}
+                              />
+                              <CandidateField
+                                label='Por que voce gostaria de entrar na WATT?'
+                                value={member.porqueWatt}
+                              />
+                              <div className='space-y-1'>
                                 <p className='text-muted-foreground text-xs font-medium'>
-                                  Informacoes adicionais
+                                  Documentos
                                 </p>
-                                {member.informacoesAdicionais.map((info) => (
-                                  <CandidateField
-                                    key={`${member.id}-${info.titulo}`}
-                                    label={info.titulo}
-                                    value={info.valor}
-                                  />
-                                ))}
+                                <a
+                                  href={member.curriculumVitaeUrl}
+                                  target='_blank'
+                                  rel='noreferrer'
+                                  className='text-primary block text-sm hover:underline'
+                                >
+                                  Curriculum Vitae
+                                </a>
+                                <a
+                                  href={member.historicoEscolarUrl}
+                                  target='_blank'
+                                  rel='noreferrer'
+                                  className='text-primary block text-sm hover:underline'
+                                >
+                                  Historico escolar
+                                </a>
                               </div>
-                            ) : null}
-                          </div>
-                        </DialogContent>
-                      </Dialog>
+                              {member.informacoesAdicionais.length > 0 ? (
+                                <div className='space-y-2'>
+                                  <p className='text-muted-foreground text-xs font-medium'>
+                                    Informacoes adicionais
+                                  </p>
+                                  {member.informacoesAdicionais.map((info) => (
+                                    <CandidateField
+                                      key={`${member.id}-${info.titulo}`}
+                                      label={info.titulo}
+                                      value={info.valor}
+                                    />
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          </DialogContent>
+                        </Dialog>
                       </div>
                     </div>
                     <div className='overflow-hidden rounded-md border'>
@@ -782,7 +1129,9 @@ export default function PSeletivoPage() {
                 Boolean(isDisqualifyingCandidateId)
               }
             >
-              {isDisqualifyingCandidateId ? 'Desclassificando...' : 'Desclassificar'}
+              {isDisqualifyingCandidateId
+                ? 'Desclassificando...'
+                : 'Desclassificar'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1042,6 +1391,264 @@ export default function PSeletivoPage() {
                 : bulkTagAction === 'add'
                   ? 'Adicionar tag'
                   : 'Remover tag'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de notificação por email */}
+      <Dialog
+        open={isEmailDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) resetEmailDialog();
+          else setIsEmailDialogOpen(true);
+        }}
+      >
+        <DialogContent className='max-h-[90vh] max-w-2xl overflow-hidden'>
+          <DialogHeader>
+            <DialogTitle>Notificar Candidatos por Email</DialogTitle>
+            <DialogDescription>
+              Selecione os destinatários, escolha um modelo de email, preencha
+              os campos e visualize o resultado antes de enviar.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className='max-h-[calc(90vh-180px)] pr-3'>
+            <div className='flex flex-col gap-4 pb-1'>
+              {/* ── Destinatários ── */}
+              <Tabs
+                value={emailNotificationMode}
+                onValueChange={(v) =>
+                  setEmailNotificationMode(v as 'tag' | 'individual')
+                }
+              >
+                <Label className='mb-1.5 block'>Destinatários</Label>
+                <TabsList className='w-full'>
+                  <TabsTrigger value='tag' className='flex-1'>
+                    Por tag
+                  </TabsTrigger>
+                  <TabsTrigger value='individual' className='flex-1'>
+                    Selecionar candidatos
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value='tag'>
+                  <div className='space-y-2 pt-2'>
+                    <Select
+                      value={emailTargetTag}
+                      onValueChange={setEmailTargetTag}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder='Selecione uma tag' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allCandidateTags.map((tag) => (
+                          <SelectItem key={tag} value={tag}>
+                            {tag}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {allCandidateTags.length === 0 && (
+                      <p className='text-muted-foreground text-xs'>
+                        Nenhuma tag encontrada. Adicione tags aos candidatos
+                        primeiro.
+                      </p>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value='individual'>
+                  <div className='space-y-2 pt-2'>
+                    <div className='flex items-center justify-between'>
+                      <p className='text-muted-foreground text-xs'>
+                        {emailSelectedCandidateIds.size} de{' '}
+                        {savedCandidates.length} selecionado(s)
+                      </p>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        onClick={handleToggleAllEmailCandidates}
+                        className='h-7 text-xs'
+                      >
+                        {emailSelectedCandidateIds.size ===
+                        savedCandidates.length
+                          ? 'Desmarcar todos'
+                          : 'Selecionar todos'}
+                      </Button>
+                    </div>
+                    <ScrollArea className='h-44 rounded-md border p-2'>
+                      <div className='flex flex-col gap-1'>
+                        {savedCandidates.map((candidate) => (
+                          <div
+                            key={candidate.id}
+                            className='hover:bg-accent flex items-center gap-2 rounded px-2 py-1.5'
+                          >
+                            <Checkbox
+                              id={`email-cand-${candidate.id}`}
+                              checked={emailSelectedCandidateIds.has(
+                                candidate.id
+                              )}
+                              onCheckedChange={() =>
+                                handleToggleEmailCandidate(candidate.id)
+                              }
+                            />
+                            <label
+                              htmlFor={`email-cand-${candidate.id}`}
+                              className='flex flex-1 cursor-pointer flex-col'
+                            >
+                              <span className='text-sm font-medium'>
+                                {candidate.nome} {candidate.sobrenome}
+                              </span>
+                              <span className='text-muted-foreground text-xs'>
+                                {candidate.email || 'Sem email'} —{' '}
+                                {candidate.etapa}
+                              </span>
+                            </label>
+                          </div>
+                        ))}
+                        {savedCandidates.length === 0 && (
+                          <p className='text-muted-foreground py-4 text-center text-xs'>
+                            Nenhum candidato salvo.
+                          </p>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              {/* ── Modelo de email ── */}
+              <div className='space-y-2'>
+                <Label>Modelo de email</Label>
+                <Select
+                  value={selectedEmailTemplate?.id ?? ''}
+                  onValueChange={handleSelectEmailTemplate}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder='Selecione um modelo' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EMAIL_TEMPLATES.map((tpl) => (
+                      <SelectItem key={tpl.id} value={tpl.id}>
+                        {tpl.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedEmailTemplate && (
+                  <p className='text-muted-foreground text-xs'>
+                    {selectedEmailTemplate.descricao}
+                  </p>
+                )}
+              </div>
+
+              {/* ── Campos dinâmicos ── */}
+              {selectedEmailTemplate &&
+                selectedEmailTemplate.campos.map((campo) => (
+                  <div key={campo.id} className='space-y-2'>
+                    <Label htmlFor={`email-field-${campo.id}`}>
+                      {campo.label}
+                      {campo.required && (
+                        <span className='text-destructive ml-1'>*</span>
+                      )}
+                    </Label>
+                    {campo.type === 'textarea' ? (
+                      <Textarea
+                        id={`email-field-${campo.id}`}
+                        placeholder={campo.placeholder}
+                        value={emailTemplateValues[campo.id] ?? ''}
+                        onChange={(e) =>
+                          setEmailTemplateValues((v) => ({
+                            ...v,
+                            [campo.id]: e.target.value
+                          }))
+                        }
+                        rows={3}
+                      />
+                    ) : (
+                      <Input
+                        id={`email-field-${campo.id}`}
+                        placeholder={campo.placeholder}
+                        value={emailTemplateValues[campo.id] ?? ''}
+                        onChange={(e) =>
+                          setEmailTemplateValues((v) => ({
+                            ...v,
+                            [campo.id]: e.target.value
+                          }))
+                        }
+                      />
+                    )}
+                  </div>
+                ))}
+
+              {/* ── Preview ── */}
+              {selectedEmailTemplate && (
+                <div className='space-y-2'>
+                  <div className='flex items-center justify-between'>
+                    <Label>Pré-visualização</Label>
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='sm'
+                      onClick={() => setShowEmailPreview((v) => !v)}
+                      className='h-7 text-xs'
+                    >
+                      {showEmailPreview ? 'Ocultar' : 'Mostrar'} preview
+                    </Button>
+                  </div>
+
+                  {showEmailPreview && renderedEmailPreview && (
+                    <div className='space-y-2'>
+                      <div className='rounded-md border p-3'>
+                        <p className='text-muted-foreground mb-1 text-xs font-medium'>
+                          Assunto
+                        </p>
+                        <p className='text-sm font-semibold'>
+                          {renderedEmailPreview.subject}
+                        </p>
+                      </div>
+                      <div className='overflow-hidden rounded-md border'>
+                        <iframe
+                          title='Email preview'
+                          srcDoc={renderedEmailPreview.html}
+                          className='h-80 w-full border-0'
+                          sandbox=''
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='secondary'
+              onClick={resetEmailDialog}
+              disabled={isSendingEmail}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type='button'
+              onClick={handleSendEmail}
+              disabled={
+                isSendingEmail ||
+                !selectedEmailTemplate ||
+                (emailNotificationMode === 'tag' && !emailTargetTag) ||
+                (emailNotificationMode === 'individual' &&
+                  emailSelectedCandidateIds.size === 0) ||
+                (selectedEmailTemplate?.campos
+                  .filter((c) => c.required)
+                  .some((c) => !emailTemplateValues[c.id]?.trim()) ??
+                  false)
+              }
+            >
+              {isSendingEmail ? 'Enviando...' : 'Enviar Emails'}
             </Button>
           </DialogFooter>
         </DialogContent>
