@@ -61,7 +61,7 @@ def find_answer_value(
     normalized_aliases = {normalize_text(alias) for alias in aliases}
 
     for resposta in respostas:
-        question_title = str(resposta.get("tituloPergunta", ""))
+        question_title = str(resposta.get("perguntaTitulo", ""))
         value = resposta.get("valor")
 
         if not isinstance(value, str):
@@ -72,7 +72,7 @@ def find_answer_value(
             return value.strip()
 
     for resposta in respostas:
-        question_title = str(resposta.get("tituloPergunta", ""))
+        question_title = str(resposta.get("perguntaTitulo", ""))
         value = resposta.get("valor")
 
         if not isinstance(value, str):
@@ -120,27 +120,52 @@ def update_email_status(
     response_ref.set({"emailConfirmacao": payload}, merge=True)
 
 
-def build_email_body(candidate_name: str, form_name: str) -> tuple[str, str]:
-    safe_name = candidate_name.strip() or "candidato(a)"
-    safe_form_name = form_name.strip() or "Processo Seletivo"
+def candidatura_recebida_content(nome: str = "") -> str:
+    safe_name = nome.strip()
 
-    text_body = (
-        f"Ola, {safe_name}.\n\n"
-        f"Recebemos sua resposta no formulario \"{safe_form_name}\".\n"
-        "Obrigado pelo interesse na Watt Consultoria.\n\n"
-        "Caso voce tenha duvidas, responda este e-mail.\n\n"
-        "Atenciosamente,\n"
-        "Equipe Watt Consultoria"
-    )
+    return f"""
+    <h1 style="margin:0 0 12px;font-size:22px;color:#18181b;">
+      🎉 Parabéns{f", {safe_name}" if safe_name else ""}!
+    </h1>
 
-    html_body = f"""
-    <p>Ola, <strong>{safe_name}</strong>.</p>
-    <p>Recebemos sua resposta no formulario "<strong>{safe_form_name}</strong>".</p>
-    <p>Obrigado pelo interesse na Watt Consultoria.</p>
-    <p>Caso voce tenha duvidas, responda este e-mail.</p>
-    <p>Atenciosamente,<br />Equipe Watt Consultoria</p>
+    <p style="margin:0 0 12px;font-size:14px;color:#3f3f46;line-height:1.6;">
+      Recebemos a sua candidatura com sucesso.
+    </p>
+
+    <p style="margin:0 0 16px;font-size:14px;color:#3f3f46;line-height:1.6;">
+      A partir de agora, nosso time irá analisar seu perfil com atenção.
+      Em breve entraremos em contato com os próximos passos do processo seletivo.
+    </p>
+
+    <div style="margin:20px 0;padding:16px;border-radius:6px;background-color:#f4f4f5;border-left:4px solid #f5a623;">
+      <p style="margin:0;font-size:13px;color:#18181b;">
+        💡 Fique atento(a) ao seu e-mail — todas as comunicações acontecerão por aqui.
+      </p>
+    </div>
+
+    <p style="margin:0;font-size:14px;color:#3f3f46;">
+      Obrigado pelo interesse em fazer parte da <strong>Watt Consultoria Jr.</strong><br/>
+      Estamos felizes em ter você com a gente nessa jornada ⚡
+    </p>
     """
 
+
+def build_email_body(candidate_name: str, form_name: str) -> tuple[str, str]:
+    safe_name = candidate_name.strip()
+    safe_form_name = form_name.strip() or "Processo Seletivo Watt"
+
+    text_body = (
+        f"Parabens{f', {safe_name}' if safe_name else ''}!\n\n"
+        "Recebemos a sua candidatura com sucesso.\n\n"
+        "A partir de agora, nosso time ira analisar seu perfil com atencao. "
+        "Em breve entraremos em contato com os proximos passos do processo seletivo.\n\n"
+        "Fique atento(a) ao seu e-mail: todas as comunicacoes acontecerao por la.\n\n"
+        f"Formulario: {safe_form_name}\n\n"
+        "Obrigado pelo interesse em fazer parte da Watt Consultoria Jr.\n"
+        "Estamos felizes em ter voce com a gente nessa jornada."
+    )
+
+    html_body = candidatura_recebida_content(safe_name)
     return text_body, html_body
 
 
@@ -205,14 +230,14 @@ def send_psel_confirmation_email(
     event: firestore_fn.Event[firestore_fn.DocumentSnapshot | None],
 ) -> None:
     if event.data is None:
-        logger.warning("Evento sem payload para envio de e-mail do PSEL.")
+        logger.warn("Evento sem payload para envio de e-mail do PSEL.")
         return
 
     form_id = event.params.get("formId", "")
     response_id = event.params.get("responseId", "")
 
     if not form_id or not response_id:
-        logger.warning("Evento sem formId/responseId para envio de e-mail do PSEL.")
+        logger.warn("Evento sem formId/responseId para envio de e-mail do PSEL.")
         return
 
     db = get_db()
@@ -226,7 +251,7 @@ def send_psel_confirmation_email(
     response_data = event.data.to_dict() or {}
     respostas = response_data.get("respostas", [])
     if not isinstance(respostas, list):
-        logger.warning(
+        logger.warn(
             f"Resposta sem array de respostas. formId={form_id} responseId={response_id}"
         )
         update_email_status(response_ref, "failed", error="Formato invalido de respostas.")
@@ -234,7 +259,7 @@ def send_psel_confirmation_email(
 
     form_snapshot = db.collection("externForms").document(form_id).get()
     if not form_snapshot.exists:
-        logger.warning(f"Formulario nao encontrado. formId={form_id}")
+        logger.warn(f"Formulario nao encontrado. formId={form_id}")
         update_email_status(response_ref, "failed", error="Formulario nao encontrado.")
         return
 
@@ -253,7 +278,7 @@ def send_psel_confirmation_email(
     form_name = str(form_data.get("nomeFormulario") or "Processo Seletivo Watt")
 
     if not candidate_email:
-        logger.warning(
+        logger.warn(
             f"E-mail do candidato nao encontrado. formId={form_id} responseId={response_id}"
         )
         update_email_status(response_ref, "failed", error="E-mail do candidato nao encontrado.")
