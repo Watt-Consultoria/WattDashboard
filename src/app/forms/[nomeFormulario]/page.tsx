@@ -30,6 +30,7 @@ import { submitFormResponse } from '@/lib/firestore/formResponses';
 import { cn } from '@/lib/utils';
 import { useParams } from 'next/navigation';
 import type { Form, FormQuestion } from '@/types/forms/form';
+import useMetadata from '@/hooks/use-metadata';
 
 type FormAnswerValue = string | File | string[] | null;
 type FormAnswerMap = Record<string, FormAnswerValue>;
@@ -50,6 +51,8 @@ export default function PublicFormPage() {
   const [isShaking, setIsShaking] = React.useState(false);
 
   const htmlFormId = 'public-form';
+
+  useMetadata({ title: formData?.nome || '' });
 
   // Calcular progresso
   const progress = React.useMemo(() => {
