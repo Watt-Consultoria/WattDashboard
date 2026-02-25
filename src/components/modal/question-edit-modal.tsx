@@ -47,10 +47,12 @@ interface QuestionEditModalProps {
 }
 
 const TIPOS_RESPOSTA: Array<{ value: FormQuestionType; label: string }> =
-  Object.entries(FORM_QUESTION_TYPE_LABELS).map(([key, label]) => ({
-    value: key as FormQuestionType,
-    label
-  }));
+  Object.entries(FORM_QUESTION_TYPE_LABELS)
+    .filter(([key]) => key !== 'infoSection')
+    .map(([key, label]) => ({
+      value: key as FormQuestionType,
+      label
+    }));
 
 export const QuestionEditModal: React.FC<QuestionEditModalProps> = ({
   isOpen,
@@ -125,8 +127,16 @@ export const QuestionEditModal: React.FC<QuestionEditModalProps> = ({
 
   return (
     <Modal
-      title='Editar pergunta'
-      description='Configure as propriedades da pergunta'
+      title={
+        editingQuestion?.tipo === 'infoSection'
+          ? 'Editar seção informativa'
+          : 'Editar pergunta'
+      }
+      description={
+        editingQuestion?.tipo === 'infoSection'
+          ? 'Configure o bloco de informações'
+          : 'Configure as propriedades da pergunta'
+      }
       isOpen={isOpen}
       onClose={onClose}
     >
@@ -169,60 +179,89 @@ export const QuestionEditModal: React.FC<QuestionEditModalProps> = ({
           />
         </div>
 
-        {/* Tipo */}
-        <div className='space-y-1.5'>
-          <Label htmlFor='edit-tipo' className='text-xs'>
-            Tipo
-          </Label>
-          <Select
-            value={editingQuestion?.tipo || 'shortText'}
-            onValueChange={(value) =>
-              setEditingQuestion((current) =>
-                current
-                  ? {
-                      ...current,
-                      tipo: value as FormQuestionType,
-                      newItems: temOpcoes(value as FormQuestionType)
-                        ? current.newItems
-                        : undefined
-                    }
-                  : null
-              )
-            }
-            disabled={loading}
-          >
-            <SelectTrigger id='edit-tipo' className='text-sm'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TIPOS_RESPOSTA.map((tipo) => (
-                <SelectItem key={tipo.value} value={tipo.value}>
-                  {tipo.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Tipo - oculto para seções informativas */}
+        {editingQuestion?.tipo !== 'infoSection' && (
+          <div className='space-y-1.5'>
+            <Label htmlFor='edit-tipo' className='text-xs'>
+              Tipo
+            </Label>
+            <Select
+              value={editingQuestion?.tipo || 'shortText'}
+              onValueChange={(value) =>
+                setEditingQuestion((current) =>
+                  current
+                    ? {
+                        ...current,
+                        tipo: value as FormQuestionType,
+                        newItems: temOpcoes(value as FormQuestionType)
+                          ? current.newItems
+                          : undefined
+                      }
+                    : null
+                )
+              }
+              disabled={loading}
+            >
+              <SelectTrigger id='edit-tipo' className='text-sm'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIPOS_RESPOSTA.map((tipo) => (
+                  <SelectItem key={tipo.value} value={tipo.value}>
+                    {tipo.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* Obrigatória */}
-        <div className='flex items-center gap-2'>
-          <Checkbox
-            id='edit-obrigatoria'
-            checked={editingQuestion?.obrigatoria || false}
-            onCheckedChange={(checked) =>
-              setEditingQuestion((current) =>
-                current ? { ...current, obrigatoria: Boolean(checked) } : null
-              )
-            }
-            disabled={loading}
-          />
-          <label
-            htmlFor='edit-obrigatoria'
-            className='text-xs leading-none font-medium'
-          >
-            Pergunta obrigatória
-          </label>
-        </div>
+        {editingQuestion?.tipo !== 'infoSection' && (
+          <div className='flex items-center gap-2'>
+            <Checkbox
+              id='edit-obrigatoria'
+              checked={editingQuestion?.obrigatoria || false}
+              onCheckedChange={(checked) =>
+                setEditingQuestion((current) =>
+                  current ? { ...current, obrigatoria: Boolean(checked) } : null
+                )
+              }
+              disabled={loading}
+            />
+            <label
+              htmlFor='edit-obrigatoria'
+              className='text-xs leading-none font-medium'
+            >
+              Pergunta obrigatória
+            </label>
+          </div>
+        )}
+
+        {/* Conteúdo - para seção informativa */}
+        {editingQuestion?.tipo === 'infoSection' && (
+          <div className='space-y-1.5 border-t pt-3'>
+            <Label htmlFor='edit-conteudo' className='text-xs'>
+              Conteúdo *
+            </Label>
+            <p className='text-muted-foreground text-xs'>
+              Insira o texto informativo. Para adicionar links, use o formato:
+              [texto do link](URL)
+            </p>
+            <Textarea
+              id='edit-conteudo'
+              placeholder='Ex: Para mais informações, acesse [nosso site](https://exemplo.com)'
+              value={editingQuestion.conteudo || ''}
+              onChange={(e) =>
+                setEditingQuestion((current) =>
+                  current ? { ...current, conteudo: e.target.value } : null
+                )
+              }
+              disabled={loading}
+              className='min-h-24 text-sm'
+            />
+          </div>
+        )}
 
         {/* Opções - se aplicável */}
         {editingQuestion && temOpcoes(editingQuestion.tipo) && (

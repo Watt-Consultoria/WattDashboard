@@ -57,7 +57,8 @@ class PublicFormService {
       multipleChoice: 'Múltipla escolha',
       checkbox: 'Caixas de seleção',
       select: 'Lista suspensa',
-      fileUpload: 'Upload de arquivo'
+      fileUpload: 'Upload de arquivo',
+      infoSection: 'Seção informativa'
     };
 
     return labels[tipo] || 'Resposta';
@@ -109,6 +110,9 @@ class PublicFormService {
     const missingFields: string[] = [];
 
     for (const pergunta of form.perguntas) {
+      // Seções informativas não são validadas
+      if (pergunta.tipo === 'infoSection') continue;
+
       const value = answers[pergunta.id];
       const isEmpty = this.isAnswerEmpty(pergunta.tipo, value);
 
@@ -136,35 +140,37 @@ class PublicFormService {
     tipo: string;
     valor: string | string[] | null;
   }> {
-    return form.perguntas.map((pergunta) => {
-      const value = answers[pergunta.id];
+    return form.perguntas
+      .filter((pergunta) => pergunta.tipo !== 'infoSection')
+      .map((pergunta) => {
+        const value = answers[pergunta.id];
 
-      if (value instanceof File) {
-        // Será processado no upload
+        if (value instanceof File) {
+          // Será processado no upload
+          return {
+            perguntaId: pergunta.id,
+            perguntaTitulo: pergunta.titulo,
+            tipo: pergunta.tipo,
+            valor: null // Placeholder, será substituído pela URL de download
+          };
+        }
+
+        if (Array.isArray(value)) {
+          return {
+            perguntaId: pergunta.id,
+            perguntaTitulo: pergunta.titulo,
+            tipo: pergunta.tipo,
+            valor: value
+          };
+        }
+
         return {
           perguntaId: pergunta.id,
           perguntaTitulo: pergunta.titulo,
           tipo: pergunta.tipo,
-          valor: null // Placeholder, será substituído pela URL de download
+          valor: value ? String(value) : null
         };
-      }
-
-      if (Array.isArray(value)) {
-        return {
-          perguntaId: pergunta.id,
-          perguntaTitulo: pergunta.titulo,
-          tipo: pergunta.tipo,
-          valor: value
-        };
-      }
-
-      return {
-        perguntaId: pergunta.id,
-        perguntaTitulo: pergunta.titulo,
-        tipo: pergunta.tipo,
-        valor: value ? String(value) : null
-      };
-    });
+      });
   }
 
   /**
@@ -178,8 +184,11 @@ class PublicFormService {
     total: number;
     percent: number;
   } {
-    const total = form.perguntas.length;
-    const answered = form.perguntas.filter(
+    const answerableQuestions = form.perguntas.filter(
+      (p) => p.tipo !== 'infoSection'
+    );
+    const total = answerableQuestions.length;
+    const answered = answerableQuestions.filter(
       (p) => !this.isAnswerEmpty(p.tipo, answers[p.id])
     ).length;
     const percent = total > 0 ? Math.round((answered / total) * 100) : 0;

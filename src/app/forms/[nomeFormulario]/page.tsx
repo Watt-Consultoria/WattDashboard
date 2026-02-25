@@ -30,10 +30,49 @@ import { submitFormResponse } from '@/lib/firestore/formResponses';
 import { cn } from '@/lib/utils';
 import { useParams } from 'next/navigation';
 import type { Form, FormQuestion } from '@/types/forms/form';
+import { IconInfoCircle, IconExternalLink } from '@tabler/icons-react';
 import useMetadata from '@/hooks/use-metadata';
 
 type FormAnswerValue = string | File | string[] | null;
 type FormAnswerMap = Record<string, FormAnswerValue>;
+
+/**
+ * Renderiza texto com links no formato [texto](url) como elementos React
+ */
+function renderContentWithLinks(content: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = linkRegex.exec(content)) !== null) {
+    // Texto antes do link
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index));
+    }
+    // O link
+    parts.push(
+      <a
+        key={`link-${match.index}`}
+        href={match[2]}
+        target='_blank'
+        rel='noopener noreferrer'
+        className='text-primary inline-flex items-center gap-1 underline underline-offset-2 hover:opacity-80'
+      >
+        {match[1]}
+        <IconExternalLink className='inline size-3.5' />
+      </a>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Texto restante
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex));
+  }
+
+  return parts;
+}
 
 export default function PublicFormPage() {
   const params = useParams<{ nomeFormulario: string }>();
@@ -97,6 +136,9 @@ export default function PublicFormPage() {
         // Inicializar respostas
         const initialAnswers: FormAnswerMap = {};
         for (const pergunta of form.perguntas) {
+          // Seções informativas não precisam de resposta
+          if (pergunta.tipo === 'infoSection') continue;
+
           if (publicFormService.isFileQuestion(pergunta.tipo)) {
             initialAnswers[pergunta.id] = null;
           } else if (
@@ -319,7 +361,11 @@ export default function PublicFormPage() {
               </div>
               {!isLoading && formData ? (
                 <Badge variant='outline'>
-                  {formData.perguntas.length} perguntas
+                  {
+                    formData.perguntas.filter((p) => p.tipo !== 'infoSection')
+                      .length
+                  }{' '}
+                  perguntas
                 </Badge>
               ) : null}
             </div>
@@ -355,6 +401,33 @@ export default function PublicFormPage() {
               >
                 <div className='grid gap-4 sm:grid-cols-2'>
                   {formData.perguntas.map((pergunta) => {
+                    // Renderização especial para seções informativas
+                    if (pergunta.tipo === 'infoSection') {
+                      return (
+                        <div
+                          key={pergunta.id}
+                          className='border-primary/30 bg-primary/5 rounded-xl border p-4 shadow-xs sm:col-span-2 sm:p-5'
+                        >
+                          <div className='mb-3 flex items-center gap-2'>
+                            <IconInfoCircle className='text-primary size-5' />
+                            <span className='text-sm font-semibold'>
+                              {pergunta.titulo}
+                            </span>
+                          </div>
+                          {pergunta.descricao && (
+                            <p className='text-muted-foreground mb-2 text-xs'>
+                              {pergunta.descricao}
+                            </p>
+                          )}
+                          {pergunta.conteudo && (
+                            <div className='text-foreground/80 text-sm leading-relaxed whitespace-pre-wrap'>
+                              {renderContentWithLinks(pergunta.conteudo)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
                     const value = answers[pergunta.id];
                     const isMissing = missingFieldIds.includes(pergunta.id);
                     const isFilled = !publicFormService.isAnswerEmpty(
