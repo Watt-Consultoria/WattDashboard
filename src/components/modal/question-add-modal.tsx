@@ -16,7 +16,11 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { IconPlus, IconX } from '@tabler/icons-react';
-import type { FormQuestionType, FormQuestionItem } from '@/types/forms/form';
+import type {
+  FormQuestionType,
+  FormQuestionItem,
+  FormQuestionValidation
+} from '@/types/forms/form';
 import { FORM_QUESTION_TYPE_LABELS } from '@/types/forms/form';
 
 const TIPOS_COM_OPCOES: FormQuestionType[] = [
@@ -35,6 +39,7 @@ interface NewQuestion {
   obrigatoria: boolean;
   descricao?: string;
   items?: FormQuestionItem[];
+  validacao?: FormQuestionValidation;
 }
 
 interface QuestionAddModalProps {
@@ -66,6 +71,8 @@ export const QuestionAddModal: React.FC<QuestionAddModalProps> = ({
     items: []
   });
   const [novaOpcao, setNovaOpcao] = React.useState('');
+  const [regexEnabled, setRegexEnabled] = React.useState(false);
+  const [regexError, setRegexError] = React.useState('');
 
   useEffect(() => {
     setIsMounted(true);
@@ -80,6 +87,8 @@ export const QuestionAddModal: React.FC<QuestionAddModalProps> = ({
         items: []
       });
       setNovaOpcao('');
+      setRegexEnabled(false);
+      setRegexError('');
     }
   }, [isOpen]);
 
@@ -109,7 +118,28 @@ export const QuestionAddModal: React.FC<QuestionAddModalProps> = ({
 
   const handleSave = () => {
     if (!question.titulo.trim()) return;
-    onSave(question);
+
+    // Validar regex se habilitado
+    if (
+      regexEnabled &&
+      question.tipo === 'shortText' &&
+      question.validacao?.pattern
+    ) {
+      try {
+        new RegExp(question.validacao.pattern);
+      } catch {
+        setRegexError('Padrão regex inválido');
+        return;
+      }
+    }
+
+    // Limpar validação se não está habilitada ou não é shortText
+    const finalQuestion = { ...question };
+    if (!regexEnabled || question.tipo !== 'shortText') {
+      delete finalQuestion.validacao;
+    }
+
+    onSave(finalQuestion);
     setQuestion({
       titulo: '',
       tipo: 'shortText',
@@ -117,6 +147,8 @@ export const QuestionAddModal: React.FC<QuestionAddModalProps> = ({
       items: []
     });
     setNovaOpcao('');
+    setRegexEnabled(false);
+    setRegexError('');
   };
 
   if (!isMounted) {
@@ -275,6 +307,88 @@ export const QuestionAddModal: React.FC<QuestionAddModalProps> = ({
                 <IconPlus className='size-3.5' />
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* Validação Regex - apenas para shortText */}
+        {question.tipo === 'shortText' && (
+          <div className='space-y-3 border-t pt-3'>
+            <div className='flex items-center gap-2'>
+              <Checkbox
+                id='add-regex-enabled'
+                checked={regexEnabled}
+                onCheckedChange={(checked) => {
+                  const enabled = Boolean(checked);
+                  setRegexEnabled(enabled);
+                  if (!enabled) {
+                    setQuestion((current) => {
+                      const { validacao, ...rest } = current;
+                      return rest as NewQuestion;
+                    });
+                    setRegexError('');
+                  }
+                }}
+                disabled={loading}
+              />
+              <label
+                htmlFor='add-regex-enabled'
+                className='text-xs leading-none font-medium'
+              >
+                Validar com expressão regular (regex)
+              </label>
+            </div>
+
+            {regexEnabled && (
+              <div className='space-y-3'>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='add-regex-pattern' className='text-xs'>
+                    Padrão Regex *
+                  </Label>
+                  <Input
+                    id='add-regex-pattern'
+                    placeholder='Ex: ^[A-Za-z\\s]+$ ou ^\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}$'
+                    value={question.validacao?.pattern || ''}
+                    onChange={(e) => {
+                      setRegexError('');
+                      setQuestion((current) => ({
+                        ...current,
+                        validacao: {
+                          pattern: e.target.value,
+                          message: current.validacao?.message || ''
+                        }
+                      }));
+                    }}
+                    disabled={loading}
+                    className='font-mono text-sm'
+                  />
+                  {regexError && (
+                    <p className='text-destructive text-xs'>{regexError}</p>
+                  )}
+                </div>
+
+                <div className='space-y-1.5'>
+                  <Label htmlFor='add-regex-message' className='text-xs'>
+                    Mensagem de erro (opcional)
+                  </Label>
+                  <Input
+                    id='add-regex-message'
+                    placeholder='Ex: Formato inválido. Use apenas letras.'
+                    value={question.validacao?.message || ''}
+                    onChange={(e) =>
+                      setQuestion((current) => ({
+                        ...current,
+                        validacao: {
+                          pattern: current.validacao?.pattern || '',
+                          message: e.target.value
+                        }
+                      }))
+                    }
+                    disabled={loading}
+                    className='text-sm'
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

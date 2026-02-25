@@ -20,6 +20,16 @@ export type FormQuestionItem = {
   valor: string;
 };
 
+/**
+ * Configuração de validação regex para campos shortText
+ */
+export type FormQuestionValidation = {
+  /** Padrão regex para validar a resposta (ex: '^[A-Za-z]+$') */
+  pattern: string;
+  /** Mensagem exibida quando a resposta não corresponde ao padrão */
+  message: string;
+};
+
 export type FormQuestion = {
   id: string;
   titulo: string;
@@ -35,6 +45,8 @@ export type FormQuestion = {
   items?: FormQuestionItem[];
   // Para infoSection: conteúdo informativo (suporta texto com links)
   conteudo?: string;
+  // Para shortText: validação regex opcional
+  validacao?: FormQuestionValidation;
 };
 
 export type Form = {
