@@ -42,11 +42,15 @@ import {
   faTags,
   faXmark,
   faUserPlus,
-  faEnvelope
+  faEnvelope,
+  faCheck,
+  faThumbsDown
 } from '@fortawesome/free-solid-svg-icons';
 import {
   EMAIL_TEMPLATES,
-  renderEmailTemplate
+  CANDIDATE_PLACEHOLDERS,
+  renderEmailTemplate,
+  renderEmailTemplatePreview
 } from '@/types/candidate/email-template';
 import type { EmailTemplate } from '@/types/candidate/email-template';
 
@@ -124,6 +128,24 @@ export default function PSeletivoPage() {
     Set<string>
   >(new Set());
 
+  // Estados para aprovação/rejeição de candidatos
+  const [isApprovalDialogOpen, setIsApprovalDialogOpen] =
+    React.useState(false);
+  const [selectedCandidateForApproval, setSelectedCandidateForApproval] =
+    React.useState<Candidate | null>(null);
+  const [isApprovingCandidateId, setIsApprovingCandidateId] =
+    React.useState<string | null>(null);
+  const [approvalMessage, setApprovalMessage] = React.useState('');
+
+  const [isRejectionDialogOpen, setIsRejectionDialogOpen] =
+    React.useState(false);
+  const [selectedCandidateForRejection, setSelectedCandidateForRejection] =
+    React.useState<Candidate | null>(null);
+  const [isRejectingCandidateId, setIsRejectingCandidateId] =
+    React.useState<string | null>(null);
+  const [rejectionMessage, setRejectionMessage] = React.useState('');
+  const [rejectionFeedback, setRejectionFeedback] = React.useState('');
+
   // Estados para notificação por email
   const [isEmailDialogOpen, setIsEmailDialogOpen] = React.useState(false);
   const [selectedEmailTemplate, setSelectedEmailTemplate] =
@@ -149,11 +171,14 @@ export default function PSeletivoPage() {
     return Array.from(tagsSet).sort();
   }, [savedCandidates]);
 
-  // Preview renderizado do email
+  // Preview renderizado do email (com placeholders destacados como exemplo)
   const renderedEmailPreview = React.useMemo(() => {
     if (!selectedEmailTemplate) return null;
     try {
-      return renderEmailTemplate(selectedEmailTemplate, emailTemplateValues);
+      return renderEmailTemplatePreview(
+        selectedEmailTemplate,
+        emailTemplateValues
+      );
     } catch {
       return null;
     }
@@ -599,6 +624,148 @@ export default function PSeletivoPage() {
     }
   };
 
+  // ── Approval handlers ──
+
+  const openApprovalDialog = (candidate: Candidate) => {
+    const isAlreadyApproved =
+      candidate.etapa.trim().toLowerCase() === 'aprovado';
+    if (isAlreadyApproved) {
+      toast.error('Candidato já está aprovado.');
+      return;
+    }
+
+    setSelectedCandidateForApproval(candidate);
+    setApprovalMessage('');
+    setIsApprovalDialogOpen(true);
+  };
+
+  const handleConfirmApproveCandidate = async () => {
+    if (!selectedCandidateForApproval) return;
+
+    const candidate = selectedCandidateForApproval;
+    setIsApprovingCandidateId(candidate.id);
+
+    try {
+      // Chama o endpoint de aprovação com email automático
+      const res = await fetch(`/api/candidate/${candidate.id}/update-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'approve',
+          message: approvalMessage || undefined
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao aprovar candidato');
+      }
+
+      // Atualiza a lista de candidatos
+      const updateList =
+        viewMode === 'candidatos' ? setSavedCandidates : setMembers;
+      updateList((current) =>
+        current.map((member) =>
+          member.id === candidate.id
+            ? { ...member, etapa: 'Aprovado' }
+            : member
+        )
+      );
+
+      setSelectedCandidateForTags((current) =>
+        current && current.id === candidate.id
+          ? { ...current, etapa: 'Aprovado' }
+          : current
+      );
+
+      toast.success('Candidato aprovado e email enviado com sucesso.');
+      setIsApprovalDialogOpen(false);
+      setSelectedCandidateForApproval(null);
+    } catch (error) {
+      console.error('Erro ao aprovar candidato:', error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível aprovar o candidato.'
+      );
+    } finally {
+      setIsApprovingCandidateId(null);
+    }
+  };
+
+  // ── Rejection handlers ──
+
+  const openRejectionDialog = (candidate: Candidate) => {
+    const isAlreadyRejected =
+      candidate.etapa.trim().toLowerCase() === 'desclassificado';
+    if (isAlreadyRejected) {
+      toast.error('Candidato já está rejeitado.');
+      return;
+    }
+
+    setSelectedCandidateForRejection(candidate);
+    setRejectionMessage('');
+    setRejectionFeedback('');
+    setIsRejectionDialogOpen(true);
+  };
+
+  const handleConfirmRejectCandidate = async () => {
+    if (!selectedCandidateForRejection) return;
+
+    const candidate = selectedCandidateForRejection;
+    setIsRejectingCandidateId(candidate.id);
+
+    try {
+      // Chama o endpoint de rejeição com email automático
+      const res = await fetch(`/api/candidate/${candidate.id}/update-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'reject',
+          message: rejectionMessage || undefined,
+          feedback: rejectionFeedback || undefined
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao rejeitar candidato');
+      }
+
+      // Atualiza a lista de candidatos
+      const updateList =
+        viewMode === 'candidatos' ? setSavedCandidates : setMembers;
+      updateList((current) =>
+        current.map((member) =>
+          member.id === candidate.id
+            ? { ...member, etapa: 'Desclassificado' }
+            : member
+        )
+      );
+
+      setSelectedCandidateForTags((current) =>
+        current && current.id === candidate.id
+          ? { ...current, etapa: 'Desclassificado' }
+          : current
+      );
+
+      toast.success('Candidato rejeitado e email enviado com sucesso.');
+      setIsRejectionDialogOpen(false);
+      setSelectedCandidateForRejection(null);
+    } catch (error) {
+      console.error('Erro ao rejeitar candidato:', error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível rejeitar o candidato.'
+      );
+    } finally {
+      setIsRejectingCandidateId(null);
+    }
+  };
+
   // ── Email notification handlers ──
 
   const handleSelectEmailTemplate = (templateId: string) => {
@@ -658,7 +825,11 @@ export default function PSeletivoPage() {
       const payload: Record<string, unknown> = {
         subject: rendered.subject,
         html: rendered.html,
-        text: rendered.text
+        text: rendered.text,
+        // Envia templateId e templateValues para o servidor poder renderizar
+        // o template personalizado por candidato ({{nome}}, {{sobrenome}}, etc.)
+        templateId: selectedEmailTemplate.id,
+        templateValues: emailTemplateValues
       };
 
       if (emailNotificationMode === 'tag') {
@@ -893,21 +1064,61 @@ export default function PSeletivoPage() {
                           </Button>
                         )}
                         {viewMode === 'candidatos' && (
-                          <Button
-                            type='button'
-                            size='icon'
-                            variant='destructive'
-                            className='h-8 w-8 shrink-0 rounded-full'
-                            onClick={() => openDisqualifyDialog(member)}
-                            disabled={
-                              Boolean(isDisqualifyingCandidateId) ||
-                              member.etapa.trim().toLowerCase() ===
-                                'desclassificado'
-                            }
-                            aria-label={`Desclassificar ${member.nome} ${member.sobrenome}`}
-                          >
-                            <FontAwesomeIcon icon={faXmark} />
-                          </Button>
+                          <>
+                            <Button
+                              type='button'
+                              size='icon'
+                              variant='default'
+                              className='h-8 w-8 shrink-0 rounded-full bg-green-600 hover:bg-green-700'
+                              onClick={() => openApprovalDialog(member)}
+                              disabled={
+                                Boolean(isApprovingCandidateId) ||
+                                member.etapa.trim().toLowerCase() === 'aprovado'
+                              }
+                              aria-label={`Aprovar ${member.nome} ${member.sobrenome}`}
+                              title='Aprovar candidato'
+                            >
+                              <FontAwesomeIcon icon={faCheck} />
+                            </Button>
+                            <Button
+                              type='button'
+                              size='icon'
+                              variant='destructive'
+                              className='h-8 w-8 shrink-0 rounded-full'
+                              onClick={() =>
+                                isRejectingCandidateId ===
+                                member.id
+                                  ? null
+                                  : openRejectionDialog(member)
+                              }
+                              disabled={
+                                Boolean(isRejectingCandidateId) ||
+                                member.etapa
+                                  .trim()
+                                  .toLowerCase() === 'desclassificado'
+                              }
+                              aria-label={`Rejeitar ${member.nome} ${member.sobrenome}`}
+                              title='Rejeitar candidato'
+                            >
+                              <FontAwesomeIcon icon={faThumbsDown} />
+                            </Button>
+                            <Button
+                              type='button'
+                              size='icon'
+                              variant='ghost'
+                              className='h-8 w-8 shrink-0 rounded-full text-destructive hover:bg-red-100'
+                              onClick={() => openDisqualifyDialog(member)}
+                              disabled={
+                                Boolean(isDisqualifyingCandidateId) ||
+                                member.etapa.trim().toLowerCase() ===
+                                  'desclassificado'
+                              }
+                              aria-label={`Desclassificar ${member.nome} ${member.sobrenome}`}
+                              title='Desclassificar candidato'
+                            >
+                              <FontAwesomeIcon icon={faXmark} />
+                            </Button>
+                          </>
                         )}
                         {viewMode === 'pre-candidatos' &&
                           !savedPreCandidateIds.has(member.id) && (
@@ -1132,6 +1343,148 @@ export default function PSeletivoPage() {
               {isDisqualifyingCandidateId
                 ? 'Desclassificando...'
                 : 'Desclassificar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de aprovação */}
+      <Dialog
+        open={isApprovalDialogOpen}
+        onOpenChange={(open) => {
+          if (isApprovingCandidateId) return;
+          setIsApprovalDialogOpen(open);
+          if (!open) {
+            setSelectedCandidateForApproval(null);
+            setApprovalMessage('');
+          }
+        }}
+      >
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>Aprovar candidato</DialogTitle>
+            <DialogDescription>
+              {selectedCandidateForApproval
+                ? `Aprovar ${selectedCandidateForApproval.nome} ${selectedCandidateForApproval.sobrenome}? Um email será enviado automaticamente.`
+                : 'Confirme a aprovação do candidato.'}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedCandidateForApproval && (
+            <div className='space-y-3'>
+              <div className='space-y-2'>
+                <Label htmlFor='approval-msg'>
+                  Mensagem adicional (opcional)
+                </Label>
+                <Textarea
+                  id='approval-msg'
+                  placeholder='Ex.: Ficamos impressionados com seu desempenho!'
+                  value={approvalMessage}
+                  onChange={(e) => setApprovalMessage(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='secondary'
+              onClick={() => {
+                setIsApprovalDialogOpen(false);
+                setSelectedCandidateForApproval(null);
+                setApprovalMessage('');
+              }}
+              disabled={Boolean(isApprovingCandidateId)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type='button'
+              className='bg-green-600 hover:bg-green-700'
+              onClick={handleConfirmApproveCandidate}
+              disabled={
+                !selectedCandidateForApproval ||
+                Boolean(isApprovingCandidateId)
+              }
+            >
+              {isApprovingCandidateId ? 'Aprovando...' : 'Aprovar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de rejeição */}
+      <Dialog
+        open={isRejectionDialogOpen}
+        onOpenChange={(open) => {
+          if (isRejectingCandidateId) return;
+          setIsRejectionDialogOpen(open);
+          if (!open) {
+            setSelectedCandidateForRejection(null);
+            setRejectionMessage('');
+            setRejectionFeedback('');
+          }
+        }}
+      >
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>Rejeitar candidato</DialogTitle>
+            <DialogDescription>
+              {selectedCandidateForRejection
+                ? `Rejeitar ${selectedCandidateForRejection.nome} ${selectedCandidateForRejection.sobrenome}? Um email será enviado automaticamente.`
+                : 'Confirme a rejeição do candidato.'}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedCandidateForRejection && (
+            <div className='space-y-3'>
+              <div className='space-y-2'>
+                <Label htmlFor='rejection-msg'>Mensagem principal</Label>
+                <Textarea
+                  id='rejection-msg'
+                  placeholder='Ex.: Agradecemos sua participação...'
+                  value={rejectionMessage}
+                  onChange={(e) => setRejectionMessage(e.target.value)}
+                  rows={2}
+                />
+              </div>
+              <div className='space-y-2'>
+                <Label htmlFor='rejection-feedback'>
+                  Feedback (opcional)
+                </Label>
+                <Textarea
+                  id='rejection-feedback'
+                  placeholder='Ex.: Recomendamos...'
+                  value={rejectionFeedback}
+                  onChange={(e) => setRejectionFeedback(e.target.value)}
+                  rows={2}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='secondary'
+              onClick={() => {
+                setIsRejectionDialogOpen(false);
+                setSelectedCandidateForRejection(null);
+                setRejectionMessage('');
+                setRejectionFeedback('');
+              }}
+              disabled={Boolean(isRejectingCandidateId)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type='button'
+              variant='destructive'
+              onClick={handleConfirmRejectCandidate}
+              disabled={
+                !selectedCandidateForRejection ||
+                Boolean(isRejectingCandidateId)
+              }
+            >
+              {isRejectingCandidateId ? 'Rejeitando...' : 'Rejeitar'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1544,6 +1897,42 @@ export default function PSeletivoPage() {
                 )}
               </div>
 
+              {/* ── Placeholders de candidato ── */}
+              {selectedEmailTemplate && (
+                <div className='space-y-2'>
+                  <Label>Campos automáticos do candidato</Label>
+                  <p className='text-muted-foreground text-xs'>
+                    Use estes marcadores nos campos abaixo. Eles serão
+                    preenchidos automaticamente com os dados de cada candidato
+                    no momento do envio.
+                  </p>
+                  <div className='flex flex-wrap gap-1.5'>
+                    {CANDIDATE_PLACEHOLDERS.map((ph) => (
+                      <button
+                        key={ph.id}
+                        type='button'
+                        className='bg-accent hover:bg-accent/80 inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium transition-colors'
+                        title={`${ph.descricao} — ex.: ${ph.exemplo}. Clique para copiar.`}
+                        onClick={() => {
+                          navigator.clipboard.writeText(`{{${ph.id}}}`);
+                          toast.info(`{{${ph.id}}} copiado!`);
+                        }}
+                      >
+                        <span className='text-muted-foreground mr-1'>
+                          {'{'}
+                          {'{'}
+                        </span>
+                        {ph.label}
+                        <span className='text-muted-foreground ml-1'>
+                          {'}'}
+                          {'}'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* ── Campos dinâmicos ── */}
               {selectedEmailTemplate &&
                 selectedEmailTemplate.campos.map((campo) => (
@@ -1601,6 +1990,10 @@ export default function PSeletivoPage() {
 
                   {showEmailPreview && renderedEmailPreview && (
                     <div className='space-y-2'>
+                      <p className='text-muted-foreground text-xs italic'>
+                        Os valores destacados em amarelo são exemplos. No envio
+                        real, serão substituídos pelos dados de cada candidato.
+                      </p>
                       <div className='rounded-md border p-3'>
                         <p className='text-muted-foreground mb-1 text-xs font-medium'>
                           Assunto

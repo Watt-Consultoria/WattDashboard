@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import candidateNotificationService from '@/services/candidateNotificationService';
+import type { TemplateEmailParams } from '@/types/candidate/notification-service';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { tag, candidateIds, subject, html, text } = body;
+    const {
+      tag,
+      candidateIds,
+      subject,
+      html,
+      text,
+      templateId,
+      templateValues
+    } = body;
 
     if (!subject || !html || !text) {
       return NextResponse.json(
@@ -26,18 +35,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Se templateId e templateValues foram enviados, passa para o serviço
+    // para renderização personalizada por candidato ({{nome}}, etc.)
+    const templateParams: TemplateEmailParams | undefined =
+      templateId && templateValues ? { templateId, templateValues } : undefined;
+
     const result = candidateIds?.length
       ? await candidateNotificationService.notifyCandidatesByIds(
           candidateIds,
           subject,
           html,
-          text
+          text,
+          templateParams
         )
       : await candidateNotificationService.notifyCandidatesByTag(
           tag,
           subject,
           html,
-          text
+          text,
+          templateParams
         );
 
     return NextResponse.json(result, {

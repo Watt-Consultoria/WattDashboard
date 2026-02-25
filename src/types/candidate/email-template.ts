@@ -35,6 +35,79 @@ export interface RenderedEmail {
 }
 
 // ---------------------------------------------------------------------------
+// Placeholders de candidato — campos preenchidos automaticamente por destinatário
+// ---------------------------------------------------------------------------
+
+/** Placeholder que pode ser usado nos templates e nos campos preenchidos pelo usuário */
+export interface CandidatePlaceholder {
+  /** Token usado no texto, ex.: "nome" (será usado como {{nome}}) */
+  id: string;
+  /** Rótulo amigável exibido na UI */
+  label: string;
+  /** Descrição do que será preenchido */
+  descricao: string;
+  /** Valor de exemplo para pré-visualização */
+  exemplo: string;
+}
+
+/** Dados do candidato usados para substituir placeholders no momento do envio */
+export interface CandidatePlaceholderData {
+  nome: string;
+  sobrenome: string;
+  nomeCompleto: string;
+  email: string;
+  curso: string;
+  periodo: string;
+  etapa: string;
+}
+
+/** Lista de placeholders disponíveis para uso nos templates */
+export const CANDIDATE_PLACEHOLDERS: CandidatePlaceholder[] = [
+  {
+    id: 'nome',
+    label: 'Nome',
+    descricao: 'Primeiro nome do candidato',
+    exemplo: 'João'
+  },
+  {
+    id: 'sobrenome',
+    label: 'Sobrenome',
+    descricao: 'Sobrenome do candidato',
+    exemplo: 'Silva'
+  },
+  {
+    id: 'nomeCompleto',
+    label: 'Nome Completo',
+    descricao: 'Nome e sobrenome do candidato',
+    exemplo: 'João Silva'
+  },
+  {
+    id: 'email',
+    label: 'Email',
+    descricao: 'Email do candidato',
+    exemplo: 'joao@email.com'
+  },
+  {
+    id: 'curso',
+    label: 'Curso',
+    descricao: 'Curso do candidato',
+    exemplo: 'Engenharia Elétrica'
+  },
+  {
+    id: 'periodo',
+    label: 'Período',
+    descricao: 'Período atual do candidato',
+    exemplo: '4º'
+  },
+  {
+    id: 'etapa',
+    label: 'Etapa',
+    descricao: 'Etapa atual do candidato no processo',
+    exemplo: 'Dinâmica de Grupo'
+  }
+];
+
+// ---------------------------------------------------------------------------
 // Wrapper HTML reutilizado por todos os modelos
 // ---------------------------------------------------------------------------
 
@@ -239,7 +312,7 @@ const renderers: Record<EmailTemplateType, RenderFn> = {
 
     const html = wrapHtml(`
       <h2 style="margin:0 0 12px;font-size:18px;color:#1a1a2e;">Convocação para ${v.etapa}</h2>
-      <p style="margin:0 0 8px;font-size:14px;color:#3f3f46;">Olá! Você está sendo convocado(a) para a próxima etapa do nosso processo seletivo.</p>
+      <p style="margin:0 0 8px;font-size:14px;color:#3f3f46;">Olá, <strong>{{nome}}</strong>! Você está sendo convocado(a) para a próxima etapa do nosso processo seletivo.</p>
       <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0;width:100%;">
         <tr>
           <td style="padding:12px 16px;background-color:#f4f4f5;border-radius:6px;">
@@ -269,7 +342,7 @@ const renderers: Record<EmailTemplateType, RenderFn> = {
     const text = [
       `CONVOCAÇÃO: ${v.etapa}`,
       '',
-      'Olá! Você está sendo convocado(a) para a próxima etapa do nosso processo seletivo.',
+      'Olá, {{nome}}! Você está sendo convocado(a) para a próxima etapa do nosso processo seletivo.',
       '',
       `Etapa: ${v.etapa}`,
       `Data: ${v.data}`,
@@ -290,7 +363,7 @@ const renderers: Record<EmailTemplateType, RenderFn> = {
     const subject = 'Parabéns! Você foi aprovado(a) — Processo Seletivo Watt';
 
     const html = wrapHtml(`
-      <h2 style="margin:0 0 12px;font-size:18px;color:#1a1a2e;">🎉 Parabéns!</h2>
+      <h2 style="margin:0 0 12px;font-size:18px;color:#1a1a2e;">🎉 Parabéns, <strong>{{nome}}</strong>!</h2>
       <p style="margin:0 0 12px;font-size:14px;color:#3f3f46;">Temos o prazer de informar que <strong>você foi aprovado(a)</strong> no Processo Seletivo da Watt Consultoria Jr.!</p>
       <p style="margin:0 0 16px;font-size:14px;color:#3f3f46;">${v.mensagem.replace(/\n/g, '<br/>')}</p>
       <div style="padding:14px 16px;background-color:#ecfdf5;border-left:4px solid #10b981;border-radius:4px;margin:0 0 16px;">
@@ -301,7 +374,7 @@ const renderers: Record<EmailTemplateType, RenderFn> = {
     `);
 
     const text = [
-      'PARABÉNS! VOCÊ FOI APROVADO(A)!',
+      'PARABÉNS, {{nome}}! VOCÊ FOI APROVADO(A)!',
       '',
       'Temos o prazer de informar que você foi aprovado(a) no Processo Seletivo da Watt Consultoria Jr.!',
       '',
@@ -334,6 +407,7 @@ const renderers: Record<EmailTemplateType, RenderFn> = {
 
     const html = wrapHtml(`
       <h2 style="margin:0 0 12px;font-size:18px;color:#1a1a2e;">Resultado do Processo Seletivo</h2>
+      <p style="margin:0 0 4px;font-size:14px;color:#3f3f46;">Olá, <strong>{{nome}}</strong>.</p>
       <p style="margin:0 0 12px;font-size:14px;color:#3f3f46;">${v.mensagem.replace(/\n/g, '<br/>')}</p>
       ${feedbackBlock}
       <p style="margin:0;font-size:14px;color:#3f3f46;">Agradecemos seu interesse e torcemos pelo seu sucesso!</p>
@@ -341,6 +415,8 @@ const renderers: Record<EmailTemplateType, RenderFn> = {
 
     const text = [
       'RESULTADO DO PROCESSO SELETIVO',
+      '',
+      'Olá, {{nome}}.',
       '',
       v.mensagem,
       feedbackText,
@@ -358,7 +434,7 @@ const renderers: Record<EmailTemplateType, RenderFn> = {
 
     const html = wrapHtml(`
       <h2 style="margin:0 0 12px;font-size:18px;color:#1a1a2e;">⏰ Lembrete</h2>
-      <p style="margin:0 0 12px;font-size:14px;color:#3f3f46;">Este é um lembrete sobre uma atividade importante do processo seletivo.</p>
+      <p style="margin:0 0 12px;font-size:14px;color:#3f3f46;">Olá, <strong>{{nome}}</strong>! Este é um lembrete sobre uma atividade importante do processo seletivo.</p>
       <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0;width:100%;">
         <tr>
           <td style="padding:12px 16px;background-color:#fefce8;border-left:4px solid #eab308;border-radius:4px;">
@@ -374,7 +450,7 @@ const renderers: Record<EmailTemplateType, RenderFn> = {
     const text = [
       `LEMBRETE: ${v.atividade}`,
       '',
-      'Este é um lembrete sobre uma atividade importante do processo seletivo.',
+      'Olá, {{nome}}! Este é um lembrete sobre uma atividade importante do processo seletivo.',
       '',
       `Atividade: ${v.atividade}`,
       `Prazo: ${v.dataLimite}`,
@@ -395,11 +471,14 @@ const renderers: Record<EmailTemplateType, RenderFn> = {
 
     const html = wrapHtml(`
       <h2 style="margin:0 0 12px;font-size:18px;color:#1a1a2e;">${v.titulo}</h2>
+      <p style="margin:0 0 12px;font-size:14px;color:#3f3f46;">Olá, <strong>{{nome}}</strong>!</p>
       <p style="margin:0;font-size:14px;color:#3f3f46;line-height:1.6;">${v.mensagem.replace(/\n/g, '<br/>')}</p>
     `);
 
     const text = [
       v.titulo.toUpperCase(),
+      '',
+      'Olá, {{nome}}!',
       '',
       v.mensagem,
       '',
@@ -412,11 +491,57 @@ const renderers: Record<EmailTemplateType, RenderFn> = {
 };
 
 // ---------------------------------------------------------------------------
+// Substituição de placeholders
+// ---------------------------------------------------------------------------
+
+const PLACEHOLDER_REGEX = /\{\{(\w+)\}\}/g;
+
+/**
+ * Substitui tokens {{campo}} por dados reais do candidato.
+ */
+export function replaceCandidatePlaceholders(
+  content: string,
+  data: CandidatePlaceholderData
+): string {
+  return content.replace(PLACEHOLDER_REGEX, (match, key: string) => {
+    const value = data[key as keyof CandidatePlaceholderData];
+    return value ?? match; // mantém o token se não tiver correspondência
+  });
+}
+
+/**
+ * Substitui tokens {{campo}} por exemplos estilizados para pré-visualização.
+ */
+export function replaceWithPreviewHighlights(content: string): string {
+  const exampleMap = Object.fromEntries(
+    CANDIDATE_PLACEHOLDERS.map((p) => [p.id, p.exemplo])
+  );
+  return content.replace(PLACEHOLDER_REGEX, (match, key: string) => {
+    const example = exampleMap[key];
+    if (!example) return match;
+    return `<span style="background-color:#fef3c7;color:#92400e;padding:1px 4px;border-radius:3px;font-weight:600;">${example}</span>`;
+  });
+}
+
+/**
+ * Substitui tokens {{campo}} por exemplos em texto simples para pré-visualização.
+ */
+export function replaceWithPreviewText(content: string): string {
+  const exampleMap = Object.fromEntries(
+    CANDIDATE_PLACEHOLDERS.map((p) => [p.id, p.exemplo])
+  );
+  return content.replace(PLACEHOLDER_REGEX, (match, key: string) => {
+    return exampleMap[key] ?? match;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Função pública de renderização
 // ---------------------------------------------------------------------------
 
 /**
  * Renderiza um modelo de email a partir dos valores preenchidos pelo usuário.
+ * O HTML/text retornado contém tokens {{campo}} para placeholders de candidato.
  */
 export function renderEmailTemplate(
   template: EmailTemplate,
@@ -427,4 +552,37 @@ export function renderEmailTemplate(
     throw new Error(`Modelo de email desconhecido: ${template.id}`);
   }
   return renderFn(values);
+}
+
+/**
+ * Renderiza um modelo de email com placeholders substituídos por exemplos
+ * destacados visualmente — usado para pré-visualização na UI.
+ */
+export function renderEmailTemplatePreview(
+  template: EmailTemplate,
+  values: Record<string, string>
+): RenderedEmail {
+  const rendered = renderEmailTemplate(template, values);
+  return {
+    subject: replaceWithPreviewText(rendered.subject),
+    html: replaceWithPreviewHighlights(rendered.html),
+    text: replaceWithPreviewText(rendered.text)
+  };
+}
+
+/**
+ * Renderiza um modelo de email já personalizado para um candidato específico.
+ * Usado no lado do servidor antes do envio.
+ */
+export function renderEmailTemplateForCandidate(
+  template: EmailTemplate,
+  values: Record<string, string>,
+  candidateData: CandidatePlaceholderData
+): RenderedEmail {
+  const rendered = renderEmailTemplate(template, values);
+  return {
+    subject: replaceCandidatePlaceholders(rendered.subject, candidateData),
+    html: replaceCandidatePlaceholders(rendered.html, candidateData),
+    text: replaceCandidatePlaceholders(rendered.text, candidateData)
+  };
 }
