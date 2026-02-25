@@ -239,9 +239,6 @@ def send_psel_confirmation_email(
         return
 
     form_data = form_snapshot.to_dict() or {}
-    if not bool(form_data.get("ehFormularioPsel", False)):
-        return
-
     existing_email_status = (
         ((response_ref.get().to_dict() or {}).get("emailConfirmacao") or {}).get("status", "")
     )
