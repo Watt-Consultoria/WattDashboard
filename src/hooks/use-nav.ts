@@ -23,6 +23,7 @@ export function useFilteredNavItems(items: NavItem[]) {
   const { members } = useFirebaseData();
 
   return useMemo(() => {
+    const isTestEnvironment = process.env.NODE_ENV !== 'production';
     // const isDevelopment = process.env.NODE_ENV === 'development';
 
     // if (isDevelopment) {
@@ -82,6 +83,10 @@ export function useFilteredNavItems(items: NavItem[]) {
       ['diretor', 'presidente', 'gerente', 'assessor'].includes(role);
     if (allowPSeletivo) {
       allowedUrls.add('/dashboard/pseletivo');
+    }
+
+    if (isTestEnvironment) {
+      allowedUrls.add('/dashboard/pseletivo/membro');
     }
 
     const allowFormularios = ['diretor', 'presidente', 'assessor'].includes(
