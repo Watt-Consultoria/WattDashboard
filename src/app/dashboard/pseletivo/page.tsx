@@ -55,6 +55,13 @@ import {
   renderEmailTemplatePreview
 } from '@/types/candidate/email-template';
 import type { EmailTemplate } from '@/types/candidate/email-template';
+import {
+  listInterviewSlots,
+  removeInterviewSlot as removeInterviewSlotFromDatabase,
+  saveInterviewSlot,
+  sortInterviewSlots,
+  type InterviewSlot
+} from './interview';
 
 type ViewMode = 'pre-candidatos' | 'candidatos';
 
@@ -71,6 +78,23 @@ const taskStatusVariant: Record<
   PENDENTE: 'secondary',
   EM_ANDAMENTO: 'outline',
   CONCLUIDA: 'default'
+};
+
+const INTERVIEW_TIME_OPTIONS = Array.from({ length: 48 }, (_, index) => {
+  const hour = Math.floor(index / 2);
+  const minutes = index % 2 === 0 ? '00' : '30';
+  const value = `${String(hour).padStart(2, '0')}:${minutes}`;
+  return {
+    value,
+    label: `${hour}:${minutes}`
+  };
+});
+
+const toIsoDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 function CandidateField({ label, value }: { label: string; value: string }) {
@@ -122,18 +146,13 @@ export default function PSeletivoPage() {
   const [interviewResponsibleMemberId, setInterviewResponsibleMemberId] =
     React.useState('');
   const [availableInterviewSlots, setAvailableInterviewSlots] = React.useState<
-    Array<{
-      id: string;
-      isoDate: string;
-      dateLabel: string;
-      startTime: string;
-      endTime: string;
-      startMinutes: number;
-      endMinutes: number;
-      responsibleMemberId: string;
-      responsibleMemberName: string;
-    }>
+    InterviewSlot[]
   >([]);
+  const [isLoadingInterviewSlots, setIsLoadingInterviewSlots] =
+    React.useState(false);
+  const [isSavingInterviewSlot, setIsSavingInterviewSlot] = React.useState(false);
+  const [isRemovingInterviewSlotId, setIsRemovingInterviewSlotId] =
+    React.useState<string | null>(null);
   const [isDisqualifyingCandidateId, setIsDisqualifyingCandidateId] =
     React.useState<string | null>(null);
   const [isDisqualifyDialogOpen, setIsDisqualifyDialogOpen] =
@@ -366,6 +385,34 @@ export default function PSeletivoPage() {
     [companyMembers]
   );
 
+  const selectedInterviewIsoDate = React.useMemo(() => {
+    if (!interviewDate) {
+      return '';
+    }
+    return toIsoDate(interviewDate);
+  }, [interviewDate]);
+
+  const interviewSlotsForSelectedDate = React.useMemo(() => {
+    if (!selectedInterviewIsoDate) {
+      return [];
+    }
+
+    return availableInterviewSlots.filter(
+      (slot) => slot.isoDate === selectedInterviewIsoDate
+    );
+  }, [availableInterviewSlots, selectedInterviewIsoDate]);
+
+  const interviewCalendarDatesWithSlots = React.useMemo(() => {
+    const uniqueIsoDates = new Set(
+      availableInterviewSlots.map((slot) => slot.isoDate)
+    );
+
+    return Array.from(uniqueIsoDates).map((isoDate) => {
+      const [year, month, day] = isoDate.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    });
+  }, [availableInterviewSlots]);
+
   React.useEffect(() => {
     if (interviewResponsibleOptions.length === 0) {
       if (interviewResponsibleMemberId) {
@@ -383,6 +430,40 @@ export default function PSeletivoPage() {
 
     setInterviewResponsibleMemberId(interviewResponsibleOptions[0].id);
   }, [interviewResponsibleMemberId, interviewResponsibleOptions]);
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    async function loadInterviewSlotsForForm() {
+      if (!selectedFormId) {
+        setAvailableInterviewSlots([]);
+        setIsLoadingInterviewSlots(false);
+        return;
+      }
+
+      try {
+        setIsLoadingInterviewSlots(true);
+        const slots = await listInterviewSlots(selectedFormId);
+        if (!isMounted) return;
+        setAvailableInterviewSlots(slots);
+      } catch (error) {
+        if (!isMounted) return;
+        console.error('Erro ao carregar horarios de entrevista:', error);
+        setAvailableInterviewSlots([]);
+        toast.error('Nao foi possivel carregar os horarios de entrevista.');
+      } finally {
+        if (isMounted) {
+          setIsLoadingInterviewSlots(false);
+        }
+      }
+    }
+
+    loadInterviewSlotsForForm();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedFormId]);
 
   React.useEffect(() => {
     setCopyMessage('');
@@ -923,7 +1004,7 @@ export default function PSeletivoPage() {
 
   const isCurrentlyLoading =
     viewMode === 'candidatos' ? isLoadingSavedCandidates : isLoadingMembers;
-  const handleAddInterviewSlot = () => {
+  const handleAddInterviewSlot = async () => {
     const toMinutes = (timeValue: string): number | null => {
       const [hoursText, minutesText] = timeValue.split(':');
       const hours = Number(hoursText);
@@ -945,6 +1026,11 @@ export default function PSeletivoPage() {
 
     if (!interviewDate) {
       toast.error('Selecione uma data para o horario.');
+      return;
+    }
+
+    if (!selectedFormId) {
+      toast.error('Selecione um formulario para salvar os horarios.');
       return;
     }
 
@@ -989,66 +1075,83 @@ export default function PSeletivoPage() {
       return;
     }
 
-    const year = interviewDate.getFullYear();
-    const month = String(interviewDate.getMonth() + 1).padStart(2, '0');
-    const day = String(interviewDate.getDate()).padStart(2, '0');
-    const isoDate = `${year}-${month}-${day}`;
+    const isoDate = toIsoDate(interviewDate);
     const dateLabel = new Intl.DateTimeFormat('pt-BR').format(interviewDate);
     const id = `${isoDate}-${interviewResponsibleMemberId}-${interviewStartTime}-${interviewEndTime}`;
 
-    setAvailableInterviewSlots((current) => {
-      if (current.some((slot) => slot.id === id)) {
-        toast.error('Horario ja adicionado.');
-        return current;
+    if (availableInterviewSlots.some((slot) => slot.id === id)) {
+      toast.error('Horario ja adicionado.');
+      return;
+    }
+
+    const hasOverlapForResponsible = availableInterviewSlots.some((slot) => {
+      if (
+        slot.isoDate !== isoDate ||
+        slot.responsibleMemberId !== interviewResponsibleMemberId
+      ) {
+        return false;
       }
 
-      const hasOverlapForResponsible = current.some((slot) => {
-        if (
-          slot.isoDate !== isoDate ||
-          slot.responsibleMemberId !== interviewResponsibleMemberId
-        ) {
-          return false;
-        }
-
-        return startMinutes < slot.endMinutes && endMinutes > slot.startMinutes;
-      });
-
-      if (hasOverlapForResponsible) {
-        toast.error(
-          'Ja existe um horario conflitante para este responsavel nesta data.'
-        );
-        return current;
-      }
-
-      const updated = [
-        ...current,
-        {
-          id,
-          isoDate,
-          dateLabel,
-          startTime: interviewStartTime,
-          endTime: interviewEndTime,
-          startMinutes,
-          endMinutes,
-          responsibleMemberId: interviewResponsibleMemberId,
-          responsibleMemberName: responsibleMember.name
-        }
-      ];
-      updated.sort((left, right) =>
-        `${left.isoDate}-${String(left.startMinutes).padStart(4, '0')}-${left.responsibleMemberName}`.localeCompare(
-          `${right.isoDate}-${String(right.startMinutes).padStart(4, '0')}-${right.responsibleMemberName}`
-        )
-      );
-      return updated;
+      return startMinutes < slot.endMinutes && endMinutes > slot.startMinutes;
     });
 
-    toast.success('Horario de entrevista disponibilizado.');
+    if (hasOverlapForResponsible) {
+      toast.error('Ja existe um horario conflitante para este responsavel nesta data.');
+      return;
+    }
+
+    const slotToSave: InterviewSlot = {
+      id,
+      isoDate,
+      dateLabel,
+      startTime: interviewStartTime,
+      endTime: interviewEndTime,
+      startMinutes,
+      endMinutes,
+      responsibleMemberId: interviewResponsibleMemberId,
+      responsibleMemberName: responsibleMember.name
+    };
+
+    try {
+      setIsSavingInterviewSlot(true);
+      await saveInterviewSlot(selectedFormId, slotToSave);
+
+      setAvailableInterviewSlots((current) =>
+        sortInterviewSlots([
+          ...current.filter((slot) => slot.id !== slotToSave.id),
+          slotToSave
+        ])
+      );
+
+      toast.success('Horario de entrevista disponibilizado.');
+    } catch (error) {
+      console.error('Erro ao salvar horario de entrevista:', error);
+      toast.error('Nao foi possivel salvar o horario de entrevista.');
+    } finally {
+      setIsSavingInterviewSlot(false);
+    }
   };
 
-  const handleRemoveInterviewSlot = (slotId: string) => {
-    setAvailableInterviewSlots((current) =>
-      current.filter((slot) => slot.id !== slotId)
-    );
+  const handleRemoveInterviewSlot = async (slotId: string) => {
+    if (!selectedFormId) {
+      toast.error('Selecione um formulario para remover horarios.');
+      return;
+    }
+
+    try {
+      setIsRemovingInterviewSlotId(slotId);
+      await removeInterviewSlotFromDatabase(selectedFormId, slotId);
+      setAvailableInterviewSlots((current) =>
+        current.filter((slot) => slot.id !== slotId)
+      );
+    } catch (error) {
+      console.error('Erro ao remover horario de entrevista:', error);
+      toast.error('Nao foi possivel remover o horario de entrevista.');
+    } finally {
+      setIsRemovingInterviewSlotId((current) =>
+        current === slotId ? null : current
+      );
+    }
   };
 
   const filteredMembers = React.useMemo(() => {
@@ -1531,6 +1634,13 @@ export default function PSeletivoPage() {
                       mode='single'
                       selected={interviewDate}
                       onSelect={setInterviewDate}
+                      modifiers={{
+                        hasInterviewSlots: interviewCalendarDatesWithSlots
+                      }}
+                      modifiersClassNames={{
+                        hasInterviewSlots:
+                          'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 aria-selected:bg-emerald-600 aria-selected:text-white'
+                      }}
                       disabled={(date) => {
                         const today = new Date();
                         today.setHours(0, 0, 0, 0);
@@ -1540,24 +1650,32 @@ export default function PSeletivoPage() {
                     />
                   </div>
                   <div className='min-w-0'>
-                    {availableInterviewSlots.length === 0 ? (
-                      <div className='text-muted-foreground rounded-md border border-dashed p-3 text-sm'>
-                        Nenhum horario adicionado.
+                    {isLoadingInterviewSlots ? (
+                      <div className='text-muted-foreground flex h-[14.5rem] items-center rounded-md border border-dashed p-3 text-sm'>
+                        Carregando horarios...
+                      </div>
+                    ) : !interviewDate ? (
+                      <div className='text-muted-foreground flex h-[14.5rem] items-center rounded-md border border-dashed p-3 text-sm'>
+                        Selecione uma data para visualizar os horarios.
+                      </div>
+                    ) : interviewSlotsForSelectedDate.length === 0 ? (
+                      <div className='text-muted-foreground flex h-[14.5rem] items-center rounded-md border border-dashed p-3 text-sm'>
+                        Nenhum horario adicionado para esta data.
                       </div>
                     ) : (
-                      <ScrollArea className='h-[18.5rem] rounded-md border p-2'>
+                      <ScrollArea className='h-[14.5rem] rounded-md'>
                         <div className='space-y-2'>
-                          {availableInterviewSlots.map((slot) => (
+                          {interviewSlotsForSelectedDate.map((slot) => (
                             <div
                               key={slot.id}
                               className='flex items-center justify-between gap-2 rounded-md border p-2'
                             >
                               <div className='min-w-0 flex-1'>
                                 <p className='text-sm'>
-                                  {slot.dateLabel} | {slot.startTime} - {slot.endTime}
+                                  {slot.startTime} - {slot.endTime}
                                 </p>
                                 <p className='text-muted-foreground truncate text-xs'>
-                                  Responsavel: {slot.responsibleMemberName}
+                                  {slot.responsibleMemberName}
                                 </p>
                               </div>
                               <Button
@@ -1565,6 +1683,10 @@ export default function PSeletivoPage() {
                                 variant='ghost'
                                 size='icon'
                                 className='h-7 w-7 shrink-0'
+                                disabled={
+                                  isSavingInterviewSlot ||
+                                  isRemovingInterviewSlotId === slot.id
+                                }
                                 onClick={() => handleRemoveInterviewSlot(slot.id)}
                                 aria-label={`Remover horario ${slot.dateLabel} ${slot.startTime} ${slot.endTime}`}
                               >
@@ -1613,15 +1735,28 @@ export default function PSeletivoPage() {
                   >
                     Inicio
                   </label>
-                  <Input
-                    id='interview-start-time'
-                    type='time'
-                    step='1800'
+                  <Select
                     value={interviewStartTime}
-                    onChange={(event) =>
-                      setInterviewStartTime(event.target.value)
-                    }
-                  />
+                    onValueChange={setInterviewStartTime}
+                  >
+                    <SelectTrigger
+                      id='interview-start-time'
+                      size='sm'
+                      className='w-full'
+                    >
+                      <SelectValue placeholder='Selecione o inicio' />
+                    </SelectTrigger>
+                    <SelectContent className='max-h-48'>
+                      {INTERVIEW_TIME_OPTIONS.map((timeOption) => (
+                        <SelectItem
+                          key={`start-${timeOption.value}`}
+                          value={timeOption.value}
+                        >
+                          {timeOption.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className='space-y-2'>
@@ -1631,13 +1766,28 @@ export default function PSeletivoPage() {
                   >
                     Fim
                   </label>
-                  <Input
-                    id='interview-end-time'
-                    type='time'
-                    step='1800'
+                  <Select
                     value={interviewEndTime}
-                    onChange={(event) => setInterviewEndTime(event.target.value)}
-                  />
+                    onValueChange={setInterviewEndTime}
+                  >
+                    <SelectTrigger
+                      id='interview-end-time'
+                      size='sm'
+                      className='w-full'
+                    >
+                      <SelectValue placeholder='Selecione o fim' />
+                    </SelectTrigger>
+                    <SelectContent className='max-h-48'>
+                      {INTERVIEW_TIME_OPTIONS.map((timeOption) => (
+                        <SelectItem
+                          key={`end-${timeOption.value}`}
+                          value={timeOption.value}
+                        >
+                          {timeOption.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -1649,7 +1799,11 @@ export default function PSeletivoPage() {
                 type='button'
                 className='w-full'
                 onClick={handleAddInterviewSlot}
-                disabled={interviewResponsibleOptions.length === 0}
+                disabled={
+                  interviewResponsibleOptions.length === 0 ||
+                  !selectedFormId ||
+                  isSavingInterviewSlot
+                }
               >
                 Adicionar horario
               </Button>
