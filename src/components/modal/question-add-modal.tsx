@@ -45,10 +45,12 @@ interface QuestionAddModalProps {
 }
 
 const TIPOS_RESPOSTA: Array<{ value: FormQuestionType; label: string }> =
-  Object.entries(FORM_QUESTION_TYPE_LABELS).map(([key, label]) => ({
-    value: key as FormQuestionType,
-    label
-  }));
+  Object.entries(FORM_QUESTION_TYPE_LABELS)
+    .filter(([key]) => key !== 'infoSection')
+    .map(([key, label]) => ({
+      value: key as FormQuestionType,
+      label
+    }));
 
 export const QuestionAddModal: React.FC<QuestionAddModalProps> = ({
   isOpen,

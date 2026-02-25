@@ -10,7 +10,8 @@ export type FormQuestionType =
   | 'multipleChoice'
   | 'checkbox'
   | 'select'
-  | 'fileUpload';
+  | 'fileUpload'
+  | 'infoSection';
 
 export type FormType = 'interno' | 'cadastroPsel';
 
@@ -32,6 +33,8 @@ export type FormQuestion = {
   };
   // Para multipleChoice, checkbox, select
   items?: FormQuestionItem[];
+  // Para infoSection: conteúdo informativo (suporta texto com links)
+  conteudo?: string;
 };
 
 export type Form = {
@@ -90,7 +93,8 @@ export const FORM_QUESTION_TYPE_LABELS: Record<FormQuestionType, string> = {
   multipleChoice: 'Múltipla escolha',
   checkbox: 'Caixas de seleção',
   select: 'Lista suspensa',
-  fileUpload: 'Upload de arquivo'
+  fileUpload: 'Upload de arquivo',
+  infoSection: 'Seção informativa'
 };
 
 /**

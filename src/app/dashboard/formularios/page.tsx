@@ -23,6 +23,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { QuestionEditModal } from '@/components/modal/question-edit-modal';
 import { QuestionAddModal } from '@/components/modal/question-add-modal';
+import { InfoSectionAddModal } from '@/components/modal/info-section-add-modal';
 import { useDragDrop } from '@/hooks/use-drag-drop';
 import formService from '@/services/formService';
 import useMetadata from '@/hooks/use-metadata';
@@ -39,7 +40,8 @@ import {
   IconPlus,
   IconEdit,
   IconX,
-  IconGripVertical
+  IconGripVertical,
+  IconInfoCircle
 } from '@tabler/icons-react';
 
 type Pergunta = FormQuestion & {
@@ -114,6 +116,10 @@ export default function FormulariosPage() {
   // Estado para adição de pergunta em modal
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
 
+  // Estado para adição de seção informativa em modal
+  const [isInfoSectionModalOpen, setIsInfoSectionModalOpen] =
+    React.useState(false);
+
   // Hook para drag and drop
   const {
     draggedIndex,
@@ -164,6 +170,7 @@ export default function FormulariosPage() {
     setEditingQuestion(null);
     setIsModalOpen(false);
     setIsAddModalOpen(false);
+    setIsInfoSectionModalOpen(false);
   }
 
   function abrirEdicaoPergunta(pergunta: Pergunta) {
@@ -216,20 +223,26 @@ export default function FormulariosPage() {
     obrigatoria: boolean;
     descricao?: string;
     items?: FormQuestionItem[];
+    conteudo?: string;
   }) {
     const tempId = generateTempId();
     const novaPergunta: Pergunta = {
       id: typeof tempId === 'string' ? tempId : `temp-${tempId}`,
       titulo: quartaQuestion.titulo,
       tipo: quartaQuestion.tipo,
-      obrigatoria: quartaQuestion.obrigatoria,
+      obrigatoria:
+        quartaQuestion.tipo === 'infoSection'
+          ? false
+          : quartaQuestion.obrigatoria,
       descricao: quartaQuestion.descricao,
       items: quartaQuestion.items,
+      conteudo: quartaQuestion.conteudo,
       tempId
     };
 
     setPerguntas((current) => [...current, novaPergunta]);
     setIsAddModalOpen(false);
+    setIsInfoSectionModalOpen(false);
   }
 
   function removerPergunta(perguntaId: string | number) {
@@ -393,6 +406,17 @@ export default function FormulariosPage() {
                   <IconPlus className='mr-1 size-3.5' />
                   Adicionar pergunta
                 </Button>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={() => setIsInfoSectionModalOpen(true)}
+                  disabled={!podeEditarPerguntas}
+                  className='w-full text-xs'
+                >
+                  <IconInfoCircle className='mr-1 size-3.5' />
+                  Adicionar seção informativa
+                </Button>
               </div>
 
               {error ? (
@@ -435,11 +459,11 @@ export default function FormulariosPage() {
           <Card>
             <CardHeader className='pb-3'>
               <CardTitle className='text-base'>
-                Perguntas ({perguntas.length})
+                Itens do formulário ({perguntas.length})
               </CardTitle>
               <CardDescription className='text-xs'>
                 {perguntas.length === 0
-                  ? 'Nenhuma ainda'
+                  ? 'Nenhum item ainda'
                   : 'Arraste para reordenar ou clique para editar'}
               </CardDescription>
             </CardHeader>
@@ -448,7 +472,7 @@ export default function FormulariosPage() {
                 <div className='space-y-2 pr-3'>
                   {perguntas.length === 0 ? (
                     <p className='text-muted-foreground py-6 text-center text-xs'>
-                      Adicione uma pergunta
+                      Adicione uma pergunta ou seção informativa
                     </p>
                   ) : null}
                   {perguntas.map((pergunta, index) => (
@@ -475,17 +499,27 @@ export default function FormulariosPage() {
 
                         <div className='min-w-0 flex-1 space-y-1'>
                           <p className='truncate text-xs font-medium'>
+                            {pergunta.tipo === 'infoSection' && (
+                              <IconInfoCircle className='mr-1 inline size-3.5 text-blue-500' />
+                            )}
                             {index + 1}. {pergunta.titulo}
                           </p>
                           <div className='flex flex-wrap gap-1.5'>
-                            <span className='bg-secondary text-secondary-foreground rounded px-1.5 py-0.5 text-xs'>
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-xs ${
+                                pergunta.tipo === 'infoSection'
+                                  ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                                  : 'bg-secondary text-secondary-foreground'
+                              }`}
+                            >
                               {FORM_QUESTION_TYPE_LABELS[pergunta.tipo]}
                             </span>
-                            {pergunta.obrigatoria && (
-                              <span className='bg-destructive/10 text-destructive rounded px-1.5 py-0.5 text-xs'>
-                                Obr.
-                              </span>
-                            )}
+                            {pergunta.tipo !== 'infoSection' &&
+                              pergunta.obrigatoria && (
+                                <span className='bg-destructive/10 text-destructive rounded px-1.5 py-0.5 text-xs'>
+                                  Obr.
+                                </span>
+                              )}
                             {temOpcoes(pergunta.tipo) &&
                               pergunta.items &&
                               pergunta.items.length > 0 && (
@@ -543,6 +577,22 @@ export default function FormulariosPage() {
             isOpen={isAddModalOpen}
             onClose={() => setIsAddModalOpen(false)}
             onSave={adicionarPergunta}
+            loading={isSaving}
+          />
+
+          {/* Modal de adição de seção informativa */}
+          <InfoSectionAddModal
+            isOpen={isInfoSectionModalOpen}
+            onClose={() => setIsInfoSectionModalOpen(false)}
+            onSave={(section) => {
+              adicionarPergunta({
+                titulo: section.titulo,
+                tipo: 'infoSection',
+                obrigatoria: false,
+                descricao: section.descricao,
+                conteudo: section.conteudo
+              });
+            }}
             loading={isSaving}
           />
 
