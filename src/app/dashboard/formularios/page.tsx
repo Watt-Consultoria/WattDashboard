@@ -32,7 +32,8 @@ import type {
   FormQuestion,
   FormQuestionType,
   FormType,
-  FormQuestionItem
+  FormQuestionItem,
+  FormQuestionValidation
 } from '@/types/forms/form';
 import { FORM_QUESTION_TYPE_LABELS } from '@/types/forms/form';
 import {
@@ -224,6 +225,7 @@ export default function FormulariosPage() {
     descricao?: string;
     items?: FormQuestionItem[];
     conteudo?: string;
+    validacao?: FormQuestionValidation;
   }) {
     const tempId = generateTempId();
     const novaPergunta: Pergunta = {
@@ -237,6 +239,7 @@ export default function FormulariosPage() {
       descricao: quartaQuestion.descricao,
       items: quartaQuestion.items,
       conteudo: quartaQuestion.conteudo,
+      validacao: quartaQuestion.validacao,
       tempId
     };
 
@@ -526,6 +529,12 @@ export default function FormulariosPage() {
                                 <span className='bg-primary/10 text-primary rounded px-1.5 py-0.5 text-xs'>
                                   {pergunta.items.length} opção
                                   {pergunta.items.length !== 1 ? 's' : ''}
+                                </span>
+                              )}
+                            {pergunta.tipo === 'shortText' &&
+                              pergunta.validacao?.pattern && (
+                                <span className='rounded bg-violet-500/10 px-1.5 py-0.5 text-xs text-violet-600 dark:text-violet-400'>
+                                  Regex
                                 </span>
                               )}
                           </div>

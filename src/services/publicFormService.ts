@@ -106,8 +106,10 @@ class PublicFormService {
   ): {
     valid: boolean;
     missingFields: string[];
+    regexErrors: Record<string, string>;
   } {
     const missingFields: string[] = [];
+    const regexErrors: Record<string, string> = {};
 
     for (const pergunta of form.perguntas) {
       // Seções informativas não são validadas
@@ -119,11 +121,31 @@ class PublicFormService {
       if (pergunta.obrigatoria && isEmpty) {
         missingFields.push(pergunta.titulo);
       }
+
+      // Validação regex para shortText
+      if (
+        pergunta.tipo === 'shortText' &&
+        pergunta.validacao?.pattern &&
+        typeof value === 'string' &&
+        value.trim() !== ''
+      ) {
+        try {
+          const regex = new RegExp(pergunta.validacao.pattern);
+          if (!regex.test(value)) {
+            regexErrors[pergunta.id] =
+              pergunta.validacao.message || 'Valor inválido.';
+          }
+        } catch {
+          // Padrão regex inválido — ignorar validação
+        }
+      }
     }
 
     return {
-      valid: missingFields.length === 0,
-      missingFields
+      valid:
+        missingFields.length === 0 && Object.keys(regexErrors).length === 0,
+      missingFields,
+      regexErrors
     };
   }
 

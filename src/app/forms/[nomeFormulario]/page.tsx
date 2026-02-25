@@ -87,6 +87,9 @@ export default function PublicFormPage() {
   const [error, setError] = React.useState('');
   const [submitted, setSubmitted] = React.useState(false);
   const [missingFieldIds, setMissingFieldIds] = React.useState<string[]>([]);
+  const [regexErrors, setRegexErrors] = React.useState<Record<string, string>>(
+    {}
+  );
   const [isShaking, setIsShaking] = React.useState(false);
 
   const htmlFormId = 'public-form';
@@ -190,6 +193,13 @@ export default function PublicFormPage() {
       [id]: value
     }));
     setMissingFieldIds((current) => current.filter((fId) => fId !== id));
+    setRegexErrors((current) => {
+      if (current[id]) {
+        const { [id]: _, ...rest } = current;
+        return rest;
+      }
+      return current;
+    });
   }
 
   function triggerValidationFeedback(missingIds: string[]) {
@@ -217,12 +227,20 @@ export default function PublicFormPage() {
         .filter((p) => validation.missingFields.includes(p.titulo))
         .map((p) => p.id);
 
-      triggerValidationFeedback(missingIds);
+      // Combinar campos ausentes com erros de regex para feedback
+      const allInvalidIds = [
+        ...missingIds,
+        ...Object.keys(validation.regexErrors)
+      ];
+
+      setRegexErrors(validation.regexErrors);
+      triggerValidationFeedback(allInvalidIds);
       return;
     }
 
     setError('');
     setMissingFieldIds([]);
+    setRegexErrors({});
     setIsSubmitting(true);
 
     try {
@@ -319,6 +337,7 @@ export default function PublicFormPage() {
                 onClick={() => {
                   setSubmitted(false);
                   setMissingFieldIds([]);
+                  setRegexErrors({});
                   setIsShaking(false);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
@@ -430,6 +449,8 @@ export default function PublicFormPage() {
 
                     const value = answers[pergunta.id];
                     const isMissing = missingFieldIds.includes(pergunta.id);
+                    const hasRegexError = Boolean(regexErrors[pergunta.id]);
+                    const hasError = isMissing || hasRegexError;
                     const isFilled = !publicFormService.isAnswerEmpty(
                       pergunta.tipo,
                       value
@@ -447,7 +468,7 @@ export default function PublicFormPage() {
                         key={pergunta.id}
                         className={cn(
                           'rounded-xl border p-4 shadow-xs transition-colors sm:p-5',
-                          isMissing
+                          hasError
                             ? 'border-destructive/70 bg-destructive/5'
                             : isFilled
                               ? 'border-primary/40 bg-primary/5'
@@ -460,7 +481,7 @@ export default function PublicFormPage() {
                             htmlFor={`pergunta-${pergunta.id}`}
                             className={cn(
                               'text-sm leading-relaxed font-medium',
-                              isMissing ? 'text-destructive' : ''
+                              hasError ? 'text-destructive' : ''
                             )}
                           >
                             {pergunta.titulo}
@@ -483,20 +504,27 @@ export default function PublicFormPage() {
 
                         {/* Input de texto curto */}
                         {pergunta.tipo === 'shortText' && (
-                          <Input
-                            id={`pergunta-${pergunta.id}`}
-                            value={typeof value === 'string' ? value : ''}
-                            onChange={(e) =>
-                              updateAnswer(pergunta.id, e.target.value)
-                            }
-                            placeholder='Digite sua resposta'
-                            aria-invalid={isMissing}
-                            className={cn(
-                              isMissing
-                                ? 'border-destructive ring-destructive/25'
-                                : ''
+                          <div>
+                            <Input
+                              id={`pergunta-${pergunta.id}`}
+                              value={typeof value === 'string' ? value : ''}
+                              onChange={(e) =>
+                                updateAnswer(pergunta.id, e.target.value)
+                              }
+                              placeholder='Digite sua resposta'
+                              aria-invalid={hasError}
+                              className={cn(
+                                hasError
+                                  ? 'border-destructive ring-destructive/25'
+                                  : ''
+                              )}
+                            />
+                            {hasRegexError && (
+                              <p className='text-destructive mt-2 text-xs font-medium'>
+                                {regexErrors[pergunta.id]}
+                              </p>
                             )}
-                          />
+                          </div>
                         )}
 
                         {/* Textarea para parágrafo */}

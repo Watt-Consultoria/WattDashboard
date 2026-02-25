@@ -19,7 +19,8 @@ import { IconPlus, IconX } from '@tabler/icons-react';
 import type {
   FormQuestion,
   FormQuestionType,
-  FormQuestionItem
+  FormQuestionItem,
+  FormQuestionValidation
 } from '@/types/forms/form';
 import { FORM_QUESTION_TYPE_LABELS } from '@/types/forms/form';
 
@@ -65,6 +66,8 @@ export const QuestionEditModal: React.FC<QuestionEditModalProps> = ({
   const [editingQuestion, setEditingQuestion] =
     React.useState<EditingQuestion | null>(null);
   const [novaOpcao, setNovaOpcao] = React.useState('');
+  const [regexEnabled, setRegexEnabled] = React.useState(false);
+  const [regexError, setRegexError] = React.useState('');
 
   useEffect(() => {
     setIsMounted(true);
@@ -76,9 +79,13 @@ export const QuestionEditModal: React.FC<QuestionEditModalProps> = ({
         ...question,
         newItems: question.items ? [...question.items] : []
       });
+      setRegexEnabled(Boolean(question.validacao?.pattern));
+      setRegexError('');
       setNovaOpcao('');
     } else {
       setEditingQuestion(null);
+      setRegexEnabled(false);
+      setRegexError('');
       setNovaOpcao('');
     }
   }, [question, isOpen]);
@@ -116,9 +123,29 @@ export const QuestionEditModal: React.FC<QuestionEditModalProps> = ({
   };
 
   const handleSave = () => {
-    if (editingQuestion) {
-      onSave(editingQuestion);
+    if (!editingQuestion) return;
+
+    // Validar regex se habilitado
+    if (
+      regexEnabled &&
+      editingQuestion.tipo === 'shortText' &&
+      editingQuestion.validacao?.pattern
+    ) {
+      try {
+        new RegExp(editingQuestion.validacao.pattern);
+      } catch {
+        setRegexError('Padrão regex inválido');
+        return;
+      }
     }
+
+    // Limpar validação se não está habilitada ou não é shortText
+    const finalQuestion = { ...editingQuestion };
+    if (!regexEnabled || editingQuestion.tipo !== 'shortText') {
+      delete finalQuestion.validacao;
+    }
+
+    onSave(finalQuestion);
   };
 
   if (!isMounted) {
@@ -315,6 +342,100 @@ export const QuestionEditModal: React.FC<QuestionEditModalProps> = ({
                 <IconPlus className='size-3.5' />
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* Validação Regex - apenas para shortText */}
+        {editingQuestion && editingQuestion.tipo === 'shortText' && (
+          <div className='space-y-3 border-t pt-3'>
+            <div className='flex items-center gap-2'>
+              <Checkbox
+                id='edit-regex-enabled'
+                checked={regexEnabled}
+                onCheckedChange={(checked) => {
+                  const enabled = Boolean(checked);
+                  setRegexEnabled(enabled);
+                  if (!enabled) {
+                    setEditingQuestion((current) =>
+                      current
+                        ? (() => {
+                            const { validacao, ...rest } = current;
+                            return rest as EditingQuestion;
+                          })()
+                        : null
+                    );
+                    setRegexError('');
+                  }
+                }}
+                disabled={loading}
+              />
+              <label
+                htmlFor='edit-regex-enabled'
+                className='text-xs leading-none font-medium'
+              >
+                Validar com expressão regular (regex)
+              </label>
+            </div>
+
+            {regexEnabled && (
+              <div className='space-y-3'>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='edit-regex-pattern' className='text-xs'>
+                    Padrão Regex *
+                  </Label>
+                  <Input
+                    id='edit-regex-pattern'
+                    placeholder='Ex: ^[A-Za-z\\s]+$ ou ^\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}$'
+                    value={editingQuestion?.validacao?.pattern || ''}
+                    onChange={(e) => {
+                      setRegexError('');
+                      setEditingQuestion((current) =>
+                        current
+                          ? {
+                              ...current,
+                              validacao: {
+                                pattern: e.target.value,
+                                message: current.validacao?.message || ''
+                              }
+                            }
+                          : null
+                      );
+                    }}
+                    disabled={loading}
+                    className='font-mono text-sm'
+                  />
+                  {regexError && (
+                    <p className='text-destructive text-xs'>{regexError}</p>
+                  )}
+                </div>
+
+                <div className='space-y-1.5'>
+                  <Label htmlFor='edit-regex-message' className='text-xs'>
+                    Mensagem de erro (opcional)
+                  </Label>
+                  <Input
+                    id='edit-regex-message'
+                    placeholder='Ex: Formato inválido. Use apenas letras.'
+                    value={editingQuestion?.validacao?.message || ''}
+                    onChange={(e) =>
+                      setEditingQuestion((current) =>
+                        current
+                          ? {
+                              ...current,
+                              validacao: {
+                                pattern: current.validacao?.pattern || '',
+                                message: e.target.value
+                              }
+                            }
+                          : null
+                      )
+                    }
+                    disabled={loading}
+                    className='text-sm'
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
