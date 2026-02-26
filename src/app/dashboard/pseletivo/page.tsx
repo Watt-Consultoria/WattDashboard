@@ -150,7 +150,8 @@ export default function PSeletivoPage() {
   >([]);
   const [isLoadingInterviewSlots, setIsLoadingInterviewSlots] =
     React.useState(false);
-  const [isSavingInterviewSlot, setIsSavingInterviewSlot] = React.useState(false);
+  const [isSavingInterviewSlot, setIsSavingInterviewSlot] =
+    React.useState(false);
   const [isRemovingInterviewSlotId, setIsRemovingInterviewSlotId] =
     React.useState<string | null>(null);
   const [isDisqualifyingCandidateId, setIsDisqualifyingCandidateId] =
@@ -171,20 +172,21 @@ export default function PSeletivoPage() {
   >(new Set());
 
   // Estados para aprovação/rejeição de candidatos
-  const [isApprovalDialogOpen, setIsApprovalDialogOpen] =
-    React.useState(false);
+  const [isApprovalDialogOpen, setIsApprovalDialogOpen] = React.useState(false);
   const [selectedCandidateForApproval, setSelectedCandidateForApproval] =
     React.useState<Candidate | null>(null);
-  const [isApprovingCandidateId, setIsApprovingCandidateId] =
-    React.useState<string | null>(null);
+  const [isApprovingCandidateId, setIsApprovingCandidateId] = React.useState<
+    string | null
+  >(null);
   const [approvalMessage, setApprovalMessage] = React.useState('');
 
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] =
     React.useState(false);
   const [selectedCandidateForRejection, setSelectedCandidateForRejection] =
     React.useState<Candidate | null>(null);
-  const [isRejectingCandidateId, setIsRejectingCandidateId] =
-    React.useState<string | null>(null);
+  const [isRejectingCandidateId, setIsRejectingCandidateId] = React.useState<
+    string | null
+  >(null);
   const [rejectionMessage, setRejectionMessage] = React.useState('');
   const [rejectionFeedback, setRejectionFeedback] = React.useState('');
 
@@ -287,9 +289,14 @@ export default function PSeletivoPage() {
 
         const responses =
           await candidateService.getCandidatesByForm(selectedFormId);
+
+        const filteredResponses = responses.filter((response) => {
+          return !savedPreCandidateIds.has(response.id);
+        });
+
         if (!isMounted) return;
 
-        setMembers(responses);
+        setMembers(filteredResponses);
       } catch (error) {
         if (!isMounted) return;
         setLoadError(
@@ -310,7 +317,7 @@ export default function PSeletivoPage() {
     return () => {
       isMounted = false;
     };
-  }, [selectedFormId]);
+  }, [selectedFormId, savedPreCandidateIds]);
 
   // Carregar candidatos salvos quando o viewMode muda para 'candidatos'
   React.useEffect(() => {
@@ -362,7 +369,7 @@ export default function PSeletivoPage() {
       }
     }
     loadSavedIds();
-  }, [viewMode, members]);
+  }, [viewMode, savedCandidates]);
 
   const selectedForm = React.useMemo(
     () => pselForms.find((form) => form.id === selectedFormId) ?? null,
@@ -801,9 +808,7 @@ export default function PSeletivoPage() {
         viewMode === 'candidatos' ? setSavedCandidates : setMembers;
       updateList((current) =>
         current.map((member) =>
-          member.id === candidate.id
-            ? { ...member, etapa: 'Aprovado' }
-            : member
+          member.id === candidate.id ? { ...member, etapa: 'Aprovado' } : member
         )
       );
 
@@ -1096,7 +1101,9 @@ export default function PSeletivoPage() {
     });
 
     if (hasOverlapForResponsible) {
-      toast.error('Ja existe um horario conflitante para este responsavel nesta data.');
+      toast.error(
+        'Ja existe um horario conflitante para este responsavel nesta data.'
+      );
       return;
     }
 
@@ -1158,6 +1165,11 @@ export default function PSeletivoPage() {
     if (viewMode === 'candidatos') {
       return savedCandidateService.filterCandidates(currentMembers, query);
     }
+
+    if (viewMode === 'pre-candidatos') {
+      return candidateService.filterCandidates(currentMembers, query);
+    }
+
     return candidateService.filterCandidates(currentMembers, query);
   }, [currentMembers, query, viewMode]);
 
@@ -1173,6 +1185,7 @@ export default function PSeletivoPage() {
             <p className='text-sm font-semibold'>
               Total de membros: {filteredMembers.length}
             </p>
+
             <Button
               type='button'
               variant='outline'
@@ -1184,7 +1197,7 @@ export default function PSeletivoPage() {
               <FontAwesomeIcon icon={faTags} className='h-3 w-3' />
               Tags
             </Button>
-            <Button
+            {/* <Button
               type='button'
               variant='outline'
               size='sm'
@@ -1193,7 +1206,7 @@ export default function PSeletivoPage() {
               className='w-full sm:w-auto'
             >
               Link
-            </Button>
+            </Button> */}
             <Button
               type='button'
               variant='outline'
@@ -1217,7 +1230,7 @@ export default function PSeletivoPage() {
                 </SelectContent>
               </Select>
             </div>
-            {viewMode === 'candidatos' && (
+            {/* {viewMode === 'candidatos' && (
               <Button
                 type='button'
                 variant='outline'
@@ -1229,7 +1242,7 @@ export default function PSeletivoPage() {
                 <FontAwesomeIcon icon={faTags} className='h-3 w-3' />
                 Tags
               </Button>
-            )}
+            )} */}
             {viewMode === 'candidatos' && (
               <Button
                 type='button'
@@ -1378,7 +1391,7 @@ export default function PSeletivoPage() {
                         )}
                         {viewMode === 'candidatos' && (
                           <>
-                            <Button
+                            {/* <Button
                               type='button'
                               size='icon'
                               variant='default'
@@ -1392,34 +1405,32 @@ export default function PSeletivoPage() {
                               title='Aprovar candidato'
                             >
                               <FontAwesomeIcon icon={faCheck} />
-                            </Button>
-                            <Button
+                            </Button> */}
+                            {/* <Button
                               type='button'
                               size='icon'
                               variant='destructive'
                               className='h-8 w-8 shrink-0 rounded-full'
                               onClick={() =>
-                                isRejectingCandidateId ===
-                                member.id
+                                isRejectingCandidateId === member.id
                                   ? null
                                   : openRejectionDialog(member)
                               }
                               disabled={
                                 Boolean(isRejectingCandidateId) ||
-                                member.etapa
-                                  .trim()
-                                  .toLowerCase() === 'desclassificado'
+                                member.etapa.trim().toLowerCase() ===
+                                  'desclassificado'
                               }
                               aria-label={`Rejeitar ${member.nome} ${member.sobrenome}`}
                               title='Rejeitar candidato'
                             >
                               <FontAwesomeIcon icon={faThumbsDown} />
-                            </Button>
+                            </Button> */}
                             <Button
                               type='button'
                               size='icon'
                               variant='ghost'
-                              className='h-8 w-8 shrink-0 rounded-full text-destructive hover:bg-red-100'
+                              className='text-destructive h-8 w-8 shrink-0 rounded-full hover:bg-red-100'
                               onClick={() => openDisqualifyDialog(member)}
                               disabled={
                                 Boolean(isDisqualifyingCandidateId) ||
@@ -1571,39 +1582,41 @@ export default function PSeletivoPage() {
                     </div>
                   </CardHeader>
 
-                  <CardContent className='flex min-h-0 flex-1 flex-col gap-3 overflow-hidden'>
-                    <p className='text-muted-foreground text-xs font-medium'>
-                      Tarefas relacionadas
-                    </p>
-                    <ScrollArea className='max-h-40 w-full pr-2 sm:max-h-48'>
-                      <ul className='space-y-2'>
-                        {member.tarefas.length === 0 ? (
-                          <li className='text-muted-foreground rounded-md border border-dashed p-2 text-sm'>
-                            Nenhuma tarefa relacionada.
-                          </li>
-                        ) : null}
-                        {member.tarefas.map((task) => (
-                          <li key={task.id} className='rounded-md border p-2'>
-                            <div className='flex items-center justify-between gap-2'>
-                              <p className='text-sm font-medium'>
-                                {task.titulo}
-                              </p>
-                              <Badge variant={taskStatusVariant[task.status]}>
-                                {taskStatusLabel[task.status]}
-                              </Badge>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </ScrollArea>
-                  </CardContent>
+                  {viewMode === 'candidatos' && (
+                    <CardContent className='flex min-h-0 flex-1 flex-col gap-3 overflow-hidden'>
+                      <p className='text-muted-foreground text-xs font-medium'>
+                        Tarefas relacionadas
+                      </p>
+                      <ScrollArea className='max-h-40 w-full pr-2 sm:max-h-48'>
+                        <ul className='space-y-2'>
+                          {member.tarefas.length === 0 ? (
+                            <li className='text-muted-foreground rounded-md border border-dashed p-2 text-sm'>
+                              Nenhuma tarefa relacionada.
+                            </li>
+                          ) : null}
+                          {member.tarefas.map((task) => (
+                            <li key={task.id} className='rounded-md border p-2'>
+                              <div className='flex items-center justify-between gap-2'>
+                                <p className='text-sm font-medium'>
+                                  {task.titulo}
+                                </p>
+                                <Badge variant={taskStatusVariant[task.status]}>
+                                  {taskStatusLabel[task.status]}
+                                </Badge>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </ScrollArea>
+                    </CardContent>
+                  )}
                 </Card>
               ))}
 
               {filteredMembers.length === 0 ? (
                 <Card className='col-span-full flex min-h-55 items-center justify-center overflow-hidden border-dashed'>
                   <CardContent className='text-muted-foreground py-8 text-center text-sm'>
-                    Nenhum membro encontrado.
+                    Nenhum pré-candidato encontrado.
                   </CardContent>
                 </Card>
               ) : null}
@@ -1621,7 +1634,8 @@ export default function PSeletivoPage() {
           <DialogHeader>
             <DialogTitle>Disponibilizar horarios de entrevistas</DialogTitle>
             <DialogDescription>
-              Selecione um dia no calendario e defina os horarios para entrevista.
+              Selecione um dia no calendario e defina os horarios para
+              entrevista.
             </DialogDescription>
           </DialogHeader>
 
@@ -1687,10 +1701,15 @@ export default function PSeletivoPage() {
                                   isSavingInterviewSlot ||
                                   isRemovingInterviewSlotId === slot.id
                                 }
-                                onClick={() => handleRemoveInterviewSlot(slot.id)}
+                                onClick={() =>
+                                  handleRemoveInterviewSlot(slot.id)
+                                }
                                 aria-label={`Remover horario ${slot.dateLabel} ${slot.startTime} ${slot.endTime}`}
                               >
-                                <FontAwesomeIcon icon={faXmark} className='h-3 w-3' />
+                                <FontAwesomeIcon
+                                  icon={faXmark}
+                                  className='h-3 w-3'
+                                />
                               </Button>
                             </div>
                           ))}
@@ -1932,8 +1951,7 @@ export default function PSeletivoPage() {
               className='bg-green-600 hover:bg-green-700'
               onClick={handleConfirmApproveCandidate}
               disabled={
-                !selectedCandidateForApproval ||
-                Boolean(isApprovingCandidateId)
+                !selectedCandidateForApproval || Boolean(isApprovingCandidateId)
               }
             >
               {isApprovingCandidateId ? 'Aprovando...' : 'Aprovar'}
@@ -1977,9 +1995,7 @@ export default function PSeletivoPage() {
                 />
               </div>
               <div className='space-y-2'>
-                <Label htmlFor='rejection-feedback'>
-                  Feedback (opcional)
-                </Label>
+                <Label htmlFor='rejection-feedback'>Feedback (opcional)</Label>
                 <Textarea
                   id='rejection-feedback'
                   placeholder='Ex.: Recomendamos...'
