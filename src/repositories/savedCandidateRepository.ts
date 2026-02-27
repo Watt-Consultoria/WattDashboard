@@ -62,6 +62,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
       tags: data.tags ?? [],
       formIdOrigem: data.formIdOrigem,
       respostaIdOrigem: data.respostaIdOrigem,
+      desclassificado: data.desclassificado ?? false,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
@@ -104,6 +105,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
         tags: data.tags ?? [],
         formIdOrigem: data.formIdOrigem ?? '',
         respostaIdOrigem: data.respostaIdOrigem ?? '',
+        desclassificado: data.desclassificado ?? false,
         createdAt: data.createdAt ?? null,
         updatedAt: data.updatedAt ?? null
       };
@@ -141,6 +143,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
       tags: data.tags ?? [],
       formIdOrigem: data.formIdOrigem ?? '',
       respostaIdOrigem: data.respostaIdOrigem ?? '',
+      desclassificado: data.desclassificado ?? false,
       createdAt: data.createdAt ?? null,
       updatedAt: data.updatedAt ?? null
     };
@@ -177,6 +180,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
         tags: data.tags ?? [],
         formIdOrigem: data.formIdOrigem ?? '',
         respostaIdOrigem: data.respostaIdOrigem ?? '',
+        desclassificado: data.desclassificado ?? false,
         createdAt: data.createdAt ?? null,
         updatedAt: data.updatedAt ?? null
       };
@@ -230,6 +234,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
           tags: data.tags ?? [],
           formIdOrigem: data.formIdOrigem ?? '',
           respostaIdOrigem: data.respostaIdOrigem ?? '',
+          desclassificado: data.desclassificado ?? false,
           createdAt: data.createdAt ?? null,
           updatedAt: data.updatedAt ?? null
         });
@@ -391,6 +396,24 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
 
     await updateDoc(docRef, {
       etapa: trimmedStage,
+      updatedAt: serverTimestamp()
+    });
+  }
+
+  async disqualifyCandidate(candidateId: string): Promise<void> {
+    if (!candidateId) {
+      throw new MissingParameterError(['candidateId']);
+    }
+
+    const docRef = this.getDocRef(candidateId);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+      throw new ValidationError('Candidato não encontrado');
+    }
+
+    await updateDoc(docRef, {
+      desclassificado: true,
       updatedAt: serverTimestamp()
     });
   }

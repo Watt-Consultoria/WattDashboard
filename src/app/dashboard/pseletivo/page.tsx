@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 import useMetadata from '@/hooks/use-metadata';
 import { useFirebaseData } from '@/contexts/firebase-data-context';
 import {
@@ -46,7 +47,8 @@ import {
   faUserPlus,
   faEnvelope,
   faCheck,
-  faThumbsDown
+  faThumbsDown,
+  faCalendarDays
 } from '@fortawesome/free-solid-svg-icons';
 import {
   EMAIL_TEMPLATES,
@@ -63,7 +65,7 @@ import {
   type InterviewSlot
 } from './interview';
 
-type ViewMode = 'pre-candidatos' | 'candidatos';
+type ViewMode = 'pre-candidatos' | 'candidatos' | 'desclassificados';
 
 const taskStatusLabel: Record<CandidateTaskStatus, string> = {
   PENDENTE: 'Pendente',
@@ -80,13 +82,11 @@ const taskStatusVariant: Record<
   CONCLUIDA: 'default'
 };
 
-const INTERVIEW_TIME_OPTIONS = Array.from({ length: 48 }, (_, index) => {
-  const hour = Math.floor(index / 2);
-  const minutes = index % 2 === 0 ? '00' : '30';
-  const value = `${String(hour).padStart(2, '0')}:${minutes}`;
+const INTERVIEW_TIME_OPTIONS = Array.from({ length: 24 }, (_, index) => {
+  const value = `${String(index).padStart(2, '0')}:00`;
   return {
     value,
-    label: `${hour}:${minutes}`
+    label: `${index}:00`
   };
 });
 
@@ -95,6 +95,10 @@ const toIsoDate = (date: Date) => {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+const truncateName = (text: string, maxChars: number = 10): string => {
+  return text.length > maxChars ? text.substring(0, maxChars) + '...' : text;
 };
 
 function CandidateField({ label, value }: { label: string; value: string }) {
@@ -107,7 +111,7 @@ function CandidateField({ label, value }: { label: string; value: string }) {
 }
 
 export default function PSeletivoPage() {
-  useMetadata({ title: 'PSeletivo' });
+  useMetadata({ title: 'Processo Seletivo' });
   const { members: companyMembers } = useFirebaseData();
 
   const [pselForms, setPselForms] = React.useState<CandidateForm[]>([]);
@@ -131,6 +135,12 @@ export default function PSeletivoPage() {
   const [savedPreCandidateIds, setSavedPreCandidateIds] = React.useState<
     Set<string>
   >(new Set());
+  // Desclassificados (tanto pré-candidatos quanto candidatos salvos)
+  const [disqualifiedCandidates, setDisqualifiedCandidates] = React.useState<
+    Candidate[]
+  >([]);
+  const [isLoadingDisqualified, setIsLoadingDisqualified] =
+    React.useState(false);
 
   // Estados para tags
   const [isTagsDialogOpen, setIsTagsDialogOpen] = React.useState(false);
@@ -142,7 +152,7 @@ export default function PSeletivoPage() {
     React.useState(false);
   const [interviewDate, setInterviewDate] = React.useState<Date | undefined>();
   const [interviewStartTime, setInterviewStartTime] = React.useState('09:00');
-  const [interviewEndTime, setInterviewEndTime] = React.useState('09:30');
+  const [interviewEndTime, setInterviewEndTime] = React.useState('10:00');
   const [interviewResponsibleMemberId, setInterviewResponsibleMemberId] =
     React.useState('');
   const [availableInterviewSlots, setAvailableInterviewSlots] = React.useState<
@@ -150,7 +160,8 @@ export default function PSeletivoPage() {
   >([]);
   const [isLoadingInterviewSlots, setIsLoadingInterviewSlots] =
     React.useState(false);
-  const [isSavingInterviewSlot, setIsSavingInterviewSlot] = React.useState(false);
+  const [isSavingInterviewSlot, setIsSavingInterviewSlot] =
+    React.useState(false);
   const [isRemovingInterviewSlotId, setIsRemovingInterviewSlotId] =
     React.useState<string | null>(null);
   const [isDisqualifyingCandidateId, setIsDisqualifyingCandidateId] =
@@ -171,22 +182,43 @@ export default function PSeletivoPage() {
   >(new Set());
 
   // Estados para aprovação/rejeição de candidatos
-  const [isApprovalDialogOpen, setIsApprovalDialogOpen] =
-    React.useState(false);
+  const [isApprovalDialogOpen, setIsApprovalDialogOpen] = React.useState(false);
   const [selectedCandidateForApproval, setSelectedCandidateForApproval] =
     React.useState<Candidate | null>(null);
-  const [isApprovingCandidateId, setIsApprovingCandidateId] =
-    React.useState<string | null>(null);
+  const [isApprovingCandidateId, setIsApprovingCandidateId] = React.useState<
+    string | null
+  >(null);
   const [approvalMessage, setApprovalMessage] = React.useState('');
 
   const [isRejectionDialogOpen, setIsRejectionDialogOpen] =
     React.useState(false);
   const [selectedCandidateForRejection, setSelectedCandidateForRejection] =
     React.useState<Candidate | null>(null);
-  const [isRejectingCandidateId, setIsRejectingCandidateId] =
-    React.useState<string | null>(null);
+  const [isRejectingCandidateId, setIsRejectingCandidateId] = React.useState<
+    string | null
+  >(null);
   const [rejectionMessage, setRejectionMessage] = React.useState('');
   const [rejectionFeedback, setRejectionFeedback] = React.useState('');
+
+  // Estados para envio de horários de entrevista por email
+  const [isInterviewEmailDialogOpen, setIsInterviewEmailDialogOpen] =
+    React.useState(false);
+  const [interviewEmailFormId, setInterviewEmailFormId] = React.useState('');
+  const [
+    interviewEmailSelectedCandidateIds,
+    setInterviewEmailSelectedCandidateIds
+  ] = React.useState<Set<string>>(new Set());
+  const [isSendingInterviewEmail, setIsSendingInterviewEmail] =
+    React.useState(false);
+
+  // Estados para confirmação de entrevista (Google Meet)
+  const [isConfirmInterviewDialogOpen, setIsConfirmInterviewDialogOpen] =
+    React.useState(false);
+  const [confirmInterviewSlot, setConfirmInterviewSlot] =
+    React.useState<InterviewSlot | null>(null);
+  const [confirmGoogleMeetLink, setConfirmGoogleMeetLink] = React.useState('');
+  const [isSendingConfirmation, setIsSendingConfirmation] =
+    React.useState(false);
 
   // Estados para notificação por email
   const [isEmailDialogOpen, setIsEmailDialogOpen] = React.useState(false);
@@ -235,6 +267,8 @@ export default function PSeletivoPage() {
         setLoadError('');
 
         const forms = await candidateService.getPselForms();
+
+        const filteredForms = forms.filter((form) => form);
 
         if (!isMounted) return;
 
@@ -285,11 +319,28 @@ export default function PSeletivoPage() {
         setIsLoadingMembers(true);
         setLoadError('');
 
-        const responses =
-          await candidateService.getCandidatesByForm(selectedFormId);
+        // Primeiro, carregar todos os salvos para obter os IDs das respostas
+        const allSaved = await savedCandidateService.listSavedCandidates();
+        const savedRespostaIds = new Set(
+          allSaved.map((sc) => sc.respostaIdOrigem)
+        );
+
         if (!isMounted) return;
 
-        setMembers(responses);
+        // Depois, carregar pré-candidatos do formulário selecionado
+        const responses =
+          await candidateService.getCandidatesByForm(selectedFormId);
+
+        const filteredResponses = responses.filter((response) => {
+          return (
+            !savedRespostaIds.has(response.id) && !response.desclassificado
+          );
+        });
+
+        if (!isMounted) return;
+
+        setMembers(filteredResponses);
+        setSavedPreCandidateIds(savedRespostaIds);
       } catch (error) {
         if (!isMounted) return;
         setLoadError(
@@ -324,7 +375,7 @@ export default function PSeletivoPage() {
         setLoadError('');
 
         const candidates =
-          await savedCandidateService.listSavedCandidatesAsCandidate();
+          await savedCandidateService.listActiveSavedCandidatesAsCandidate();
         if (!isMounted) return;
 
         setSavedCandidates(candidates);
@@ -348,21 +399,71 @@ export default function PSeletivoPage() {
     };
   }, [viewMode]);
 
-  // Carregar IDs dos pré-candidatos já salvos
+  // Carregar desclassificados quando o viewMode muda para 'desclassificados'
   React.useEffect(() => {
-    async function loadSavedIds() {
-      if (viewMode !== 'pre-candidatos' || members.length === 0) return;
+    let isMounted = true;
+
+    async function loadDisqualified() {
+      if (viewMode !== 'desclassificados') return;
 
       try {
+        setIsLoadingDisqualified(true);
+        setLoadError('');
+
+        // Buscar desclassificados de candidatos salvos
+        const disqualifiedSaved =
+          await savedCandidateService.listDisqualifiedSavedCandidatesAsCandidate();
+
+        // Buscar desclassificados de pré-candidatos (respostas de formulário)
+        // Iterar sobre todos os formulários disponíveis
+        let disqualifiedPre: Candidate[] = [];
+        for (const form of pselForms) {
+          try {
+            const allResponses = await candidateService.getCandidatesByForm(
+              form.id
+            );
+            const preDisqualified = allResponses.filter(
+              (r) => r.desclassificado
+            );
+            disqualifiedPre = [...disqualifiedPre, ...preDisqualified];
+          } catch {
+            // Continuar para o próximo formulário se houver erro
+            continue;
+          }
+        }
+
+        if (!isMounted) return;
+
+        // Combinar sem duplicar (pré-candidatos que foram salvos já aparecerão como saved)
+        // Os pré-candidatos desclassificados que já foram salvos não devem duplicar
         const allSaved = await savedCandidateService.listSavedCandidates();
-        const ids = new Set(allSaved.map((sc) => sc.respostaIdOrigem));
-        setSavedPreCandidateIds(ids);
-      } catch {
-        // silently fail
+        const savedRespostaOrigensIds = new Set(
+          allSaved.map((sc) => sc.respostaIdOrigem)
+        );
+        const uniquePre = disqualifiedPre.filter(
+          (c) => !savedRespostaOrigensIds.has(c.id)
+        );
+
+        setDisqualifiedCandidates([...disqualifiedSaved, ...uniquePre]);
+      } catch (error) {
+        if (!isMounted) return;
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível carregar os desclassificados.'
+        );
+        setDisqualifiedCandidates([]);
+      } finally {
+        if (isMounted) setIsLoadingDisqualified(false);
       }
     }
-    loadSavedIds();
-  }, [viewMode, members]);
+
+    loadDisqualified();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [viewMode, pselForms]);
 
   const selectedForm = React.useMemo(
     () => pselForms.find((form) => form.id === selectedFormId) ?? null,
@@ -645,7 +746,7 @@ export default function PSeletivoPage() {
         setIsBulkTagsDialogOpen(false);
         // Recarregar candidatos
         const candidates =
-          await savedCandidateService.listSavedCandidatesAsCandidate();
+          await savedCandidateService.listActiveSavedCandidatesAsCandidate();
         setSavedCandidates(candidates);
       } else {
         toast.error(result.error ?? 'Erro ao adicionar tag aos candidatos.');
@@ -689,7 +790,7 @@ export default function PSeletivoPage() {
         setIsBulkTagsDialogOpen(false);
         // Recarregar candidatos
         const candidates =
-          await savedCandidateService.listSavedCandidatesAsCandidate();
+          await savedCandidateService.listActiveSavedCandidatesAsCandidate();
         setSavedCandidates(candidates);
       } else {
         toast.error(result.error ?? 'Erro ao remover tag dos candidatos.');
@@ -703,9 +804,7 @@ export default function PSeletivoPage() {
   };
 
   const openDisqualifyDialog = (candidate: Candidate) => {
-    const isAlreadyDisqualified =
-      candidate.etapa.trim().toLowerCase() === 'desclassificado';
-    if (isAlreadyDisqualified) {
+    if (candidate.desclassificado) {
       toast.error('Candidato ja esta desclassificado.');
       return;
     }
@@ -731,20 +830,11 @@ export default function PSeletivoPage() {
         );
       }
 
+      // Remover o candidato da lista atual (ele irá para a aba de desclassificados)
       const updateList =
         viewMode === 'candidatos' ? setSavedCandidates : setMembers;
       updateList((current) =>
-        current.map((member) =>
-          member.id === candidate.id
-            ? { ...member, etapa: 'Desclassificado' }
-            : member
-        )
-      );
-
-      setSelectedCandidateForTags((current) =>
-        current && current.id === candidate.id
-          ? { ...current, etapa: 'Desclassificado' }
-          : current
+        current.filter((member) => member.id !== candidate.id)
       );
 
       toast.success('Candidato desclassificado com sucesso.');
@@ -801,9 +891,7 @@ export default function PSeletivoPage() {
         viewMode === 'candidatos' ? setSavedCandidates : setMembers;
       updateList((current) =>
         current.map((member) =>
-          member.id === candidate.id
-            ? { ...member, etapa: 'Aprovado' }
-            : member
+          member.id === candidate.id ? { ...member, etapa: 'Aprovado' } : member
         )
       );
 
@@ -831,9 +919,7 @@ export default function PSeletivoPage() {
   // ── Rejection handlers ──
 
   const openRejectionDialog = (candidate: Candidate) => {
-    const isAlreadyRejected =
-      candidate.etapa.trim().toLowerCase() === 'desclassificado';
-    if (isAlreadyRejected) {
+    if (candidate.desclassificado) {
       toast.error('Candidato já está rejeitado.');
       return;
     }
@@ -868,21 +954,11 @@ export default function PSeletivoPage() {
         throw new Error(data.error || 'Erro ao rejeitar candidato');
       }
 
-      // Atualiza a lista de candidatos
+      // Atualiza a lista de candidatos - remove da lista atual
       const updateList =
         viewMode === 'candidatos' ? setSavedCandidates : setMembers;
       updateList((current) =>
-        current.map((member) =>
-          member.id === candidate.id
-            ? { ...member, etapa: 'Desclassificado' }
-            : member
-        )
-      );
-
-      setSelectedCandidateForTags((current) =>
-        current && current.id === candidate.id
-          ? { ...current, etapa: 'Desclassificado' }
-          : current
+        current.filter((member) => member.id !== candidate.id)
       );
 
       toast.success('Candidato rejeitado e email enviado com sucesso.');
@@ -901,6 +977,137 @@ export default function PSeletivoPage() {
   };
 
   // ── Email notification handlers ──
+
+  // ── Interview Slots email handlers ──
+
+  const resetInterviewEmailDialog = () => {
+    setIsInterviewEmailDialogOpen(false);
+    setInterviewEmailFormId('');
+    setInterviewEmailSelectedCandidateIds(new Set());
+  };
+
+  const handleToggleInterviewEmailCandidate = (candidateId: string) => {
+    setInterviewEmailSelectedCandidateIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(candidateId)) {
+        next.delete(candidateId);
+      } else {
+        next.add(candidateId);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleAllInterviewEmailCandidates = () => {
+    if (interviewEmailSelectedCandidateIds.size === savedCandidates.length) {
+      setInterviewEmailSelectedCandidateIds(new Set());
+    } else {
+      setInterviewEmailSelectedCandidateIds(
+        new Set(savedCandidates.map((c) => c.id))
+      );
+    }
+  };
+
+  const handleSendInterviewSlotsEmail = async () => {
+    if (!interviewEmailFormId) {
+      toast.error('Selecione o formulário PSEL.');
+      return;
+    }
+    if (interviewEmailSelectedCandidateIds.size === 0) {
+      toast.error('Selecione ao menos um candidato.');
+      return;
+    }
+
+    setIsSendingInterviewEmail(true);
+    try {
+      const res = await fetch('/api/candidate/send-interview-slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          formId: interviewEmailFormId,
+          candidateIds: Array.from(interviewEmailSelectedCandidateIds)
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success(
+          `Horários enviados com sucesso para ${data.sent}/${data.total} candidato(s).`
+        );
+        resetInterviewEmailDialog();
+      } else if (res.status === 207) {
+        toast.warning(
+          `Envio parcial: ${data.sent}/${data.total}. Erros: ${data.errors?.join(', ')}`
+        );
+      } else {
+        toast.error(data.error ?? 'Erro ao enviar horários de entrevista.');
+      }
+    } catch (error) {
+      console.error('Erro ao enviar horários de entrevista:', error);
+      toast.error('Não foi possível enviar os horários de entrevista.');
+    } finally {
+      setIsSendingInterviewEmail(false);
+    }
+  };
+
+  const handleOpenConfirmInterview = (slot: InterviewSlot) => {
+    setConfirmInterviewSlot(slot);
+    setConfirmGoogleMeetLink(slot.googleMeetLink ?? '');
+    setIsConfirmInterviewDialogOpen(true);
+  };
+
+  const resetConfirmInterviewDialog = () => {
+    setIsConfirmInterviewDialogOpen(false);
+    setConfirmInterviewSlot(null);
+    setConfirmGoogleMeetLink('');
+  };
+
+  const handleSendInterviewConfirmation = async () => {
+    if (!confirmInterviewSlot || !selectedFormId) return;
+
+    if (!confirmGoogleMeetLink.trim()) {
+      toast.error('Informe o link do Google Meet.');
+      return;
+    }
+
+    setIsSendingConfirmation(true);
+    try {
+      const res = await fetch('/api/candidate/confirm-interview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          formId: selectedFormId,
+          slotId: confirmInterviewSlot.id,
+          googleMeetLink: confirmGoogleMeetLink.trim()
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success(data.message ?? 'Email de confirmação enviado!');
+
+        // Atualizar o slot localmente com o googleMeetLink
+        setAvailableInterviewSlots((current) =>
+          current.map((s) =>
+            s.id === confirmInterviewSlot.id
+              ? { ...s, googleMeetLink: confirmGoogleMeetLink.trim() }
+              : s
+          )
+        );
+
+        resetConfirmInterviewDialog();
+      } else {
+        toast.error(data.error ?? 'Erro ao enviar confirmação.');
+      }
+    } catch (error) {
+      console.error('Erro ao enviar confirmação de entrevista:', error);
+      toast.error('Não foi possível enviar a confirmação.');
+    } finally {
+      setIsSendingConfirmation(false);
+    }
+  };
 
   const handleSelectEmailTemplate = (templateId: string) => {
     const template = EMAIL_TEMPLATES.find((t) => t.id === templateId) ?? null;
@@ -1000,10 +1207,19 @@ export default function PSeletivoPage() {
     }
   };
 
-  const currentMembers = viewMode === 'candidatos' ? savedCandidates : members;
+  const currentMembers =
+    viewMode === 'candidatos'
+      ? savedCandidates
+      : viewMode === 'desclassificados'
+        ? disqualifiedCandidates
+        : members;
 
   const isCurrentlyLoading =
-    viewMode === 'candidatos' ? isLoadingSavedCandidates : isLoadingMembers;
+    viewMode === 'candidatos'
+      ? isLoadingSavedCandidates
+      : viewMode === 'desclassificados'
+        ? isLoadingDisqualified
+        : isLoadingMembers;
   const handleAddInterviewSlot = async () => {
     const toMinutes = (timeValue: string): number | null => {
       const [hoursText, minutesText] = timeValue.split(':');
@@ -1052,18 +1268,13 @@ export default function PSeletivoPage() {
       return;
     }
 
-    if (startMinutes % 30 !== 0 || endMinutes % 30 !== 0) {
-      toast.error('Os horarios devem ser multiplos de 30 minutos.');
-      return;
-    }
-
     if (endMinutes <= startMinutes) {
       toast.error('O horario de fim deve ser maior que o de inicio.');
       return;
     }
 
-    if ((endMinutes - startMinutes) % 30 !== 0) {
-      toast.error('A duracao deve ser multipla de 30 minutos.');
+    if (endMinutes - startMinutes !== 60) {
+      toast.error('Cada entrevista deve ter exatamente 1 hora de duracao.');
       return;
     }
 
@@ -1096,7 +1307,9 @@ export default function PSeletivoPage() {
     });
 
     if (hasOverlapForResponsible) {
-      toast.error('Ja existe um horario conflitante para este responsavel nesta data.');
+      toast.error(
+        'Ja existe um horario conflitante para este responsavel nesta data.'
+      );
       return;
     }
 
@@ -1109,7 +1322,8 @@ export default function PSeletivoPage() {
       startMinutes,
       endMinutes,
       responsibleMemberId: interviewResponsibleMemberId,
-      responsibleMemberName: responsibleMember.name
+      responsibleMemberName: responsibleMember.name,
+      status: 'available'
     };
 
     try {
@@ -1155,9 +1369,10 @@ export default function PSeletivoPage() {
   };
 
   const filteredMembers = React.useMemo(() => {
-    if (viewMode === 'candidatos') {
+    if (viewMode === 'candidatos' || viewMode === 'desclassificados') {
       return savedCandidateService.filterCandidates(currentMembers, query);
     }
+
     return candidateService.filterCandidates(currentMembers, query);
   }, [currentMembers, query, viewMode]);
 
@@ -1173,6 +1388,7 @@ export default function PSeletivoPage() {
             <p className='text-sm font-semibold'>
               Total de membros: {filteredMembers.length}
             </p>
+
             <Button
               type='button'
               variant='outline'
@@ -1184,7 +1400,7 @@ export default function PSeletivoPage() {
               <FontAwesomeIcon icon={faTags} className='h-3 w-3' />
               Tags
             </Button>
-            <Button
+            {/* <Button
               type='button'
               variant='outline'
               size='sm'
@@ -1193,7 +1409,7 @@ export default function PSeletivoPage() {
               className='w-full sm:w-auto'
             >
               Link
-            </Button>
+            </Button> */}
             <Button
               type='button'
               variant='outline'
@@ -1214,10 +1430,13 @@ export default function PSeletivoPage() {
                 <SelectContent>
                   <SelectItem value='pre-candidatos'>Pré-candidatos</SelectItem>
                   <SelectItem value='candidatos'>Candidatos</SelectItem>
+                  <SelectItem value='desclassificados'>
+                    Desclassificados
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {viewMode === 'candidatos' && (
+            {/* {viewMode === 'candidatos' && (
               <Button
                 type='button'
                 variant='outline'
@@ -1229,7 +1448,7 @@ export default function PSeletivoPage() {
                 <FontAwesomeIcon icon={faTags} className='h-3 w-3' />
                 Tags
               </Button>
-            )}
+            )} */}
             {viewMode === 'candidatos' && (
               <Button
                 type='button'
@@ -1241,6 +1460,23 @@ export default function PSeletivoPage() {
               >
                 <FontAwesomeIcon icon={faEnvelope} className='h-3 w-3' />
                 Notificar
+              </Button>
+            )}
+            {viewMode === 'candidatos' && (
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={() => {
+                  setInterviewEmailFormId(selectedFormId);
+                  setInterviewEmailSelectedCandidateIds(new Set());
+                  setIsInterviewEmailDialogOpen(true);
+                }}
+                disabled={isCurrentlyLoading || isLoadingForms}
+                className='w-full gap-2 sm:w-auto'
+              >
+                <FontAwesomeIcon icon={faCalendarDays} className='h-3 w-3' />
+                Enviar Entrevistas
               </Button>
             )}
             {viewMode === 'pre-candidatos' && (
@@ -1292,7 +1528,12 @@ export default function PSeletivoPage() {
         {isCurrentlyLoading ? (
           <p className='text-muted-foreground px-1 text-sm'>
             Carregando{' '}
-            {viewMode === 'candidatos' ? 'candidatos' : 'pré-candidatos'}...
+            {viewMode === 'candidatos'
+              ? 'candidatos'
+              : viewMode === 'desclassificados'
+                ? 'desclassificados'
+                : 'pré-candidatos'}
+            ...
           </p>
         ) : null}
 
@@ -1312,11 +1553,24 @@ export default function PSeletivoPage() {
                     <div className='flex items-start justify-between gap-2'>
                       <div className='min-w-0 flex-1'>
                         <CardTitle className='truncate text-base'>
-                          {member.nome} {member.sobrenome}
+                          {truncateName(member.nome + ' ' + member.sobrenome)}
                         </CardTitle>
                         <p className='text-muted-foreground text-xs'>
                           {member.curso} | {member.periodo} periodo
                         </p>
+                        {viewMode === 'desclassificados' && (
+                          <div className='mt-1 flex flex-wrap gap-1'>
+                            <Badge
+                              variant='destructive'
+                              className='text-[10px]'
+                            >
+                              Desclassificado
+                            </Badge>
+                            <Badge variant='outline' className='text-[10px]'>
+                              Etapa: {member.etapa}
+                            </Badge>
+                          </div>
+                        )}
                         {member.tags && member.tags.length > 0 && (
                           <div className='mt-1 flex flex-wrap gap-1'>
                             {member.tags.map((tag) => (
@@ -1378,7 +1632,7 @@ export default function PSeletivoPage() {
                         )}
                         {viewMode === 'candidatos' && (
                           <>
-                            <Button
+                            {/* <Button
                               type='button'
                               size='icon'
                               variant='default'
@@ -1392,39 +1646,36 @@ export default function PSeletivoPage() {
                               title='Aprovar candidato'
                             >
                               <FontAwesomeIcon icon={faCheck} />
-                            </Button>
-                            <Button
+                            </Button> */}
+                            {/* <Button
                               type='button'
                               size='icon'
                               variant='destructive'
                               className='h-8 w-8 shrink-0 rounded-full'
                               onClick={() =>
-                                isRejectingCandidateId ===
-                                member.id
+                                isRejectingCandidateId === member.id
                                   ? null
                                   : openRejectionDialog(member)
                               }
                               disabled={
                                 Boolean(isRejectingCandidateId) ||
-                                member.etapa
-                                  .trim()
-                                  .toLowerCase() === 'desclassificado'
+                                member.etapa.trim().toLowerCase() ===
+                                  'desclassificado'
                               }
                               aria-label={`Rejeitar ${member.nome} ${member.sobrenome}`}
                               title='Rejeitar candidato'
                             >
                               <FontAwesomeIcon icon={faThumbsDown} />
-                            </Button>
+                            </Button> */}
                             <Button
                               type='button'
                               size='icon'
                               variant='ghost'
-                              className='h-8 w-8 shrink-0 rounded-full text-destructive hover:bg-red-100'
+                              className='text-destructive h-8 w-8 shrink-0 rounded-full hover:bg-red-100'
                               onClick={() => openDisqualifyDialog(member)}
                               disabled={
                                 Boolean(isDisqualifyingCandidateId) ||
-                                member.etapa.trim().toLowerCase() ===
-                                  'desclassificado'
+                                Boolean(member.desclassificado)
                               }
                               aria-label={`Desclassificar ${member.nome} ${member.sobrenome}`}
                               title='Desclassificar candidato'
@@ -1443,8 +1694,7 @@ export default function PSeletivoPage() {
                               onClick={() => openDisqualifyDialog(member)}
                               disabled={
                                 Boolean(isDisqualifyingCandidateId) ||
-                                member.etapa.trim().toLowerCase() ===
-                                  'desclassificado'
+                                Boolean(member.desclassificado)
                               }
                               aria-label={`Desclassificar ${member.nome} ${member.sobrenome}`}
                             >
@@ -1465,7 +1715,9 @@ export default function PSeletivoPage() {
                           <DialogContent className='max-h-[90vh] w-[95vw] overflow-y-auto sm:max-w-xl'>
                             <DialogHeader>
                               <DialogTitle>
-                                {member.nome} {member.sobrenome}
+                                {truncateName(
+                                  member.nome + ' ' + member.sobrenome
+                                )}
                               </DialogTitle>
                               <DialogDescription>
                                 Detalhes completos do candidato.
@@ -1571,39 +1823,45 @@ export default function PSeletivoPage() {
                     </div>
                   </CardHeader>
 
-                  <CardContent className='flex min-h-0 flex-1 flex-col gap-3 overflow-hidden'>
-                    <p className='text-muted-foreground text-xs font-medium'>
-                      Tarefas relacionadas
-                    </p>
-                    <ScrollArea className='max-h-40 w-full pr-2 sm:max-h-48'>
-                      <ul className='space-y-2'>
-                        {member.tarefas.length === 0 ? (
-                          <li className='text-muted-foreground rounded-md border border-dashed p-2 text-sm'>
-                            Nenhuma tarefa relacionada.
-                          </li>
-                        ) : null}
-                        {member.tarefas.map((task) => (
-                          <li key={task.id} className='rounded-md border p-2'>
-                            <div className='flex items-center justify-between gap-2'>
-                              <p className='text-sm font-medium'>
-                                {task.titulo}
-                              </p>
-                              <Badge variant={taskStatusVariant[task.status]}>
-                                {taskStatusLabel[task.status]}
-                              </Badge>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </ScrollArea>
-                  </CardContent>
+                  {viewMode === 'candidatos' && (
+                    <CardContent className='flex min-h-0 flex-1 flex-col gap-3 overflow-hidden'>
+                      <p className='text-muted-foreground text-xs font-medium'>
+                        Tarefas relacionadas
+                      </p>
+                      <ScrollArea className='max-h-40 w-full pr-2 sm:max-h-48'>
+                        <ul className='space-y-2'>
+                          {member.tarefas.length === 0 ? (
+                            <li className='text-muted-foreground rounded-md border border-dashed p-2 text-sm'>
+                              Nenhuma tarefa relacionada.
+                            </li>
+                          ) : null}
+                          {member.tarefas.map((task) => (
+                            <li key={task.id} className='rounded-md border p-2'>
+                              <div className='flex items-center justify-between gap-2'>
+                                <p className='text-sm font-medium'>
+                                  {task.titulo}
+                                </p>
+                                <Badge variant={taskStatusVariant[task.status]}>
+                                  {taskStatusLabel[task.status]}
+                                </Badge>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </ScrollArea>
+                    </CardContent>
+                  )}
                 </Card>
               ))}
 
               {filteredMembers.length === 0 ? (
                 <Card className='col-span-full flex min-h-55 items-center justify-center overflow-hidden border-dashed'>
                   <CardContent className='text-muted-foreground py-8 text-center text-sm'>
-                    Nenhum membro encontrado.
+                    {viewMode === 'desclassificados'
+                      ? 'Nenhum candidato desclassificado encontrado.'
+                      : viewMode === 'candidatos'
+                        ? 'Nenhum candidato encontrado.'
+                        : 'Nenhum pré-candidato encontrado.'}
                   </CardContent>
                 </Card>
               ) : null}
@@ -1621,7 +1879,8 @@ export default function PSeletivoPage() {
           <DialogHeader>
             <DialogTitle>Disponibilizar horarios de entrevistas</DialogTitle>
             <DialogDescription>
-              Selecione um dia no calendario e defina os horarios para entrevista.
+              Selecione um dia no calendario e defina os horarios para
+              entrevista.
             </DialogDescription>
           </DialogHeader>
 
@@ -1651,47 +1910,126 @@ export default function PSeletivoPage() {
                   </div>
                   <div className='min-w-0'>
                     {isLoadingInterviewSlots ? (
-                      <div className='text-muted-foreground flex h-[14.5rem] items-center rounded-md border border-dashed p-3 text-sm'>
+                      <div className='text-muted-foreground flex h-58 items-center rounded-md border border-dashed p-3 text-sm'>
                         Carregando horarios...
                       </div>
                     ) : !interviewDate ? (
-                      <div className='text-muted-foreground flex h-[14.5rem] items-center rounded-md border border-dashed p-3 text-sm'>
+                      <div className='text-muted-foreground flex h-58 items-center rounded-md border border-dashed p-3 text-sm'>
                         Selecione uma data para visualizar os horarios.
                       </div>
                     ) : interviewSlotsForSelectedDate.length === 0 ? (
-                      <div className='text-muted-foreground flex h-[14.5rem] items-center rounded-md border border-dashed p-3 text-sm'>
+                      <div className='text-muted-foreground flex h-58 items-center rounded-md border border-dashed p-3 text-sm'>
                         Nenhum horario adicionado para esta data.
                       </div>
                     ) : (
-                      <ScrollArea className='h-[14.5rem] rounded-md'>
+                      <ScrollArea className='h-58 rounded-md'>
                         <div className='space-y-2'>
                           {interviewSlotsForSelectedDate.map((slot) => (
                             <div
                               key={slot.id}
-                              className='flex items-center justify-between gap-2 rounded-md border p-2'
+                              className={cn(
+                                'rounded-md border p-2.5',
+                                slot.status === 'booked'
+                                  ? 'border-amber-300/60 bg-amber-50/60 dark:border-amber-700/40 dark:bg-amber-950/30'
+                                  : ''
+                              )}
                             >
-                              <div className='min-w-0 flex-1'>
-                                <p className='text-sm'>
-                                  {slot.startTime} - {slot.endTime}
-                                </p>
-                                <p className='text-muted-foreground truncate text-xs'>
-                                  {slot.responsibleMemberName}
-                                </p>
+                              <div className='flex items-start justify-between gap-2'>
+                                <div className='min-w-0 flex-1'>
+                                  <div className='flex flex-wrap items-center gap-1.5'>
+                                    <p className='text-sm font-medium whitespace-nowrap'>
+                                      {slot.startTime} - {slot.endTime}
+                                    </p>
+                                    {slot.status === 'booked' ? (
+                                      <Badge
+                                        variant='secondary'
+                                        className='bg-amber-100 text-[10px] text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
+                                      >
+                                        Ocupado
+                                      </Badge>
+                                    ) : (
+                                      <Badge
+                                        variant='secondary'
+                                        className='bg-emerald-100 text-[10px] text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                                      >
+                                        Disponível
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className='text-muted-foreground truncate text-xs'>
+                                    {slot.responsibleMemberName}
+                                  </p>
+                                  {slot.status === 'booked' &&
+                                    slot.bookedByCandidateName && (
+                                      <p className='truncate text-xs text-amber-700 dark:text-amber-400'>
+                                        Reservado por:{' '}
+                                        {slot.bookedByCandidateName}
+                                      </p>
+                                    )}
+                                  {slot.status === 'booked' &&
+                                    slot.googleMeetLink && (
+                                      <p className='truncate text-xs text-emerald-600 dark:text-emerald-400'>
+                                        <span className='font-medium'>
+                                          Meet:
+                                        </span>{' '}
+                                        <a
+                                          href={slot.googleMeetLink}
+                                          target='_blank'
+                                          rel='noopener noreferrer'
+                                          className='underline underline-offset-2 hover:opacity-80'
+                                        >
+                                          {slot.googleMeetLink.replace(
+                                            /^https?:\/\//,
+                                            ''
+                                          )}
+                                        </a>
+                                      </p>
+                                    )}
+                                </div>
+
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='icon'
+                                  className='h-6 w-6 shrink-0 opacity-60 hover:opacity-100'
+                                  disabled={
+                                    isSavingInterviewSlot ||
+                                    isRemovingInterviewSlotId === slot.id
+                                  }
+                                  onClick={() =>
+                                    handleRemoveInterviewSlot(slot.id)
+                                  }
+                                  aria-label={`Remover horario ${slot.dateLabel} ${slot.startTime} ${slot.endTime}`}
+                                >
+                                  <FontAwesomeIcon
+                                    icon={faXmark}
+                                    className='h-3 w-3'
+                                  />
+                                </Button>
                               </div>
-                              <Button
-                                type='button'
-                                variant='ghost'
-                                size='icon'
-                                className='h-7 w-7 shrink-0'
-                                disabled={
-                                  isSavingInterviewSlot ||
-                                  isRemovingInterviewSlotId === slot.id
-                                }
-                                onClick={() => handleRemoveInterviewSlot(slot.id)}
-                                aria-label={`Remover horario ${slot.dateLabel} ${slot.startTime} ${slot.endTime}`}
-                              >
-                                <FontAwesomeIcon icon={faXmark} className='h-3 w-3' />
-                              </Button>
+
+                              {slot.status === 'booked' &&
+                                slot.bookedByCandidateId && (
+                                  <div className='mt-2 flex justify-end border-t border-amber-200/60 pt-2 dark:border-amber-800/40'>
+                                    <Button
+                                      type='button'
+                                      variant='outline'
+                                      size='sm'
+                                      className='h-7 px-2.5 text-xs'
+                                      onClick={() =>
+                                        handleOpenConfirmInterview(slot)
+                                      }
+                                    >
+                                      <FontAwesomeIcon
+                                        icon={faEnvelope}
+                                        className='mr-1.5 h-3 w-3'
+                                      />
+                                      {slot.googleMeetLink
+                                        ? 'Reenviar confirmação'
+                                        : 'Enviar confirmação'}
+                                    </Button>
+                                  </div>
+                                )}
                             </div>
                           ))}
                         </div>
@@ -1737,7 +2075,16 @@ export default function PSeletivoPage() {
                   </label>
                   <Select
                     value={interviewStartTime}
-                    onValueChange={setInterviewStartTime}
+                    onValueChange={(value) => {
+                      setInterviewStartTime(value);
+                      // Auto-set end time to start + 1 hour
+                      const hour = parseInt(value.split(':')[0], 10);
+                      if (hour < 23) {
+                        setInterviewEndTime(
+                          `${String(hour + 1).padStart(2, '0')}:00`
+                        );
+                      }
+                    }}
                   >
                     <SelectTrigger
                       id='interview-start-time'
@@ -1792,7 +2139,7 @@ export default function PSeletivoPage() {
               </div>
 
               <p className='text-muted-foreground text-xs'>
-                O intervalo precisa ser multiplo de 30 minutos.
+                Cada entrevista dura exatamente 1 hora.
               </p>
 
               <Button
@@ -1932,8 +2279,7 @@ export default function PSeletivoPage() {
               className='bg-green-600 hover:bg-green-700'
               onClick={handleConfirmApproveCandidate}
               disabled={
-                !selectedCandidateForApproval ||
-                Boolean(isApprovingCandidateId)
+                !selectedCandidateForApproval || Boolean(isApprovingCandidateId)
               }
             >
               {isApprovingCandidateId ? 'Aprovando...' : 'Aprovar'}
@@ -1977,9 +2323,7 @@ export default function PSeletivoPage() {
                 />
               </div>
               <div className='space-y-2'>
-                <Label htmlFor='rejection-feedback'>
-                  Feedback (opcional)
-                </Label>
+                <Label htmlFor='rejection-feedback'>Feedback (opcional)</Label>
                 <Textarea
                   id='rejection-feedback'
                   placeholder='Ex.: Recomendamos...'
@@ -2571,6 +2915,215 @@ export default function PSeletivoPage() {
               }
             >
               {isSendingEmail ? 'Enviando...' : 'Enviar Emails'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Diálogo de envio de horários de entrevista por email */}
+      <Dialog
+        open={isInterviewEmailDialogOpen}
+        onOpenChange={(open) => {
+          if (isSendingInterviewEmail) return;
+          if (!open) resetInterviewEmailDialog();
+          setIsInterviewEmailDialogOpen(open);
+        }}
+      >
+        <DialogContent className='max-h-[90vh] w-[95vw] max-w-[95vw] overflow-y-auto sm:max-w-2xl'>
+          <DialogHeader>
+            <DialogTitle>Enviar horários de entrevista</DialogTitle>
+            <DialogDescription>
+              Envie por email os horários de entrevista disponíveis (não
+              ocupados e futuros) para os candidatos selecionados.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='space-y-4'>
+            {/* Seleção do formulário */}
+            <div className='space-y-2'>
+              <Label htmlFor='interview-email-form'>Formulário PSEL</Label>
+              <Select
+                value={interviewEmailFormId}
+                onValueChange={setInterviewEmailFormId}
+                disabled={isLoadingForms || pselForms.length === 0}
+              >
+                <SelectTrigger id='interview-email-form'>
+                  <SelectValue placeholder='Selecione o formulário' />
+                </SelectTrigger>
+                <SelectContent>
+                  {pselForms.map((form) => (
+                    <SelectItem key={form.id} value={form.id}>
+                      {form.nomeFormulario}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className='text-muted-foreground text-xs'>
+                Selecione o formulário cujos horários de entrevista serão
+                enviados.
+              </p>
+            </div>
+
+            {/* Lista de candidatos com checkbox */}
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <Label>Candidatos</Label>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='sm'
+                  onClick={handleToggleAllInterviewEmailCandidates}
+                  className='text-xs'
+                >
+                  {interviewEmailSelectedCandidateIds.size ===
+                  savedCandidates.length
+                    ? 'Desmarcar todos'
+                    : 'Selecionar todos'}
+                </Button>
+              </div>
+              <ScrollArea className='max-h-64 rounded-md border p-2'>
+                {savedCandidates.length === 0 ? (
+                  <p className='text-muted-foreground py-4 text-center text-sm'>
+                    Nenhum candidato salvo.
+                  </p>
+                ) : (
+                  <ul className='space-y-1'>
+                    {savedCandidates.map((candidate) => (
+                      <li
+                        key={candidate.id}
+                        className='flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/5'
+                      >
+                        <Checkbox
+                          checked={interviewEmailSelectedCandidateIds.has(
+                            candidate.id
+                          )}
+                          onCheckedChange={() =>
+                            handleToggleInterviewEmailCandidate(candidate.id)
+                          }
+                          id={`interview-email-${candidate.id}`}
+                        />
+                        <label
+                          htmlFor={`interview-email-${candidate.id}`}
+                          className='flex-1 cursor-pointer text-sm'
+                        >
+                          {candidate.nome} {candidate.sobrenome}
+                          {candidate.email ? (
+                            <span className='text-muted-foreground ml-1 text-xs'>
+                              ({candidate.email})
+                            </span>
+                          ) : (
+                            <span className='ml-1 text-xs text-red-500'>
+                              (sem email)
+                            </span>
+                          )}
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </ScrollArea>
+              <p className='text-muted-foreground text-xs'>
+                {interviewEmailSelectedCandidateIds.size} candidato(s)
+                selecionado(s)
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='secondary'
+              onClick={resetInterviewEmailDialog}
+              disabled={isSendingInterviewEmail}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type='button'
+              onClick={handleSendInterviewSlotsEmail}
+              disabled={
+                isSendingInterviewEmail ||
+                !interviewEmailFormId ||
+                interviewEmailSelectedCandidateIds.size === 0
+              }
+            >
+              {isSendingInterviewEmail ? 'Enviando...' : 'Enviar Horários'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog — Confirmação de Entrevista (Google Meet) */}
+      <Dialog
+        open={isConfirmInterviewDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) resetConfirmInterviewDialog();
+        }}
+      >
+        <DialogContent className='w-[95vw] max-w-md sm:w-full'>
+          <DialogHeader>
+            <DialogTitle>Confirmar Entrevista</DialogTitle>
+            <DialogDescription>
+              Envie um email de confirmação ao candidato com o link do Google
+              Meet para a entrevista.
+            </DialogDescription>
+          </DialogHeader>
+
+          {confirmInterviewSlot && (
+            <div className='space-y-4'>
+              <div className='rounded-lg bg-zinc-100 p-3 dark:bg-zinc-800'>
+                <p className='text-sm font-medium'>
+                  {confirmInterviewSlot.dateLabel}
+                </p>
+                <p className='text-muted-foreground text-sm'>
+                  {confirmInterviewSlot.startTime} –{' '}
+                  {confirmInterviewSlot.endTime}
+                </p>
+                <p className='text-muted-foreground text-xs'>
+                  Responsável: {confirmInterviewSlot.responsibleMemberName}
+                </p>
+                {confirmInterviewSlot.bookedByCandidateName && (
+                  <p className='mt-1 text-xs font-medium text-amber-700 dark:text-amber-400'>
+                    Candidato: {confirmInterviewSlot.bookedByCandidateName}
+                  </p>
+                )}
+              </div>
+
+              <div className='space-y-2'>
+                <label
+                  className='text-sm font-medium'
+                  htmlFor='google-meet-link'
+                >
+                  Link do Google Meet
+                </label>
+                <Input
+                  id='google-meet-link'
+                  type='url'
+                  placeholder='https://meet.google.com/xxx-xxxx-xxx'
+                  value={confirmGoogleMeetLink}
+                  onChange={(e) => setConfirmGoogleMeetLink(e.target.value)}
+                  className='text-sm'
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className='flex-col gap-2 sm:flex-row'>
+            <Button
+              type='button'
+              variant='secondary'
+              onClick={resetConfirmInterviewDialog}
+              disabled={isSendingConfirmation}
+              className='w-full sm:w-auto'
+            >
+              Cancelar
+            </Button>
+            <Button
+              type='button'
+              onClick={handleSendInterviewConfirmation}
+              disabled={isSendingConfirmation || !confirmGoogleMeetLink.trim()}
+              className='w-full sm:w-auto'
+            >
+              {isSendingConfirmation ? 'Enviando...' : 'Enviar Confirmação'}
             </Button>
           </DialogFooter>
         </DialogContent>

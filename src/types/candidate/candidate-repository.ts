@@ -10,6 +10,8 @@ export default interface ICandidateRepository {
     responseId: string,
     stage: string
   ): Promise<void>;
+  /** Define a flag desclassificado=true sem alterar a etapa */
+  disqualifyCandidate(formId: string, responseId: string): Promise<void>;
   addTagToMultipleCandidates(
     formId: string,
     responseIds: string[],

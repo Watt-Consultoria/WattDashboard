@@ -31,6 +31,8 @@ export type Candidate = {
   tarefas: CandidateTask[];
   informacoesAdicionais: CandidateAdditionalInfo[];
   tags?: string[];
+  /** Indica se o candidato foi desclassificado (sem alterar a etapa) */
+  desclassificado?: boolean;
 };
 
 export type CandidateForm = {
@@ -56,6 +58,8 @@ export type CandidateFormResponse = {
   id: string;
   respostas: CandidateFormAnswer[];
   tags?: string[];
+  /** Indica se o pré-candidato foi desclassificado */
+  desclassificado?: boolean;
   createdAt?: unknown;
   updatedAt?: unknown;
 };

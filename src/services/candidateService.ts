@@ -162,7 +162,8 @@ function mapResponseToCandidate(
     imagemUrl,
     tarefas: [],
     informacoesAdicionais: informacoesAdicionaisArray,
-    tags: response.tags ?? []
+    tags: response.tags ?? [],
+    desclassificado: response.desclassificado ?? false
   };
 }
 
@@ -220,16 +221,15 @@ class CandidateService {
     await candidateRepository.removeTag(formId, candidateId, trimmedTag);
   }
 
-  async disqualifyCandidate(formId: string, candidateId: string): Promise<void> {
+  async disqualifyCandidate(
+    formId: string,
+    candidateId: string
+  ): Promise<void> {
     if (!formId || !candidateId) {
       throw new Error('Formulario e candidato sao obrigatorios');
     }
 
-    await candidateRepository.setCandidateStage(
-      formId,
-      candidateId,
-      'Desclassificado'
-    );
+    await candidateRepository.disqualifyCandidate(formId, candidateId);
   }
 
   async addTagToMultipleCandidates(

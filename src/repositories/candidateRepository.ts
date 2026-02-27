@@ -63,6 +63,7 @@ class CandidateRepository implements ICandidateRepository {
           )
         : [],
       tags: (response as any).tags ?? [],
+      desclassificado: (response as any).desclassificado ?? false,
       createdAt: response.createdAt,
       updatedAt: response.updatedAt
     }));
@@ -88,11 +89,7 @@ class CandidateRepository implements ICandidateRepository {
     return mapa[tipoResposta] || 'string';
   }
 
-  async addTag(
-    formId: string,
-    responseId: string,
-    tag: string
-  ): Promise<void> {
+  async addTag(formId: string, responseId: string, tag: string): Promise<void> {
     if (!firebaseDb) throw new FirebaseError('Firebase não está configurado');
     if (!formId || !responseId || !tag) {
       throw new MissingParameterError(['formId', 'responseId', 'tag']);
@@ -223,6 +220,31 @@ class CandidateRepository implements ICandidateRepository {
 
     await updateDoc(responseRef, {
       respostas: updatedAnswers,
+      updatedAt: serverTimestamp()
+    });
+  }
+
+  async disqualifyCandidate(formId: string, responseId: string): Promise<void> {
+    if (!firebaseDb) throw new FirebaseError('Firebase não está configurado');
+    if (!formId || !responseId) {
+      throw new MissingParameterError(['formId', 'responseId']);
+    }
+
+    const responseRef = doc(
+      firebaseDb,
+      'externForms',
+      formId,
+      'respostas',
+      responseId
+    );
+    const responseSnap = await getDoc(responseRef);
+
+    if (!responseSnap.exists()) {
+      throw new ValidationError('Resposta não encontrada');
+    }
+
+    await updateDoc(responseRef, {
+      desclassificado: true,
       updatedAt: serverTimestamp()
     });
   }
