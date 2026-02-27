@@ -48,8 +48,13 @@ import {
   faEnvelope,
   faCheck,
   faThumbsDown,
-  faCalendarDays
+  faCalendarDays,
+  faTableCells
 } from '@fortawesome/free-solid-svg-icons';
+import {
+  PselScheduleSpreadsheet,
+  type ResponsibleMember
+} from '@/components/psel-schedule-spreadsheet';
 import {
   EMAIL_TEMPLATES,
   CANDIDATE_PLACEHOLDERS,
@@ -112,7 +117,7 @@ function CandidateField({ label, value }: { label: string; value: string }) {
 
 export default function PSeletivoPage() {
   useMetadata({ title: 'Processo Seletivo' });
-  const { members: companyMembers } = useFirebaseData();
+  const { members: companyMembers, currentMember } = useFirebaseData();
 
   const [pselForms, setPselForms] = React.useState<CandidateForm[]>([]);
   const [selectedFormId, setSelectedFormId] = React.useState('');
@@ -235,6 +240,89 @@ export default function PSeletivoPage() {
   const [emailSelectedCandidateIds, setEmailSelectedCandidateIds] =
     React.useState<Set<string>>(new Set());
   const [showEmailPreview, setShowEmailPreview] = React.useState(false);
+
+  // Estado para o dialog da planilha de disponibilidade PSEL
+  const [isScheduleSpreadsheetOpen, setIsScheduleSpreadsheetOpen] =
+    React.useState(false);
+
+  // Membros da empresa com tag "Psel" para a planilha de entrevistas
+  const pselMembers: ResponsibleMember[] = React.useMemo(
+    () =>
+      companyMembers
+        .filter((m) => m.tags?.some((t) => t.toLowerCase() === 'psel'))
+        .map((m) => ({ id: m.id, name: m.name })),
+    [companyMembers]
+  );
+
+  // Callback para adicionar slot de entrevista via planilha
+  const handleSpreadsheetAddSlot = React.useCallback(
+    async (slot: {
+      isoDate: string;
+      startTime: string;
+      endTime: string;
+      responsibleMemberId: string;
+      responsibleMemberName: string;
+    }) => {
+      if (!selectedFormId) {
+        toast.error('Selecione um formulário PSEL primeiro.');
+        return;
+      }
+
+      const toMinutes = (t: string) => {
+        const [h, m] = t.split(':').map(Number);
+        return h * 60 + m;
+      };
+
+      const startMinutes = toMinutes(slot.startTime);
+      const endMinutes = toMinutes(slot.endTime);
+      const date = new Date(
+        Number(slot.isoDate.slice(0, 4)),
+        Number(slot.isoDate.slice(5, 7)) - 1,
+        Number(slot.isoDate.slice(8, 10))
+      );
+      const dateLabel = new Intl.DateTimeFormat('pt-BR').format(date);
+      const id = `${slot.isoDate}-${slot.responsibleMemberId}-${slot.startTime}-${slot.endTime}`;
+
+      const slotToSave: InterviewSlot = {
+        id,
+        isoDate: slot.isoDate,
+        dateLabel,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        startMinutes,
+        endMinutes,
+        responsibleMemberId: slot.responsibleMemberId,
+        responsibleMemberName: slot.responsibleMemberName,
+        status: 'available'
+      };
+
+      await saveInterviewSlot(selectedFormId, slotToSave);
+      setAvailableInterviewSlots((current) =>
+        sortInterviewSlots([
+          ...current.filter((s) => s.id !== slotToSave.id),
+          slotToSave
+        ])
+      );
+      toast.success('Horário de entrevista adicionado.');
+    },
+    [selectedFormId]
+  );
+
+  // Callback para remover slot de entrevista via planilha
+  const handleSpreadsheetRemoveSlot = React.useCallback(
+    async (slotId: string) => {
+      if (!selectedFormId) {
+        toast.error('Selecione um formulário PSEL primeiro.');
+        return;
+      }
+      await removeInterviewSlotFromDatabase(selectedFormId, slotId);
+      setAvailableInterviewSlots((current) =>
+        current.filter((s) => s.id !== slotId)
+      );
+      toast.success('Horário de entrevista removido.');
+    },
+    [selectedFormId]
+  );
 
   // Coletar todas as tags únicas dos candidatos salvos
   const allCandidateTags = React.useMemo(() => {
@@ -1378,15 +1466,21 @@ export default function PSeletivoPage() {
 
   return (
     <PageContainer
-      pageTitle='PSeletivo'
-      pageDescription='Novos membros do processo seletivo'
+      pageTitle='Processo Seletivo'
+      pageDescription='Candidatos do processo seletivo'
       scrollable={false}
     >
       <div className='flex h-full min-h-0 min-w-0 flex-col gap-3'>
         <div className='bg-muted/20 flex flex-col gap-3 rounded-lg border p-3 lg:flex-row lg:items-center lg:justify-between'>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3'>
             <p className='text-sm font-semibold'>
-              Total de membros: {filteredMembers.length}
+              Total de{' '}
+              {viewMode === 'pre-candidatos'
+                ? 'pré-candidatos'
+                : viewMode === 'candidatos'
+                  ? 'candidatos'
+                  : 'desclassificados'}
+              : {filteredMembers.length}
             </p>
 
             <Button
@@ -1418,6 +1512,16 @@ export default function PSeletivoPage() {
               className='w-full sm:w-auto'
             >
               Horarios de entrevista
+            </Button>
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              onClick={() => setIsScheduleSpreadsheetOpen(true)}
+              className='w-full gap-2 sm:w-auto'
+            >
+              <FontAwesomeIcon icon={faTableCells} className='h-3 w-3' />
+              Planilha PSEL
             </Button>
             <div className='w-full sm:w-72'>
               <Select
@@ -3126,6 +3230,35 @@ export default function PSeletivoPage() {
               {isSendingConfirmation ? 'Enviando...' : 'Enviar Confirmação'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Dialog: Planilha de Entrevistas PSEL ─── */}
+      <Dialog
+        open={isScheduleSpreadsheetOpen}
+        onOpenChange={setIsScheduleSpreadsheetOpen}
+      >
+        <DialogContent className='flex h-dvh max-h-dvh w-screen max-w-screen flex-col gap-0 rounded-none border-0 p-0 sm:h-[95dvh] sm:max-h-[95dvh] sm:w-[95vw] sm:max-w-[95vw] sm:rounded-lg sm:border'>
+          <DialogHeader className='shrink-0 px-4 pt-4 pb-1 sm:px-6 sm:pt-6 sm:pb-2'>
+            <DialogTitle className='text-base sm:text-lg'>
+              Planilha de Entrevistas – PSEL
+            </DialogTitle>
+            <DialogDescription className='text-xs sm:text-sm'>
+              Horários de entrevista por entrevistador. Verde = tem entrevista,
+              Vermelho = sem entrevista.
+            </DialogDescription>
+          </DialogHeader>
+          <div className='min-h-0 flex-1 px-3 pb-3 sm:px-6 sm:pb-6'>
+            <PselScheduleSpreadsheet
+              slots={availableInterviewSlots}
+              currentMemberId={currentMember?.id}
+              currentMemberName={currentMember?.name}
+              pselMembers={pselMembers}
+              onAddSlot={handleSpreadsheetAddSlot}
+              onRemoveSlot={handleSpreadsheetRemoveSlot}
+              isLoading={isLoadingInterviewSlots}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </PageContainer>
