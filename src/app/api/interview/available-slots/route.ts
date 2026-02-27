@@ -30,19 +30,22 @@ export async function GET(request: NextRequest) {
 
     // Verificar se o candidato já tem algum slot reservado neste formulário
     const allSlots = await interviewService.listSlots(formId);
-    const existingBooking = allSlots.find(
+    const bookedSlots = allSlots.filter(
       (slot) =>
         slot.status === 'booked' && slot.bookedByCandidateId === candidateId
     );
 
-    if (existingBooking) {
+    if (bookedSlots.length > 0) {
+      // Encontrar o par de entrevistadores (pode haver 2 slots booked para o mesmo candidato)
+      const interviewerNames = bookedSlots.map((s) => s.responsibleMemberName);
       return NextResponse.json(
         {
           alreadyBooked: true,
           bookedSlot: {
-            dateLabel: existingBooking.dateLabel,
-            startTime: existingBooking.startTime,
-            endTime: existingBooking.endTime
+            dateLabel: bookedSlots[0].dateLabel,
+            startTime: bookedSlots[0].startTime,
+            endTime: bookedSlots[0].endTime,
+            interviewerNames
           }
         },
         { status: 409 }

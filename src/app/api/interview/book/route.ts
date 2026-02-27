@@ -4,15 +4,12 @@ import interviewService from '@/services/interviewService';
 /**
  * POST /api/interview/book
  *
- * Reserva um slot de entrevista para um candidato.
+ * Reserva um par de slots de entrevista (2 entrevistadores) para um candidato.
  * Chamado a partir da página pública de seleção de entrevista.
- *
- * Aceita `slotIds` (array de IDs reais) para suportar seleção aleatória
- * quando múltiplos membros disponibilizaram o mesmo horário.
  *
  * Body:
  *  - formId: string        — ID do formulário PSEL
- *  - slotIds: string[]     — IDs dos slots candidatos (mesmo horário, membros diferentes)
+ *  - slotIds: string[]     — IDs dos 2 slots a reservar (um por entrevistador)
  *  - candidateId: string   — ID do candidato
  *  - candidateName: string — Nome completo do candidato
  */
@@ -33,9 +30,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!slotIds || slotIds.length === 0) {
+    if (!slotIds || slotIds.length < 2) {
       return NextResponse.json(
-        { error: 'O campo "slotIds" é obrigatório.' },
+        {
+          error:
+            'O campo "slotIds" deve conter exatamente 2 IDs (um por entrevistador).'
+        },
         { status: 400 }
       );
     }
@@ -54,30 +54,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar quais slots existem e estão disponíveis
-    const availableSlots = [];
-    for (const slotId of slotIds) {
-      const slot = await interviewService.getSlotById(formId, slotId);
-      if (slot && slot.status === 'available') {
-        availableSlots.push(slot);
-      }
+    // Verificar se ambos os slots existem e estão disponíveis
+    const slotA = await interviewService.getSlotById(formId, slotIds[0]);
+    const slotB = await interviewService.getSlotById(formId, slotIds[1]);
+
+    if (!slotA || !slotB) {
+      return NextResponse.json(
+        {
+          error:
+            'Um ou ambos os horários não foram encontrados. Por favor, escolha outro.'
+        },
+        { status: 404 }
+      );
     }
 
-    if (availableSlots.length === 0) {
+    if (slotA.status !== 'available' || slotB.status !== 'available') {
       return NextResponse.json(
-        { error: 'Nenhum horário disponível. Por favor, escolha outro.' },
+        {
+          error:
+            'Um ou ambos os horários já foram reservados. Por favor, escolha outro.'
+        },
         { status: 409 }
       );
     }
 
-    // Escolher aleatoriamente entre os slots disponíveis
-    const chosenSlot =
-      availableSlots[Math.floor(Math.random() * availableSlots.length)];
-
-    // Reservar o slot escolhido
-    await interviewService.bookSlot(
+    // Reservar o par de slots
+    await interviewService.bookSlotPair(
       formId,
-      chosenSlot.id,
+      slotIds[0],
+      slotIds[1],
       candidateId,
       candidateName
     );
@@ -87,10 +92,14 @@ export async function POST(request: NextRequest) {
         success: true,
         message: 'Horário reservado com sucesso!',
         slot: {
-          id: chosenSlot.id,
-          dateLabel: chosenSlot.dateLabel,
-          startTime: chosenSlot.startTime,
-          endTime: chosenSlot.endTime
+          slotIds: [slotA.id, slotB.id],
+          dateLabel: slotA.dateLabel,
+          startTime: slotA.startTime,
+          endTime: slotA.endTime,
+          interviewerNames: [
+            slotA.responsibleMemberName,
+            slotB.responsibleMemberName
+          ]
         }
       },
       { status: 200 }

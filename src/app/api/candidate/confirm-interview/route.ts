@@ -11,12 +11,14 @@ const PSEL_SENDER = {
 /**
  * POST /api/candidate/confirm-interview
  *
- * Salva o link do Google Meet no slot de entrevista e envia um email de
- * confirmação ao candidato contendo os detalhes da entrevista e o link.
+ * Salva o link do Google Meet nos slots de entrevista do par de
+ * entrevistadores e envia um email de confirmação ao candidato
+ * contendo os detalhes da entrevista, os nomes dos dois
+ * entrevistadores e o link do Google Meet.
  *
  * Body:
  *  - formId: string         — ID do formulário PSEL
- *  - slotId: string         — ID do slot de entrevista (já reservado)
+ *  - slotId: string         — ID de um dos slots de entrevista (já reservado)
  *  - googleMeetLink: string — Link do Google Meet
  */
 export async function POST(request: NextRequest) {
@@ -49,7 +51,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Buscar o slot
+    // Buscar o slot fornecido
     const slot = await interviewService.getSlotById(formId, slotId);
 
     if (!slot) {
@@ -66,11 +68,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Salvar o link do Google Meet
-    await interviewService.setGoogleMeetLink(
-      formId,
-      slotId,
-      googleMeetLink.trim()
+    // Encontrar o par: todos os slots booked pelo mesmo candidato no
+    // mesmo horário (dia + hora)
+    const allSlots = await interviewService.listSlots(formId);
+    const pairedSlots = allSlots.filter(
+      (s) =>
+        s.status === 'booked' &&
+        s.bookedByCandidateId === slot.bookedByCandidateId &&
+        s.isoDate === slot.isoDate &&
+        s.startTime === slot.startTime &&
+        s.endTime === slot.endTime
+    );
+
+    // Salvar o link do Google Meet em todos os slots do par
+    await Promise.all(
+      pairedSlots.map((s) =>
+        interviewService.setGoogleMeetLink(formId, s.id, googleMeetLink.trim())
+      )
     );
 
     // Buscar dados do candidato para enviar email
@@ -89,6 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     const candidateName = `${candidate.nome} ${candidate.sobrenome}`.trim();
+    const interviewerNames = pairedSlots.map((s) => s.responsibleMemberName);
 
     const { subject, html, text } =
       interviewService.buildInterviewConfirmationEmailHtml(
@@ -96,7 +111,7 @@ export async function POST(request: NextRequest) {
         slot.dateLabel,
         slot.startTime,
         slot.endTime,
-        slot.responsibleMemberName,
+        interviewerNames,
         googleMeetLink.trim()
       );
 

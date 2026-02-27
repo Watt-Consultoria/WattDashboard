@@ -566,6 +566,7 @@ export default function PSeletivoPage() {
     () =>
       companyMembers
         .filter((member) => Boolean(member.id && member.name))
+        .filter((member) => member.tags?.some((t) => t === 'Psel'))
         .map((member) => ({
           id: member.id,
           name: member.name
@@ -590,6 +591,66 @@ export default function PSeletivoPage() {
       (slot) => slot.isoDate === selectedInterviewIsoDate
     );
   }, [availableInterviewSlots, selectedInterviewIsoDate]);
+
+  /**
+   * Agrupa slots booked do mesmo candidato no mesmo horário em um único
+   * item visual. Slots disponíveis permanecem individuais.
+   */
+  type GroupedSlotEntry =
+    | { kind: 'available'; slot: InterviewSlot }
+    | {
+        kind: 'booked-pair';
+        key: string;
+        slots: InterviewSlot[];
+        interviewerNames: string[];
+        candidateName: string;
+        candidateId: string;
+        dateLabel: string;
+        startTime: string;
+        endTime: string;
+        googleMeetLink?: string;
+      };
+
+  const groupedInterviewSlotsForDate = React.useMemo((): GroupedSlotEntry[] => {
+    const entries: GroupedSlotEntry[] = [];
+    const bookedGroups = new Map<string, InterviewSlot[]>();
+
+    for (const slot of interviewSlotsForSelectedDate) {
+      if (slot.status === 'booked' && slot.bookedByCandidateId) {
+        const groupKey = `${slot.bookedByCandidateId}_${slot.startTime}_${slot.endTime}`;
+        const arr = bookedGroups.get(groupKey) ?? [];
+        arr.push(slot);
+        bookedGroups.set(groupKey, arr);
+      } else {
+        entries.push({ kind: 'available', slot });
+      }
+    }
+
+    for (const [, groupSlots] of bookedGroups) {
+      const first = groupSlots[0];
+      entries.push({
+        kind: 'booked-pair',
+        key: groupSlots.map((s) => s.id).join('_'),
+        slots: groupSlots,
+        interviewerNames: groupSlots.map((s) => s.responsibleMemberName),
+        candidateName: first.bookedByCandidateName ?? '',
+        candidateId: first.bookedByCandidateId ?? '',
+        dateLabel: first.dateLabel,
+        startTime: first.startTime,
+        endTime: first.endTime,
+        googleMeetLink: first.googleMeetLink
+      });
+    }
+
+    // Ordenar por horário
+    entries.sort((a, b) => {
+      const timeA = a.kind === 'available' ? a.slot.startTime : a.startTime;
+      const timeB = b.kind === 'available' ? b.slot.startTime : b.startTime;
+      return timeA.localeCompare(timeB);
+    });
+
+    return entries;
+  }, [interviewSlotsForSelectedDate]);
 
   const interviewCalendarDatesWithSlots = React.useMemo(() => {
     const uniqueIsoDates = new Set(
@@ -1145,6 +1206,21 @@ export default function PSeletivoPage() {
     setIsConfirmInterviewDialogOpen(true);
   };
 
+  // Nomes dos entrevistadores do par (slots booked pelo mesmo candidato no mesmo horário)
+  const confirmInterviewPairNames = React.useMemo(() => {
+    if (!confirmInterviewSlot) return [];
+    return availableInterviewSlots
+      .filter(
+        (s) =>
+          s.status === 'booked' &&
+          s.bookedByCandidateId === confirmInterviewSlot.bookedByCandidateId &&
+          s.isoDate === confirmInterviewSlot.isoDate &&
+          s.startTime === confirmInterviewSlot.startTime &&
+          s.endTime === confirmInterviewSlot.endTime
+      )
+      .map((s) => s.responsibleMemberName);
+  }, [confirmInterviewSlot, availableInterviewSlots]);
+
   const resetConfirmInterviewDialog = () => {
     setIsConfirmInterviewDialogOpen(false);
     setConfirmInterviewSlot(null);
@@ -1176,10 +1252,23 @@ export default function PSeletivoPage() {
       if (res.ok) {
         toast.success(data.message ?? 'Email de confirmação enviado!');
 
-        // Atualizar o slot localmente com o googleMeetLink
+        // Atualizar todos os slots do par localmente com o googleMeetLink
+        const pairedIds = new Set(
+          availableInterviewSlots
+            .filter(
+              (s) =>
+                s.status === 'booked' &&
+                s.bookedByCandidateId ===
+                  confirmInterviewSlot.bookedByCandidateId &&
+                s.isoDate === confirmInterviewSlot.isoDate &&
+                s.startTime === confirmInterviewSlot.startTime &&
+                s.endTime === confirmInterviewSlot.endTime
+            )
+            .map((s) => s.id)
+        );
         setAvailableInterviewSlots((current) =>
           current.map((s) =>
-            s.id === confirmInterviewSlot.id
+            pairedIds.has(s.id)
               ? { ...s, googleMeetLink: confirmGoogleMeetLink.trim() }
               : s
           )
@@ -2028,92 +2117,138 @@ export default function PSeletivoPage() {
                     ) : (
                       <ScrollArea className='h-58 rounded-md'>
                         <div className='space-y-2'>
-                          {interviewSlotsForSelectedDate.map((slot) => (
-                            <div
-                              key={slot.id}
-                              className={cn(
-                                'rounded-md border p-2.5',
-                                slot.status === 'booked'
-                                  ? 'border-amber-300/60 bg-amber-50/60 dark:border-amber-700/40 dark:bg-amber-950/30'
-                                  : ''
-                              )}
-                            >
-                              <div className='flex items-start justify-between gap-2'>
-                                <div className='min-w-0 flex-1'>
-                                  <div className='flex flex-wrap items-center gap-1.5'>
-                                    <p className='text-sm font-medium whitespace-nowrap'>
-                                      {slot.startTime} - {slot.endTime}
-                                    </p>
-                                    {slot.status === 'booked' ? (
+                          {groupedInterviewSlotsForDate.map((entry) => {
+                            if (entry.kind === 'available') {
+                              const slot = entry.slot;
+                              return (
+                                <div
+                                  key={slot.id}
+                                  className='rounded-md border p-2.5'
+                                >
+                                  <div className='flex items-start justify-between gap-2'>
+                                    <div className='min-w-0 flex-1'>
+                                      <div className='flex flex-wrap items-center gap-1.5'>
+                                        <p className='text-sm font-medium whitespace-nowrap'>
+                                          {slot.startTime} - {slot.endTime}
+                                        </p>
+                                        <Badge
+                                          variant='secondary'
+                                          className='bg-emerald-100 text-[10px] text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                                        >
+                                          Disponível
+                                        </Badge>
+                                      </div>
+                                      <p className='text-muted-foreground truncate text-xs'>
+                                        {slot.responsibleMemberName}
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type='button'
+                                      variant='ghost'
+                                      size='icon'
+                                      className='h-6 w-6 shrink-0 opacity-60 hover:opacity-100'
+                                      disabled={
+                                        isSavingInterviewSlot ||
+                                        isRemovingInterviewSlotId === slot.id
+                                      }
+                                      onClick={() =>
+                                        handleRemoveInterviewSlot(slot.id)
+                                      }
+                                      aria-label={`Remover horario ${slot.dateLabel} ${slot.startTime} ${slot.endTime}`}
+                                    >
+                                      <FontAwesomeIcon
+                                        icon={faXmark}
+                                        className='h-3 w-3'
+                                      />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            // Booked pair
+                            return (
+                              <div
+                                key={entry.key}
+                                className='rounded-md border border-amber-300/60 bg-amber-50/60 p-2.5 dark:border-amber-700/40 dark:bg-amber-950/30'
+                              >
+                                <div className='flex items-start justify-between gap-2'>
+                                  <div className='min-w-0 flex-1'>
+                                    <div className='flex flex-wrap items-center gap-1.5'>
+                                      <p className='text-sm font-medium whitespace-nowrap'>
+                                        {entry.startTime} - {entry.endTime}
+                                      </p>
                                       <Badge
                                         variant='secondary'
                                         className='bg-amber-100 text-[10px] text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
                                       >
                                         Ocupado
                                       </Badge>
-                                    ) : (
-                                      <Badge
-                                        variant='secondary'
-                                        className='bg-emerald-100 text-[10px] text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
-                                      >
-                                        Disponível
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <p className='text-muted-foreground truncate text-xs'>
-                                    {slot.responsibleMemberName}
-                                  </p>
-                                  {slot.status === 'booked' &&
-                                    slot.bookedByCandidateName && (
+                                    </div>
+                                    <p className='text-muted-foreground truncate text-xs'>
+                                      {entry.interviewerNames.join(' e ')
+                                        .length > 15
+                                        ? (
+                                            entry.interviewerNames[0] ?? ''
+                                          ).split(' ')[0] +
+                                          ' e ' +
+                                          ((
+                                            entry.interviewerNames[1] ?? ''
+                                          ).split(' ')[0] || '')
+                                        : entry.interviewerNames.join(' e ')}
+                                    </p>
+                                    {entry.candidateName && (
                                       <p className='truncate text-xs text-amber-700 dark:text-amber-400'>
-                                        Reservado por:{' '}
-                                        {slot.bookedByCandidateName}
+                                        Reservado por: {entry.candidateName}
                                       </p>
                                     )}
-                                  {slot.status === 'booked' &&
-                                    slot.googleMeetLink && (
+                                    {entry.googleMeetLink && (
                                       <p className='truncate text-xs text-emerald-600 dark:text-emerald-400'>
                                         <span className='font-medium'>
                                           Meet:
                                         </span>{' '}
                                         <a
-                                          href={slot.googleMeetLink}
+                                          href={entry.googleMeetLink}
                                           target='_blank'
                                           rel='noopener noreferrer'
                                           className='underline underline-offset-2 hover:opacity-80'
                                         >
-                                          {slot.googleMeetLink.replace(
+                                          {entry.googleMeetLink.replace(
                                             /^https?:\/\//,
                                             ''
                                           )}
                                         </a>
                                       </p>
                                     )}
+                                  </div>
+
+                                  <Button
+                                    type='button'
+                                    variant='ghost'
+                                    size='icon'
+                                    className='h-6 w-6 shrink-0 opacity-60 hover:opacity-100'
+                                    disabled={
+                                      isSavingInterviewSlot ||
+                                      entry.slots.some(
+                                        (s) =>
+                                          isRemovingInterviewSlotId === s.id
+                                      )
+                                    }
+                                    onClick={async () => {
+                                      for (const s of entry.slots) {
+                                        await handleRemoveInterviewSlot(s.id);
+                                      }
+                                    }}
+                                    aria-label={`Remover entrevista ${entry.dateLabel} ${entry.startTime} ${entry.endTime}`}
+                                  >
+                                    <FontAwesomeIcon
+                                      icon={faXmark}
+                                      className='h-3 w-3'
+                                    />
+                                  </Button>
                                 </div>
 
-                                <Button
-                                  type='button'
-                                  variant='ghost'
-                                  size='icon'
-                                  className='h-6 w-6 shrink-0 opacity-60 hover:opacity-100'
-                                  disabled={
-                                    isSavingInterviewSlot ||
-                                    isRemovingInterviewSlotId === slot.id
-                                  }
-                                  onClick={() =>
-                                    handleRemoveInterviewSlot(slot.id)
-                                  }
-                                  aria-label={`Remover horario ${slot.dateLabel} ${slot.startTime} ${slot.endTime}`}
-                                >
-                                  <FontAwesomeIcon
-                                    icon={faXmark}
-                                    className='h-3 w-3'
-                                  />
-                                </Button>
-                              </div>
-
-                              {slot.status === 'booked' &&
-                                slot.bookedByCandidateId && (
+                                {entry.candidateId && (
                                   <div className='mt-2 flex justify-end border-t border-amber-200/60 pt-2 dark:border-amber-800/40'>
                                     <Button
                                       type='button'
@@ -2121,21 +2256,24 @@ export default function PSeletivoPage() {
                                       size='sm'
                                       className='h-7 px-2.5 text-xs'
                                       onClick={() =>
-                                        handleOpenConfirmInterview(slot)
+                                        handleOpenConfirmInterview(
+                                          entry.slots[0]
+                                        )
                                       }
                                     >
                                       <FontAwesomeIcon
                                         icon={faEnvelope}
                                         className='mr-1.5 h-3 w-3'
                                       />
-                                      {slot.googleMeetLink
+                                      {entry.googleMeetLink
                                         ? 'Reenviar confirmação'
                                         : 'Enviar confirmação'}
                                     </Button>
                                   </div>
                                 )}
-                            </div>
-                          ))}
+                              </div>
+                            );
+                          })}
                         </div>
                       </ScrollArea>
                     )}
@@ -3084,7 +3222,7 @@ export default function PSeletivoPage() {
                     : 'Selecionar todos'}
                 </Button>
               </div>
-              <ScrollArea className='max-h-64 rounded-md border p-2'>
+              <ScrollArea className='max-h-80 rounded-md border p-2'>
                 {savedCandidates.length === 0 ? (
                   <p className='text-muted-foreground py-4 text-center text-sm'>
                     Nenhum candidato salvo.
@@ -3183,7 +3321,10 @@ export default function PSeletivoPage() {
                   {confirmInterviewSlot.endTime}
                 </p>
                 <p className='text-muted-foreground text-xs'>
-                  Responsável: {confirmInterviewSlot.responsibleMemberName}
+                  Entrevistadores:{' '}
+                  {confirmInterviewPairNames.length > 0
+                    ? confirmInterviewPairNames.join(' e ')
+                    : confirmInterviewSlot.responsibleMemberName}
                 </p>
                 {confirmInterviewSlot.bookedByCandidateName && (
                   <p className='mt-1 text-xs font-medium text-amber-700 dark:text-amber-400'>

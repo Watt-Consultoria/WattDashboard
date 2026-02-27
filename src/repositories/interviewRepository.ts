@@ -219,6 +219,58 @@ class InterviewRepository implements IInterviewRepository {
     });
   }
 
+  async bookSlotPair(
+    formId: string,
+    slotIdA: string,
+    slotIdB: string,
+    candidateId: string,
+    candidateName: string
+  ): Promise<void> {
+    const trimmedFormId = formId.trim();
+    const trimmedA = slotIdA.trim();
+    const trimmedB = slotIdB.trim();
+
+    if (!trimmedFormId || !trimmedA || !trimmedB || !candidateId) {
+      throw new MissingParameterError([
+        'formId',
+        'slotIdA',
+        'slotIdB',
+        'candidateId'
+      ]);
+    }
+
+    const refA = this.slotDocRef(trimmedFormId, trimmedA);
+    const refB = this.slotDocRef(trimmedFormId, trimmedB);
+
+    const [snapA, snapB] = await Promise.all([getDoc(refA), getDoc(refB)]);
+
+    if (!snapA.exists() || !snapB.exists()) {
+      throw new ValidationError(
+        'Um ou ambos os horários de entrevista não foram encontrados'
+      );
+    }
+
+    const dataA = snapA.data();
+    const dataB = snapB.data();
+
+    if (dataA.status === 'booked' || dataB.status === 'booked') {
+      throw new ValidationError('Um ou ambos os horários já estão reservados');
+    }
+
+    const bookPayload = {
+      status: 'booked',
+      bookedByCandidateId: candidateId,
+      bookedByCandidateName: candidateName,
+      bookedAt: new Date().toISOString(),
+      updatedAt: serverTimestamp()
+    };
+
+    await Promise.all([
+      updateDoc(refA, bookPayload),
+      updateDoc(refB, bookPayload)
+    ]);
+  }
+
   async getSlotById(
     formId: string,
     slotId: string
