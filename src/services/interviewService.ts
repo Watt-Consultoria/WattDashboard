@@ -51,7 +51,38 @@ class InterviewService {
   }
 
   /**
+   * Reserva um par de horários de entrevista (dois entrevistadores)
+   * para um candidato.
+   */
+  async bookSlotPair(
+    formId: string,
+    slotIdA: string,
+    slotIdB: string,
+    candidateId: string,
+    candidateName: string
+  ): Promise<void> {
+    if (
+      !formId?.trim() ||
+      !slotIdA?.trim() ||
+      !slotIdB?.trim() ||
+      !candidateId?.trim()
+    ) {
+      throw new Error(
+        'Formulário, par de horários e candidato são obrigatórios'
+      );
+    }
+    await interviewRepository.bookSlotPair(
+      formId,
+      slotIdA,
+      slotIdB,
+      candidateId,
+      candidateName
+    );
+  }
+
+  /**
    * Reserva um horário de entrevista para um candidato.
+   * @deprecated Prefer bookSlotPair for the new 2-interviewer model.
    */
   async bookSlot(
     formId: string,
@@ -98,9 +129,14 @@ class InterviewService {
    * Retorna apenas os horários disponíveis (não ocupados) e que ainda não
    * venceram (data >= hoje). Usado para enviar opções ao candidato por email.
    *
-   * Slots de múltiplos membros para o mesmo dia/horário são agrupados em
-   * uma única entrada. O campo `slotIds` contém os IDs reais para sorteio
-   * na hora da reserva.
+   * Apenas horários que possuem pelo menos 2 membros disponíveis no mesmo
+   * dia/horário são considerados válidos (modelo de 2 entrevistadores).
+   *
+   * Para cada par de membros encontrado no mesmo horário, é gerada uma
+   * entrada com exatamente 2 slotIds e 2 interviewerNames. Se houver 3+
+   * membros no mesmo horário, cada combinação de 2 gera uma entrada
+   * distinta, mas na prática exibimos apenas uma (a primeira) para
+   * simplicidade — o campo slotIds contém os 2 primeiros encontrados.
    */
   async getAvailableSlots(
     formId: string
@@ -114,27 +150,38 @@ class InterviewService {
       )
     );
 
-    // Agrupar slots com mesmo dia + horário (deduplicar membros)
-    const grouped = new Map<string, AvailableInterviewSlotView>();
+    // Agrupar slots com mesmo dia + horário
+    const grouped = new Map<string, { slot: (typeof available)[number] }[]>();
 
     for (const slot of available) {
       const key = `${slot.isoDate}_${slot.startTime}_${slot.endTime}`;
-      const existing = grouped.get(key);
-      if (existing) {
-        existing.slotIds.push(slot.id);
-      } else {
-        grouped.set(key, {
-          id: key,
-          slotIds: [slot.id],
-          isoDate: slot.isoDate,
-          dateLabel: slot.dateLabel,
-          startTime: slot.startTime,
-          endTime: slot.endTime
-        });
-      }
+      const arr = grouped.get(key) ?? [];
+      arr.push({ slot });
+      grouped.set(key, arr);
     }
 
-    return Array.from(grouped.values());
+    // Apenas horários com 2+ membros são válidos
+    const result: AvailableInterviewSlotView[] = [];
+
+    for (const [key, entries] of grouped) {
+      if (entries.length < 2) continue;
+
+      // Pegar os dois primeiros membros disponíveis como par
+      result.push({
+        id: key,
+        slotIds: [entries[0].slot.id, entries[1].slot.id],
+        interviewerNames: [
+          entries[0].slot.responsibleMemberName,
+          entries[1].slot.responsibleMemberName
+        ],
+        isoDate: entries[0].slot.isoDate,
+        dateLabel: entries[0].slot.dateLabel,
+        startTime: entries[0].slot.startTime,
+        endTime: entries[0].slot.endTime
+      });
+    }
+
+    return result;
   }
 
   /**
@@ -248,16 +295,18 @@ class InterviewService {
 
   /**
    * Gera o HTML do email de confirmação da entrevista com Google Meet link.
+   * Mostra os nomes de ambos os entrevistadores.
    */
   buildInterviewConfirmationEmailHtml(
     candidateName: string,
     dateLabel: string,
     startTime: string,
     endTime: string,
-    responsibleMemberName: string,
+    interviewerNames: string[],
     googleMeetLink: string
   ): { subject: string; html: string; text: string } {
     const subject = 'Confirmação de entrevista — Processo Seletivo Watt';
+    const interviewersLabel = interviewerNames.join(' e ');
 
     const html = this.wrapHtml(`
       <h2 style="margin:0 0 12px;font-size:18px;color:#1a1a2e;">✅ Entrevista confirmada!</h2>
@@ -282,8 +331,8 @@ class InterviewService {
         <tr><td style="height:8px;"></td></tr>
         <tr>
           <td style="padding:12px 16px;background-color:#f4f4f5;border-radius:6px;">
-            <p style="margin:0 0 4px;font-size:13px;color:#71717a;">Entrevistador(a)</p>
-            <p style="margin:0;font-size:15px;font-weight:600;color:#1a1a2e;">${this.escapeHtml(responsibleMemberName)}</p>
+            <p style="margin:0 0 4px;font-size:13px;color:#71717a;">Entrevistadores</p>
+            <p style="margin:0;font-size:15px;font-weight:600;color:#1a1a2e;">${this.escapeHtml(interviewersLabel)}</p>
           </td>
         </tr>
       </table>
@@ -308,7 +357,7 @@ class InterviewService {
       '',
       `Data: ${dateLabel}`,
       `Horário: ${startTime} – ${endTime}`,
-      `Entrevistador(a): ${responsibleMemberName}`,
+      `Entrevistadores: ${interviewersLabel}`,
       `Google Meet: ${googleMeetLink}`,
       '',
       'Boa sorte e até lá!',

@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 interface AvailableSlot {
   id: string;
   slotIds: string[];
+  interviewerNames: string[];
   isoDate: string;
   dateLabel: string;
   startTime: string;
@@ -34,6 +35,7 @@ interface BookedSlotInfo {
   dateLabel: string;
   startTime: string;
   endTime: string;
+  interviewerNames?: string[];
 }
 
 type PageState =

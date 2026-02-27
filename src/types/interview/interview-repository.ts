@@ -21,6 +21,18 @@ export default interface IInterviewRepository {
     candidateName: string
   ): Promise<void>;
 
+  /**
+   * Marca dois horários de entrevista como ocupados simultaneamente
+   * (um par de entrevistadores para o mesmo candidato).
+   */
+  bookSlotPair(
+    formId: string,
+    slotIdA: string,
+    slotIdB: string,
+    candidateId: string,
+    candidateName: string
+  ): Promise<void>;
+
   /** Atualiza o link do Google Meet de um slot */
   setGoogleMeetLink(
     formId: string,

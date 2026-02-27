@@ -56,15 +56,18 @@ export type CreateInterviewSlotInput = Omit<
  * Horário de entrevista disponível enviado ao candidato por email.
  * Contém apenas os dados relevantes para exibição.
  *
- * Slots de múltiplos membros para o mesmo horário são agrupados numa
- * única entrada. `slotIds` contém os IDs reais dos slots subjacentes
- * para que a reserva possa escolher um aleatoriamente.
+ * Apenas horários que possuem pelo menos 2 membros disponíveis no
+ * mesmo dia/horário são considerados válidos. `slotIds` contém os
+ * IDs reais dos slots subjacentes (exatamente 2) que serão reservados
+ * simultaneamente quando o candidato escolher este horário.
  */
 export type AvailableInterviewSlotView = {
   /** Chave composta: isoDate_startTime_endTime */
   id: string;
-  /** IDs reais dos slots (um por membro) para este mesmo horário */
+  /** IDs reais dos slots (exatamente 2, um por membro) para este horário */
   slotIds: string[];
+  /** Nomes dos membros entrevistadores emparelhados */
+  interviewerNames: string[];
   isoDate: string;
   dateLabel: string;
   startTime: string;
