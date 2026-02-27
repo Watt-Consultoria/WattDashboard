@@ -111,7 +111,7 @@ export const navItems: NavItem[] = [
     items: []
   },
   {
-    title: 'pSeletivo',
+    title: 'Processo Seletivo',
     url: '/dashboard/pseletivo',
     icon: 'kanban',
     isActive: false,
@@ -218,4 +218,3 @@ export const navItems: NavItem[] = [
     ]
   }
 ];
-

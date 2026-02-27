@@ -33,4 +33,7 @@ export default interface ISavedCandidateRepository {
 
   /** Atualiza a etapa de um candidato salvo */
   setCandidateStage(candidateId: string, stage: string): Promise<void>;
+
+  /** Define a flag desclassificado=true sem alterar a etapa */
+  disqualifyCandidate(candidateId: string): Promise<void>;
 }

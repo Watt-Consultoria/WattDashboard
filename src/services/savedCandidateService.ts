@@ -85,7 +85,8 @@ class SavedCandidateService {
       imagemUrl: saved.imagemUrl,
       tarefas: saved.tarefas ?? [],
       informacoesAdicionais: saved.informacoesAdicionais ?? [],
-      tags: saved.tags ?? []
+      tags: saved.tags ?? [],
+      desclassificado: saved.desclassificado ?? false
     };
   }
 
@@ -95,6 +96,22 @@ class SavedCandidateService {
   async listSavedCandidatesAsCandidate(): Promise<Candidate[]> {
     const savedCandidates = await savedCandidateRepository.listCandidates();
     return savedCandidates.map((sc) => this.savedCandidateToCandidate(sc));
+  }
+
+  /**
+   * Lista apenas os candidatos salvos ativos (não desclassificados).
+   */
+  async listActiveSavedCandidatesAsCandidate(): Promise<Candidate[]> {
+    const all = await this.listSavedCandidatesAsCandidate();
+    return all.filter((c) => !c.desclassificado);
+  }
+
+  /**
+   * Lista apenas os candidatos salvos desclassificados.
+   */
+  async listDisqualifiedSavedCandidatesAsCandidate(): Promise<Candidate[]> {
+    const all = await this.listSavedCandidatesAsCandidate();
+    return all.filter((c) => c.desclassificado);
   }
 
   /**
@@ -192,10 +209,7 @@ class SavedCandidateService {
 
   async disqualifyCandidate(candidateId: string): Promise<void> {
     if (!candidateId) throw new Error('ID do candidato é obrigatório');
-    await savedCandidateRepository.setCandidateStage(
-      candidateId,
-      'Desclassificado'
-    );
+    await savedCandidateRepository.disqualifyCandidate(candidateId);
   }
 }
 

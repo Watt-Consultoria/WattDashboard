@@ -29,6 +29,8 @@ export type SavedCandidate = {
   formIdOrigem: string;
   /** ID da resposta de formulário de origem (pré-candidato) */
   respostaIdOrigem: string;
+  /** Indica se o candidato salvo foi desclassificado (sem alterar a etapa) */
+  desclassificado?: boolean;
   createdAt?: unknown;
   updatedAt?: unknown;
 };
