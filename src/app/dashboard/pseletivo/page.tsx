@@ -2068,7 +2068,7 @@ export default function PSeletivoPage() {
         open={isInterviewSlotsDialogOpen}
         onOpenChange={setIsInterviewSlotsDialogOpen}
       >
-        <DialogContent className='max-h-[90vh] w-[95vw] max-w-[95vw] overflow-y-auto sm:max-w-2xl'>
+        <DialogContent className='flex max-h-[90dvh] w-[95vw] max-w-[95vw] flex-col overflow-hidden sm:max-w-2xl'>
           <DialogHeader>
             <DialogTitle>Disponibilizar horarios de entrevistas</DialogTitle>
             <DialogDescription>
@@ -3179,7 +3179,7 @@ export default function PSeletivoPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className='space-y-4'>
+          <div className='flex min-h-0 flex-1 flex-col gap-4 overflow-hidden'>
             {/* Seleção do formulário */}
             <div className='space-y-2'>
               <Label htmlFor='interview-email-form'>Formulário PSEL</Label>
@@ -3206,7 +3206,7 @@ export default function PSeletivoPage() {
             </div>
 
             {/* Lista de candidatos com checkbox */}
-            <div className='space-y-2'>
+            <div className='flex min-h-0 flex-1 flex-col space-y-2'>
               <div className='flex items-center justify-between'>
                 <Label>Candidatos</Label>
                 <Button
@@ -3222,17 +3222,17 @@ export default function PSeletivoPage() {
                     : 'Selecionar todos'}
                 </Button>
               </div>
-              <ScrollArea className='max-h-80 rounded-md border p-2'>
+              <ScrollArea className='h-[min(46dvh,22rem)] rounded-md border'>
                 {savedCandidates.length === 0 ? (
-                  <p className='text-muted-foreground py-4 text-center text-sm'>
+                  <p className='text-muted-foreground px-2 py-4 text-center text-sm'>
                     Nenhum candidato salvo.
                   </p>
                 ) : (
-                  <ul className='space-y-1'>
+                  <ul className='space-y-1 p-2'>
                     {savedCandidates.map((candidate) => (
                       <li
                         key={candidate.id}
-                        className='flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/5'
+                        className='flex items-start gap-2 rounded px-2 py-1.5 hover:bg-white/5'
                       >
                         <Checkbox
                           checked={interviewEmailSelectedCandidateIds.has(
@@ -3242,10 +3242,11 @@ export default function PSeletivoPage() {
                             handleToggleInterviewEmailCandidate(candidate.id)
                           }
                           id={`interview-email-${candidate.id}`}
+                          className='mt-0.5'
                         />
                         <label
                           htmlFor={`interview-email-${candidate.id}`}
-                          className='flex-1 cursor-pointer text-sm'
+                          className='flex-1 cursor-pointer text-sm break-words'
                         >
                           {candidate.nome} {candidate.sobrenome}
                           {candidate.email ? (
@@ -3270,7 +3271,7 @@ export default function PSeletivoPage() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className='shrink-0 flex-col gap-2 sm:flex-row'>
             <Button
               type='button'
               variant='secondary'
