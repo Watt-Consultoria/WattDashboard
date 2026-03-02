@@ -428,7 +428,7 @@ export function PselScheduleSpreadsheet({
   /* ═══════════════════════════════════════════════════════════════
      MOBILE – card per member, one day at a time (<md)
      ═══════════════════════════════════════════════════════════════ */
-  const MobileLayout = () => (
+  const mobileLayout = (
     <div className='flex h-full flex-col md:hidden'>
       {/* Day selector */}
       <div className='bg-background/95 sticky top-0 z-10 shrink-0 border-b pb-2.5 backdrop-blur-sm'>
@@ -636,7 +636,7 @@ export function PselScheduleSpreadsheet({
   /* ═══════════════════════════════════════════════════════════════
      TABLET – table, one day at a time  (md → lg)
      ═══════════════════════════════════════════════════════════════ */
-  const TabletLayout = () => (
+  const tabletLayout = (
     <div className='hidden h-full flex-col md:flex lg:hidden'>
       <div className='bg-background/95 border-b pb-2.5 backdrop-blur-sm'>
         <DaySelector
@@ -758,7 +758,7 @@ export function PselScheduleSpreadsheet({
   /* ═══════════════════════════════════════════════════════════════
      DESKTOP – full grid, all dates × all hours  (≥lg)
      ═══════════════════════════════════════════════════════════════ */
-  const DesktopLayout = () => (
+  const desktopLayout = (
     <div className='hidden h-full lg:block'>
       <ScrollArea className='h-full w-full'>
         {/* NOTE: no overflow-hidden on this wrapper – it would break sticky columns */}
@@ -937,9 +937,9 @@ export function PselScheduleSpreadsheet({
 
       {/* Layouts */}
       <div className='min-h-0 flex-1'>
-        <MobileLayout />
-        <TabletLayout />
-        <DesktopLayout />
+        {mobileLayout}
+        {tabletLayout}
+        {desktopLayout}
       </div>
     </div>
   );
