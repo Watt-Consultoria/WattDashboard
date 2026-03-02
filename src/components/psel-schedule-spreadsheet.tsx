@@ -74,8 +74,53 @@ type Props = {
 /* ═══════════════════════════════════════════════════════════════
    Utilities
    ═══════════════════════════════════════════════════════════════ */
+
+/**
+ * Gera um intervalo de datas do início ao fim (inclusivo).
+ */
+function generateDateRange(startIso: string, endIso: string): string[] {
+  const dates: string[] = [];
+  const start = parseIso(startIso);
+  const end = parseIso(endIso);
+
+  const current = new Date(start);
+  while (current <= end) {
+    const year = current.getFullYear();
+    const month = String(current.getMonth() + 1).padStart(2, '0');
+    const day = String(current.getDate()).padStart(2, '0');
+    dates.push(`${year}-${month}-${day}`);
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
+/**
+ * Extrai todas as datas dos slots e garante que o intervalo
+ * se estenda até pelo menos 13/02/2026.
+ */
 function extractDates(slots: InterviewSlot[]): string[] {
-  return Array.from(new Set(slots.map((s) => s.isoDate))).sort();
+  const minEndDate = '2026-02-13'; // 13/02/2026
+
+  if (slots.length === 0) {
+    // Se não há slots, começa de hoje até a data mínima
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startIso = today.toISOString().split('T')[0];
+    return generateDateRange(startIso, minEndDate);
+  }
+
+  const slotDates = slots.map((s) => s.isoDate);
+  const uniqueDates = Array.from(new Set(slotDates)).sort();
+
+  const firstDate = uniqueDates[0];
+  const lastSlotDate = uniqueDates[uniqueDates.length - 1];
+
+  // Garante que mostramos até pelo menos 13/02/2026
+  const effectiveEndDate =
+    lastSlotDate > minEndDate ? lastSlotDate : minEndDate;
+
+  return generateDateRange(firstDate, effectiveEndDate);
 }
 
 function hasSlotAt(
