@@ -190,77 +190,73 @@ class InterviewService {
    */
   buildInterviewSlotsEmailHtml(
     candidateName: string,
-    slots: AvailableInterviewSlotView[],
+    // slots: AvailableInterviewSlotView[],
     selectionLink: string
   ): { subject: string; html: string; text: string } {
     const subject =
       'Horários disponíveis para entrevista — Processo Seletivo Watt';
 
-    if (slots.length === 0) {
-      const html = this.wrapHtml(`
-        <h2 style="margin:0 0 12px;font-size:18px;color:#1a1a2e;">Entrevistas — Processo Seletivo</h2>
-        <p style="margin:0 0 12px;font-size:14px;color:#3f3f46;">Olá, <strong>${this.escapeHtml(candidateName)}</strong>!</p>
-        <p style="margin:0;font-size:14px;color:#3f3f46;">No momento não há horários disponíveis para entrevista. Entraremos em contato quando novos horários estiverem abertos.</p>
-      `);
-      const text = [
-        'ENTREVISTAS — PROCESSO SELETIVO WATT',
-        '',
-        `Olá, ${candidateName}!`,
-        '',
-        'No momento não há horários disponíveis para entrevista.',
-        'Entraremos em contato quando novos horários estiverem abertos.',
-        '',
-        'Atenciosamente,',
-        'Gestão de Pessoas — Watt Consultoria Jr.'
-      ].join('\n');
+    // if (slots.length === 0) {
+    //   const html = this.wrapHtml(`
+    //     <h2 style="margin:0 0 12px;font-size:18px;color:#1a1a2e;">Entrevistas — Processo Seletivo</h2>
+    //     <p style="margin:0 0 12px;font-size:14px;color:#3f3f46;">Olá, <strong>${this.escapeHtml(candidateName)}</strong>!</p>
+    //     <p style="margin:0;font-size:14px;color:#3f3f46;">No momento não há horários disponíveis para entrevista. Entraremos em contato quando novos horários estiverem abertos.</p>
+    //   `);
+    //   const text = [
+    //     'ENTREVISTAS — PROCESSO SELETIVO WATT',
+    //     '',
+    //     `Olá, ${candidateName}!`,
+    //     '',
+    //     'No momento não há horários disponíveis para entrevista.',
+    //     'Entraremos em contato quando novos horários estiverem abertos.',
+    //     '',
+    //     'Atenciosamente,',
+    //     'Gestão de Pessoas — Watt Consultoria Jr.'
+    //   ].join('\n');
 
-      return { subject, html, text };
-    }
+    //   return { subject, html, text };
+    // }
 
     // Agrupar por data
-    const grouped = new Map<string, AvailableInterviewSlotView[]>();
-    for (const slot of slots) {
-      const group = grouped.get(slot.isoDate) ?? [];
-      group.push(slot);
-      grouped.set(slot.isoDate, group);
-    }
+    // const grouped = new Map<string, AvailableInterviewSlotView[]>();
+    // for (const slot of slots) {
+    //   const group = grouped.get(slot.isoDate) ?? [];
+    //   group.push(slot);
+    //   grouped.set(slot.isoDate, group);
+    // }
 
-    let slotsHtml = '';
-    let slotsText = '';
+    // let slotsHtml = '';
+    // let slotsText = '';
 
-    for (const [, dateSlots] of grouped) {
-      const dateLabel = dateSlots[0].dateLabel;
-      slotsHtml += `
-        <tr>
-          <td style="padding:10px 16px;background-color:#f4f4f5;border-radius:6px;">
-            <p style="margin:0 0 6px;font-size:14px;font-weight:600;color:#1a1a2e;">📅 ${this.escapeHtml(dateLabel)}</p>`;
+    // for (const [, dateSlots] of grouped) {
+    //   const dateLabel = dateSlots[0].dateLabel;
+    //   slotsHtml += `
+    //     <tr>
+    //       <td style="padding:10px 16px;background-color:#f4f4f5;border-radius:6px;">
+    //         <p style="margin:0 0 6px;font-size:14px;font-weight:600;color:#1a1a2e;">📅 ${this.escapeHtml(dateLabel)}</p>`;
 
-      slotsText += `\n${dateLabel}\n`;
+    //   slotsText += `\n${dateLabel}\n`;
 
-      for (const slot of dateSlots) {
-        slotsHtml += `
-            <p style="margin:2px 0;font-size:13px;color:#3f3f46;">
-              🕐 ${this.escapeHtml(slot.startTime)} – ${this.escapeHtml(slot.endTime)}
-            </p>`;
-        slotsText += `  ${slot.startTime} – ${slot.endTime}\n`;
-      }
+    //   for (const slot of dateSlots) {
+    //     slotsHtml += `
+    //         <p style="margin:2px 0;font-size:13px;color:#3f3f46;">
+    //           🕐 ${this.escapeHtml(slot.startTime)} – ${this.escapeHtml(slot.endTime)}
+    //         </p>`;
+    //     slotsText += `  ${slot.startTime} – ${slot.endTime}\n`;
+    //   }
 
-      slotsHtml += `
-          </td>
-        </tr>
-        <tr><td style="height:8px;"></td></tr>`;
-    }
+    //   slotsHtml += `
+    //       </td>
+    //     </tr>
+    //     <tr><td style="height:8px;"></td></tr>`;
+    // }
 
     const html = this.wrapHtml(`
       <h2 style="margin:0 0 12px;font-size:18px;color:#1a1a2e;">Horários disponíveis para entrevista</h2>
       <p style="margin:0 0 12px;font-size:14px;color:#3f3f46;">Olá, <strong>${this.escapeHtml(candidateName)}</strong>!</p>
       <p style="margin:0 0 16px;font-size:14px;color:#3f3f46;">
-        Seguem os horários disponíveis para a sua entrevista no Processo Seletivo da Watt Consultoria Jr.
-        Clique no botão abaixo para escolher o melhor horário para você.
+        Sua candidatura foi aceita! A próxima etapa do Processo Seletivo da Watt Consultoria Jr. é a entrevista, onde teremos a oportunidade de conhecer você melhor e falar mais sobre a vaga e a empresa. Para isso, pedimos que escolha um horário disponível para a sua entrevista clicando no link abaixo:
       </p>
-      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 16px;width:100%;">
-        ${slotsHtml}
-      </table>
       <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
         <tr>
           <td style="background-color:#1a1a2e;border-radius:6px;padding:12px 28px;">
@@ -282,7 +278,6 @@ class InterviewService {
       'Acesse o link abaixo para escolher o melhor horário para você:',
       selectionLink,
       '',
-      slotsText.trim(),
       '',
       'Contamos com a sua participação!',
       '',
