@@ -88,8 +88,14 @@ export default function InterviewSelectionPage() {
 
         setCandidateName(data.candidateName ?? '');
         const fetchedSlots = (data.slots ?? []) as AvailableSlot[];
-        setSlots(fetchedSlots);
-        setState(fetchedSlots.length > 0 ? 'loaded' : 'empty');
+
+        const filteredSlots = fetchedSlots.filter((slot) => {
+          const slotDate = new Date(`${slot.isoDate}T${slot.endTime}:00`);
+          return slotDate > new Date(Date.now() + 24 * 60 * 60 * 1000); // Filtrar slots que terminam em menos de 24h
+        });
+
+        setSlots(filteredSlots);
+        setState(filteredSlots.length > 0 ? 'loaded' : 'empty');
       } catch {
         setErrorMessage('Erro de conexão. Tente novamente mais tarde.');
         setState('error');
