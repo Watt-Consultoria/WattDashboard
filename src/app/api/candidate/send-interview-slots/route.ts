@@ -48,17 +48,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar horários disponíveis e futuros
-    const availableSlots = await interviewService.getAvailableSlots(formId);
+    // const availableSlots = await interviewService.getAvailableSlots(formId);
 
-    if (availableSlots.length === 0) {
-      return NextResponse.json(
-        {
-          error:
-            'Não há horários de entrevista disponíveis (não ocupados e futuros) para este formulário.'
-        },
-        { status: 422 }
-      );
-    }
+    // if (availableSlots.length === 0) {
+    //   return NextResponse.json(
+    //     {
+    //       error:
+    //         'Não há horários de entrevista disponíveis (não ocupados e futuros) para este formulário.'
+    //     },
+    //     { status: 422 }
+    //   );
+    // }
 
     // Buscar dados dos candidatos
     const candidates =
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
         const { subject, html, text } =
           interviewService.buildInterviewSlotsEmailHtml(
             candidateName,
-            availableSlots,
+            // availableSlots,
             selectionLink
           );
 
