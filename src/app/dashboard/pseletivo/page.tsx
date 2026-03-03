@@ -2252,7 +2252,7 @@ export default function PSeletivoPage() {
           <div className='space-y-4'>
             <Card>
               <CardContent className='p-4'>
-                <div className='grid items-start gap-4 md:grid-cols-2'>
+                <div className='grid items-start gap-1 md:grid-cols-2'>
                   <div className='mx-auto w-full'>
                     <Calendar
                       mode='single'
@@ -2289,31 +2289,126 @@ export default function PSeletivoPage() {
                     ) : (
                       <ScrollArea className='h-58 rounded-md'>
                         <div className='space-y-2'>
-                          {groupedInterviewSlotsForDate.map((entry) => {
-                            if (entry.kind === 'available') {
-                              const slot = entry.slot;
+                          {groupedInterviewSlotsForDate
+                            .sort((a, b) => {
+                              if (
+                                a.kind === 'available' &&
+                                b.kind !== 'available'
+                              )
+                                return 1;
+                              if (
+                                a.kind !== 'available' &&
+                                b.kind === 'available'
+                              )
+                                return -1;
+                              return 0;
+                            })
+                            .map((entry) => {
+                              if (entry.kind === 'available') {
+                                const slot = entry.slot;
+                                return (
+                                  <div
+                                    key={slot.id}
+                                    className='max-w-half rounded-md border p-2.5'
+                                  >
+                                    <div className='flex items-start justify-between gap-2'>
+                                      <div className='min-w-0 flex-1'>
+                                        <div className='flex flex-wrap items-center gap-1.5'>
+                                          <p className='text-sm font-medium whitespace-nowrap'>
+                                            {slot.startTime} - {slot.endTime}
+                                          </p>
+                                          <Badge
+                                            variant='secondary'
+                                            className='bg-emerald-100 text-[10px] text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                                          >
+                                            Disponível
+                                          </Badge>
+                                        </div>
+                                        <p className='text-muted-foreground truncate text-xs'>
+                                          {slot.responsibleMemberName}
+                                        </p>
+                                      </div>
+                                      <Button
+                                        type='button'
+                                        variant='ghost'
+                                        size='icon'
+                                        className='h-6 w-6 shrink-0 opacity-60 hover:opacity-100'
+                                        disabled={
+                                          isSavingInterviewSlot ||
+                                          isRemovingInterviewSlotId === slot.id
+                                        }
+                                        onClick={() =>
+                                          handleRemoveInterviewSlot(slot.id)
+                                        }
+                                        aria-label={`Remover horario ${slot.dateLabel} ${slot.startTime} ${slot.endTime}`}
+                                      >
+                                        <FontAwesomeIcon
+                                          icon={faXmark}
+                                          className='h-3 w-3'
+                                        />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              // Booked pair
                               return (
                                 <div
-                                  key={slot.id}
-                                  className='max-w-half rounded-md border p-2.5'
+                                  key={entry.key}
+                                  className='rounded-md border border-amber-300/60 bg-amber-50/60 p-2.5 dark:border-amber-700/40 dark:bg-amber-950/30'
                                 >
                                   <div className='flex items-start justify-between gap-2'>
                                     <div className='min-w-0 flex-1'>
                                       <div className='flex flex-wrap items-center gap-1.5'>
                                         <p className='text-sm font-medium whitespace-nowrap'>
-                                          {slot.startTime} - {slot.endTime}
+                                          {entry.startTime} - {entry.endTime}
                                         </p>
                                         <Badge
                                           variant='secondary'
-                                          className='bg-emerald-100 text-[10px] text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                                          className='bg-amber-100 text-[10px] text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
                                         >
-                                          Disponível
+                                          Ocupado
                                         </Badge>
                                       </div>
                                       <p className='text-muted-foreground truncate text-xs'>
-                                        {slot.responsibleMemberName}
+                                        {entry.interviewerNames.join(' e ')
+                                          .length > 15
+                                          ? (
+                                              entry.interviewerNames[0] ?? ''
+                                            ).split(' ')[0] +
+                                            ' e ' +
+                                            ((
+                                              entry.interviewerNames[1] ?? ''
+                                            ).split(' ')[0] || '')
+                                          : entry.interviewerNames.join(' e ')}
                                       </p>
+                                      {entry.candidateName && (
+                                        <p className='truncate text-xs text-amber-700 dark:text-amber-400'>
+                                          Reservado por:{' '}
+                                          {truncateName(entry.candidateName)}
+                                        </p>
+                                      )}
+                                      {entry.googleMeetLink && (
+                                        <p className='truncate text-xs text-emerald-600 dark:text-emerald-400'>
+                                          <span className='font-medium'>
+                                            Meet:
+                                          </span>{' '}
+                                          <a
+                                            href={entry.googleMeetLink}
+                                            target='_blank'
+                                            rel='noopener noreferrer'
+                                            className='underline underline-offset-2 hover:opacity-80'
+                                          >
+                                            {entry.googleMeetLink.replace(
+                                              /^https?:\/\//,
+                                              ''
+                                            )}
+                                          </a>
+                                        </p>
+                                      )}
                                     </div>
+
                                     <Button
                                       type='button'
                                       variant='ghost'
@@ -2321,12 +2416,17 @@ export default function PSeletivoPage() {
                                       className='h-6 w-6 shrink-0 opacity-60 hover:opacity-100'
                                       disabled={
                                         isSavingInterviewSlot ||
-                                        isRemovingInterviewSlotId === slot.id
+                                        entry.slots.some(
+                                          (s) =>
+                                            isRemovingInterviewSlotId === s.id
+                                        )
                                       }
-                                      onClick={() =>
-                                        handleRemoveInterviewSlot(slot.id)
-                                      }
-                                      aria-label={`Remover horario ${slot.dateLabel} ${slot.startTime} ${slot.endTime}`}
+                                      onClick={async () => {
+                                        for (const s of entry.slots) {
+                                          await handleRemoveInterviewSlot(s.id);
+                                        }
+                                      }}
+                                      aria-label={`Remover entrevista ${entry.dateLabel} ${entry.startTime} ${entry.endTime}`}
                                     >
                                       <FontAwesomeIcon
                                         icon={faXmark}
@@ -2334,119 +2434,33 @@ export default function PSeletivoPage() {
                                       />
                                     </Button>
                                   </div>
+
+                                  {entry.candidateId && (
+                                    <div className='mt-2 flex justify-end border-t border-amber-200/60 pt-2 dark:border-amber-800/40'>
+                                      <Button
+                                        type='button'
+                                        variant='outline'
+                                        size='sm'
+                                        className='h-7 px-2.5 text-xs'
+                                        onClick={() =>
+                                          handleOpenConfirmInterview(
+                                            entry.slots[0]
+                                          )
+                                        }
+                                      >
+                                        <FontAwesomeIcon
+                                          icon={faEnvelope}
+                                          className='mr-1.5 h-3 w-3'
+                                        />
+                                        {entry.googleMeetLink
+                                          ? 'Reenviar confirmação'
+                                          : 'Enviar confirmação'}
+                                      </Button>
+                                    </div>
+                                  )}
                                 </div>
                               );
-                            }
-
-                            // Booked pair
-                            return (
-                              <div
-                                key={entry.key}
-                                className='rounded-md border border-amber-300/60 bg-amber-50/60 p-2.5 dark:border-amber-700/40 dark:bg-amber-950/30'
-                              >
-                                <div className='flex items-start justify-between gap-2'>
-                                  <div className='min-w-0 flex-1'>
-                                    <div className='flex flex-wrap items-center gap-1.5'>
-                                      <p className='text-sm font-medium whitespace-nowrap'>
-                                        {entry.startTime} - {entry.endTime}
-                                      </p>
-                                      <Badge
-                                        variant='secondary'
-                                        className='bg-amber-100 text-[10px] text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
-                                      >
-                                        Ocupado
-                                      </Badge>
-                                    </div>
-                                    <p className='text-muted-foreground truncate text-xs'>
-                                      {entry.interviewerNames.join(' e ')
-                                        .length > 15
-                                        ? (
-                                            entry.interviewerNames[0] ?? ''
-                                          ).split(' ')[0] +
-                                          ' e ' +
-                                          ((
-                                            entry.interviewerNames[1] ?? ''
-                                          ).split(' ')[0] || '')
-                                        : entry.interviewerNames.join(' e ')}
-                                    </p>
-                                    {entry.candidateName && (
-                                      <p className='truncate text-xs text-amber-700 dark:text-amber-400'>
-                                        Reservado por:{' '}
-                                        {truncateName(entry.candidateName)}
-                                      </p>
-                                    )}
-                                    {entry.googleMeetLink && (
-                                      <p className='truncate text-xs text-emerald-600 dark:text-emerald-400'>
-                                        <span className='font-medium'>
-                                          Meet:
-                                        </span>{' '}
-                                        <a
-                                          href={entry.googleMeetLink}
-                                          target='_blank'
-                                          rel='noopener noreferrer'
-                                          className='underline underline-offset-2 hover:opacity-80'
-                                        >
-                                          {entry.googleMeetLink.replace(
-                                            /^https?:\/\//,
-                                            ''
-                                          )}
-                                        </a>
-                                      </p>
-                                    )}
-                                  </div>
-
-                                  <Button
-                                    type='button'
-                                    variant='ghost'
-                                    size='icon'
-                                    className='h-6 w-6 shrink-0 opacity-60 hover:opacity-100'
-                                    disabled={
-                                      isSavingInterviewSlot ||
-                                      entry.slots.some(
-                                        (s) =>
-                                          isRemovingInterviewSlotId === s.id
-                                      )
-                                    }
-                                    onClick={async () => {
-                                      for (const s of entry.slots) {
-                                        await handleRemoveInterviewSlot(s.id);
-                                      }
-                                    }}
-                                    aria-label={`Remover entrevista ${entry.dateLabel} ${entry.startTime} ${entry.endTime}`}
-                                  >
-                                    <FontAwesomeIcon
-                                      icon={faXmark}
-                                      className='h-3 w-3'
-                                    />
-                                  </Button>
-                                </div>
-
-                                {entry.candidateId && (
-                                  <div className='mt-2 flex justify-end border-t border-amber-200/60 pt-2 dark:border-amber-800/40'>
-                                    <Button
-                                      type='button'
-                                      variant='outline'
-                                      size='sm'
-                                      className='h-7 px-2.5 text-xs'
-                                      onClick={() =>
-                                        handleOpenConfirmInterview(
-                                          entry.slots[0]
-                                        )
-                                      }
-                                    >
-                                      <FontAwesomeIcon
-                                        icon={faEnvelope}
-                                        className='mr-1.5 h-3 w-3'
-                                      />
-                                      {entry.googleMeetLink
-                                        ? 'Reenviar confirmação'
-                                        : 'Enviar confirmação'}
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
+                            })}
                         </div>
                       </ScrollArea>
                     )}
@@ -3427,15 +3441,32 @@ export default function PSeletivoPage() {
                         />
                         <label
                           htmlFor={`interview-email-${candidate.id}`}
-                          className='flex-1 cursor-pointer text-sm break-words'
+                          className='flex-1 cursor-pointer break-words'
                         >
-                          {candidate.nome} {candidate.sobrenome}
+                          <div className='flex items-center gap-1.5'>
+                            <span
+                              className={cn(
+                                'inline-block h-2.5 w-2.5 shrink-0 rounded-full',
+                                interviewStatusDotColor[
+                                  candidate.interview?.state ?? 'notSentEmail'
+                                ]
+                              )}
+                              title={
+                                interviewStatusConfig[
+                                  candidate.interview?.state ?? 'notSentEmail'
+                                ].label
+                              }
+                            />
+                            <span className='text-sm'>
+                              {candidate.nome} {candidate.sobrenome}
+                            </span>
+                          </div>
                           {candidate.email ? (
-                            <span className='text-muted-foreground ml-1 text-xs'>
+                            <span className='text-muted-foreground ml-4 text-xs'>
                               ({candidate.email})
                             </span>
                           ) : (
-                            <span className='ml-1 text-xs text-red-500'>
+                            <span className='ml-4 text-xs text-red-500'>
                               (sem email)
                             </span>
                           )}
