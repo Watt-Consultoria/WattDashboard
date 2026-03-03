@@ -1,4 +1,13 @@
 import type { Timestamp } from 'firebase/firestore';
+import type { MemberRoleEnum, MemberSectorEnum } from '@/types/member/member';
+
+// ── Papéis com acesso de coordenação ───────────────────────────────────────
+
+export const HOGWATTS_COORDINATOR_ROLES: MemberRoleEnum[] = [
+  'Assessor',
+  'Diretor',
+  'Presidente'
+];
 
 // ── Casas ──────────────────────────────────────────────────────────────────
 
@@ -24,6 +33,7 @@ export type HogwattsTask = {
   name: string;
   description: string;
   points: number;
+  sector: MemberSectorEnum;
   createdAt: Timestamp;
 };
 
@@ -77,8 +87,17 @@ export type ReviewSubmissionInput = {
   reviewerId: string;
 };
 
+// ── Top membros por casa ───────────────────────────────────────────────────
+
+export type HogwattsHouseTopMember = {
+  memberId: string;
+  memberName: string;
+  totalPoints: number;
+};
+
 export type HogwattsRanking = {
   houses: HogwattsHouse[];
+  topMembers: Record<HogwattsHouseName, HogwattsHouseTopMember[]>;
 };
 
 export type HogwattsSubmissionQuery = {
@@ -96,4 +115,5 @@ export type CreateTaskInput = {
   name: string;
   description: string;
   points: number;
+  sector: MemberSectorEnum;
 };

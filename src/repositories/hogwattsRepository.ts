@@ -27,6 +27,7 @@ import type {
   HogwattsSubmissionStatus,
   HogwattsTask
 } from '@/types/hogwatts/hogwatts';
+import type { MemberSectorEnum } from '@/types/member/member';
 import type IHogwattsRepository from '@/types/hogwatts/hogwatts-repository';
 
 // ── Mappers ────────────────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ const mapTask = (snap: QueryDocumentSnapshot<DocumentData>): HogwattsTask => {
     name: d.name ?? '',
     description: d.description ?? '',
     points: d.points ?? 0,
+    sector: (d.sector ?? 'Automação') as MemberSectorEnum,
     createdAt: d.createdAt ?? Timestamp.now()
   } satisfies HogwattsTask;
 };
@@ -145,6 +147,7 @@ class HogwattsRepository implements IHogwattsRepository {
       name: d.name ?? '',
       description: d.description ?? '',
       points: d.points ?? 0,
+      sector: (d.sector ?? 'Automação') as MemberSectorEnum,
       createdAt: d.createdAt ?? Timestamp.now()
     };
   }

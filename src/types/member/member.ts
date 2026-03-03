@@ -20,6 +20,7 @@ export type Member = {
 
 export type MemberRoleEnum =
   | 'Consultor'
+  | 'Assessor'
   | 'Asessor'
   | 'Gerente'
   | 'Diretor'

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import hogwattsService from '@/services/hogwattsService';
+import type { MemberSectorEnum } from '@/types/member/member';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -15,6 +16,22 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+
+const SECTORS: MemberSectorEnum[] = [
+  'Automação',
+  'Elétrica',
+  'Comercial',
+  'Institucional',
+  'Marketing',
+  'Executivo'
+];
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -30,12 +47,14 @@ export function CreateTaskDialog({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [points, setPoints] = useState('');
+  const [sector, setSector] = useState<MemberSectorEnum | ''>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const resetForm = () => {
     setName('');
     setDescription('');
     setPoints('');
+    setSector('');
   };
 
   const handleSubmit = async () => {
@@ -46,7 +65,8 @@ export function CreateTaskDialog({
       await hogwattsService.createTask({
         name,
         description,
-        points: parsedPoints
+        points: parsedPoints,
+        sector: sector as MemberSectorEnum
       });
       toast.success('Tarefa criada com sucesso!');
       resetForm();
@@ -114,6 +134,25 @@ export function CreateTaskDialog({
               desta tarefa for aprovada.
             </p>
           </div>
+
+          <div className='space-y-2'>
+            <Label htmlFor='task-sector'>Setor</Label>
+            <Select
+              value={sector}
+              onValueChange={(v) => setSector(v as MemberSectorEnum)}
+            >
+              <SelectTrigger id='task-sector'>
+                <SelectValue placeholder='Selecione o setor' />
+              </SelectTrigger>
+              <SelectContent>
+                {SECTORS.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <DialogFooter>
@@ -126,7 +165,7 @@ export function CreateTaskDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isSubmitting || !name.trim() || !points}
+            disabled={isSubmitting || !name.trim() || !points || !sector}
           >
             {isSubmitting ? 'Criando...' : 'Criar tarefa'}
           </Button>

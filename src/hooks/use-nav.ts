@@ -101,6 +101,11 @@ export function useFilteredNavItems(items: NavItem[]) {
       allowedUrls.add('/dashboard/faltas');
     }
 
+    const allowHog = true;
+    if (allowHog) {
+      allowedUrls.add('/dashboard/hogwatts');
+    }
+
     const allowFinanceiro = ['presidente', 'assessor'].includes(role);
     if (allowFinanceiro) {
       allowedUrls.add('/dashboard/financeiro/reembolsos');

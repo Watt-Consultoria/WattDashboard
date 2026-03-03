@@ -23,9 +23,14 @@ import {
 interface TaskListProps {
   tasks: HogwattsTask[];
   onCreateTask?: () => void;
+  isCoordinator?: boolean;
 }
 
-export function TaskList({ tasks, onCreateTask }: TaskListProps) {
+export function TaskList({
+  tasks,
+  onCreateTask,
+  isCoordinator
+}: TaskListProps) {
   if (tasks.length === 0) {
     return (
       <Card>
@@ -40,7 +45,12 @@ export function TaskList({ tasks, onCreateTask }: TaskListProps) {
               </CardDescription>
             </div>
             {onCreateTask && (
-              <Button onClick={onCreateTask} size='sm' className='h-8 gap-1'>
+              <Button
+                onClick={onCreateTask}
+                size='sm'
+                className='h-8 gap-1'
+                disabled={!isCoordinator}
+              >
                 <Plus className='h-4 w-4' />
                 <span className='hidden sm:inline'>Nova tarefa</span>
                 <span className='sm:hidden'>Nova</span>
@@ -65,7 +75,12 @@ export function TaskList({ tasks, onCreateTask }: TaskListProps) {
             </CardDescription>
           </div>
           {onCreateTask && (
-            <Button onClick={onCreateTask} size='sm' className='h-8 gap-1'>
+            <Button
+              onClick={onCreateTask}
+              size='sm'
+              className='h-8 gap-1'
+              disabled={!isCoordinator}
+            >
               <Plus className='h-4 w-4' />
               <span className='hidden sm:inline'>Nova tarefa</span>
               <span className='sm:hidden'>Nova</span>
@@ -82,6 +97,7 @@ export function TaskList({ tasks, onCreateTask }: TaskListProps) {
               <TableRow>
                 <TableHead>Tarefa</TableHead>
                 <TableHead>Descrição</TableHead>
+                <TableHead>Setor</TableHead>
                 <TableHead className='text-right'>Pontos</TableHead>
               </TableRow>
             </TableHeader>
@@ -91,6 +107,9 @@ export function TaskList({ tasks, onCreateTask }: TaskListProps) {
                   <TableCell className='font-medium'>{task.name}</TableCell>
                   <TableCell className='max-w-xs truncate'>
                     {task.description}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant='outline'>{task.sector}</Badge>
                   </TableCell>
                   <TableCell className='text-right'>
                     <Badge variant='secondary'>{task.points} pts</Badge>
@@ -114,6 +133,9 @@ export function TaskList({ tasks, onCreateTask }: TaskListProps) {
                 <p className='truncate text-sm font-semibold'>{task.name}</p>
                 <p className='text-muted-foreground line-clamp-1 text-xs'>
                   {task.description}
+                </p>
+                <p className='text-muted-foreground mt-0.5 text-[11px]'>
+                  {task.sector}
                 </p>
               </div>
               <Badge variant='secondary' className='ml-2 shrink-0'>

@@ -6,6 +6,8 @@ import type {
   CreateSubmissionInput,
   CreateTaskInput,
   HogwattsHouse,
+  HogwattsHouseTopMember,
+  HogwattsHouseName,
   HogwattsMemberProfile,
   HogwattsRanking,
   HogwattsSubmission,
@@ -13,18 +15,82 @@ import type {
   HogwattsTask,
   ReviewSubmissionInput
 } from '@/types/hogwatts/hogwatts';
+import {
+  HOGWATTS_COORDINATOR_ROLES,
+  HOGWATTS_HOUSES
+} from '@/types/hogwatts/hogwatts';
+import type { MemberRoleEnum } from '@/types/member/member';
 
 class HogwattsService {
+  // ── Utilitário: papel de coordenação ───────────────────────────────────
+
+  isCoordinator(role: MemberRoleEnum): boolean {
+    return HOGWATTS_COORDINATOR_ROLES.includes(role);
+  }
+
   // ── Ranking / Casas ────────────────────────────────────────────────────
 
   async getRanking(): Promise<HogwattsRanking> {
     const houses = await hogwattsRepository.getAllHouses();
     const sorted = [...houses].sort((a, b) => b.totalPoints - a.totalPoints);
-    return { houses: sorted };
+    const topMembers = await this.getTopMembersPerHouse();
+    return { houses: sorted, topMembers };
   }
 
   async getHouses(): Promise<HogwattsHouse[]> {
     return await hogwattsRepository.getAllHouses();
+  }
+
+  // ── Top 3 membros por casa ─────────────────────────────────────────────
+
+  async getTopMembersPerHouse(): Promise<
+    Record<HogwattsHouseName, HogwattsHouseTopMember[]>
+  > {
+    const approvedSubs = await hogwattsRepository.getSubmissions({
+      status: 'Aprovado'
+    });
+
+    // Acumula pontos por membro + casa
+    const memberPointsMap = new Map<
+      string,
+      {
+        memberId: string;
+        memberName: string;
+        houseName: HogwattsHouseName;
+        totalPoints: number;
+      }
+    >();
+
+    for (const sub of approvedSubs) {
+      const key = `${sub.memberId}_${sub.houseName}`;
+      const entry = memberPointsMap.get(key);
+      if (entry) {
+        entry.totalPoints += sub.taskPoints;
+      } else {
+        memberPointsMap.set(key, {
+          memberId: sub.memberId,
+          memberName: sub.memberName,
+          houseName: sub.houseName,
+          totalPoints: sub.taskPoints
+        });
+      }
+    }
+
+    const result = {} as Record<HogwattsHouseName, HogwattsHouseTopMember[]>;
+    for (const house of HOGWATTS_HOUSES) {
+      const members = [...memberPointsMap.values()]
+        .filter((m) => m.houseName === house)
+        .sort((a, b) => b.totalPoints - a.totalPoints)
+        .slice(0, 3)
+        .map(({ memberId, memberName, totalPoints }) => ({
+          memberId,
+          memberName,
+          totalPoints
+        }));
+      result[house] = members;
+    }
+
+    return result;
   }
 
   // ── Tarefas ────────────────────────────────────────────────────────────
@@ -45,6 +111,18 @@ class HogwattsService {
     if (!points || points <= 0 || !Number.isFinite(points))
       throw new ValidationError('Informe uma pontuação válida (maior que 0)');
 
+    const sector = input.sector;
+    const validSectors = [
+      'Automação',
+      'Elétrica',
+      'Comercial',
+      'Institucional',
+      'Marketing',
+      'Executivo'
+    ];
+    if (!sector || !validSectors.includes(sector))
+      throw new ValidationError('Informe um setor válido para a tarefa');
+
     // Verificar duplicatas por nome
     const existingTasks = await hogwattsRepository.getAllTasks();
     const duplicate = existingTasks.find(
@@ -59,7 +137,8 @@ class HogwattsService {
     await hogwattsRepository.createTask({
       name,
       description,
-      points: Math.round(points)
+      points: Math.round(points),
+      sector
     });
   }
 
@@ -124,6 +203,28 @@ class HogwattsService {
       const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
       return bTime - aTime;
     });
+  }
+
+  /**
+   * Retorna o histórico de submissões filtrado pelo papel do membro.
+   * Coordenadores (Assessor/Diretor/Presidente) veem todas; demais veem apenas as próprias.
+   */
+  async getHistorySubmissions(
+    memberId: string,
+    role: MemberRoleEnum
+  ): Promise<HogwattsSubmission[]> {
+    if (this.isCoordinator(role)) {
+      return this.getSubmissions();
+    }
+    return this.getSubmissions({ memberId });
+  }
+
+  /**
+   * Retorna o papel (role) do membro a partir do repositório de membros.
+   */
+  async getMemberRole(memberId: string): Promise<MemberRoleEnum | null> {
+    const member = await memberRepository.getMemberById(memberId);
+    return member?.role ?? null;
   }
 
   async getPendingSubmissions(): Promise<HogwattsSubmission[]> {

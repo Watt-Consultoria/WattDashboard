@@ -53,6 +53,13 @@ export function SubmitTaskDialog({
       return;
     }
 
+    if (!note) {
+      toast.error(
+        'Adicione uma descrição ou observação sobre a tarefa concluída'
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const input: CreateSubmissionInput = {
@@ -109,10 +116,10 @@ export function SubmitTaskDialog({
           </div>
 
           <div className='space-y-2'>
-            <Label htmlFor='note'>Observação (opcional)</Label>
+            <Label htmlFor='note'>Descrição</Label>
             <Textarea
               id='note'
-              placeholder='Alguma observação sobre a conclusão...'
+              placeholder='Descreva a conclusão da tarefa...'
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={3}

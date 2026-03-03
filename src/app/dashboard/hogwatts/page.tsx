@@ -7,10 +7,13 @@ import { useAuth } from '@/features/auth/components/auth-provider';
 import hogwattsService from '@/services/hogwattsService';
 import type {
   HogwattsHouse,
+  HogwattsHouseName,
+  HogwattsHouseTopMember,
   HogwattsMemberProfile,
   HogwattsSubmission,
   HogwattsTask
 } from '@/types/hogwatts/hogwatts';
+import type { MemberRoleEnum } from '@/types/member/member';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -71,23 +74,41 @@ export default function HogwattsPage() {
   const [memberProfiles, setMemberProfiles] = useState<HogwattsMemberProfile[]>(
     []
   );
+  const [memberRole, setMemberRole] = useState<MemberRoleEnum | null>(null);
+  const [topMembers, setTopMembers] = useState<
+    Record<HogwattsHouseName, HogwattsHouseTopMember[]>
+  >({} as Record<HogwattsHouseName, HogwattsHouseTopMember[]>);
+
+  const isCoordinator = memberRole
+    ? hogwattsService.isCoordinator(memberRole)
+    : false;
 
   useMetadata({ title: 'Hogwatts' });
 
   const loadData = useCallback(async () => {
+    if (!user?.uid) return;
     setIsLoading(true);
     try {
-      const [rankingData, tasksData, allSubs, pendingSubs, profiles] =
+      // Busca papel do membro primeiro para determinar visibilidade
+      const role = await hogwattsService.getMemberRole(user.uid);
+      setMemberRole(role);
+
+      const resolvedRole = role ?? 'Consultor';
+
+      const [rankingData, tasksData, historySubs, pendingSubs, profiles] =
         await Promise.all([
           hogwattsService.getRanking(),
           hogwattsService.getTasks(),
-          hogwattsService.getSubmissions(),
-          hogwattsService.getPendingSubmissions(),
+          hogwattsService.getHistorySubmissions(user.uid, resolvedRole),
+          hogwattsService.isCoordinator(resolvedRole)
+            ? hogwattsService.getPendingSubmissions()
+            : Promise.resolve([]),
           hogwattsService.getMemberProfiles()
         ]);
       setHouses(rankingData.houses);
+      setTopMembers(rankingData.topMembers);
       setTasks(tasksData);
-      setAllSubmissions(allSubs);
+      setAllSubmissions(historySubs);
       setPendingSubmissions(pendingSubs);
       setMemberProfiles(profiles);
     } catch (error) {
@@ -99,7 +120,7 @@ export default function HogwattsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user?.uid]);
 
   useEffect(() => {
     loadData();
@@ -127,39 +148,49 @@ export default function HogwattsPage() {
         <TabsList>
           <TabsTrigger value='ranking'>Ranking</TabsTrigger>
           <TabsTrigger value='tasks'>Tarefas</TabsTrigger>
-          <TabsTrigger value='pending'>
-            Pendentes
-            {pendingSubmissions.length > 0 && (
-              <Badge variant='destructive' className='ml-2 h-5 px-1.5 text-xs'>
-                {pendingSubmissions.length}
-              </Badge>
-            )}
-          </TabsTrigger>
+          {isCoordinator && (
+            <TabsTrigger value='pending'>
+              Pendentes
+              {pendingSubmissions.length > 0 && (
+                <Badge
+                  variant='destructive'
+                  className='ml-2 h-5 px-1.5 text-xs'
+                >
+                  {pendingSubmissions.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          )}
           <TabsTrigger value='history'>Histórico</TabsTrigger>
           <TabsTrigger value='members'>Membros</TabsTrigger>
         </TabsList>
 
         {/* ── Ranking ──────────────────────────────────────────────── */}
         <TabsContent value='ranking' className='space-y-4'>
-          <HouseRanking houses={houses} />
+          <HouseRanking houses={houses} topMembers={topMembers} />
         </TabsContent>
 
         {/* ── Tarefas ──────────────────────────────────────────────── */}
         <TabsContent value='tasks' className='space-y-4'>
           <TaskList
             tasks={tasks}
+            isCoordinator={
+              memberRole ? hogwattsService.isCoordinator(memberRole) : false
+            }
             onCreateTask={() => setIsCreateTaskOpen(true)}
           />
         </TabsContent>
 
         {/* ── Pendentes (coordenação) ──────────────────────────────── */}
-        <TabsContent value='pending' className='space-y-4'>
-          <PendingSubmissions
-            submissions={pendingSubmissions}
-            reviewerId={user?.uid || ''}
-            onReviewed={loadData}
-          />
-        </TabsContent>
+        {isCoordinator && (
+          <TabsContent value='pending' className='space-y-4'>
+            <PendingSubmissions
+              submissions={pendingSubmissions}
+              reviewerId={user?.uid || ''}
+              onReviewed={loadData}
+            />
+          </TabsContent>
+        )}
 
         {/* ── Histórico de todas as submissões ─────────────────────── */}
         <TabsContent value='history' className='space-y-4'>
@@ -169,7 +200,8 @@ export default function HogwattsPage() {
                 Histórico de Submissões
               </CardTitle>
               <CardDescription className='text-xs'>
-                {allSubmissions.length} submissão(ões) registrada(s)
+                {allSubmissions.length} submissão(ões)
+                {isCoordinator ? ' registrada(s)' : ' sua(s)'}
               </CardDescription>
             </CardHeader>
 
