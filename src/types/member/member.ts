@@ -34,6 +34,8 @@ export type MemberSectorEnum =
   | 'Marketing'
   | 'Executivo';
 
+export type MemberSectorEnumSimple = 'Projetos' | 'Marketing' | 'Comercial';
+
 export type MemberStatusEnum = 'Ativo' | 'Inativo';
 
 export type TimeRecord = {

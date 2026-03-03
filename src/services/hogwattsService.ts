@@ -19,7 +19,10 @@ import {
   HOGWATTS_COORDINATOR_ROLES,
   HOGWATTS_HOUSES
 } from '@/types/hogwatts/hogwatts';
-import type { MemberRoleEnum } from '@/types/member/member';
+import type {
+  MemberRoleEnum,
+  MemberSectorEnumSimple
+} from '@/types/member/member';
 
 class HogwattsService {
   // ── Utilitário: papel de coordenação ───────────────────────────────────
@@ -112,13 +115,10 @@ class HogwattsService {
       throw new ValidationError('Informe uma pontuação válida (maior que 0)');
 
     const sector = input.sector;
-    const validSectors = [
-      'Automação',
-      'Elétrica',
-      'Comercial',
-      'Institucional',
+    const validSectors: MemberSectorEnumSimple[] = [
+      'Projetos',
       'Marketing',
-      'Executivo'
+      'Comercial'
     ];
     if (!sector || !validSectors.includes(sector))
       throw new ValidationError('Informe um setor válido para a tarefa');

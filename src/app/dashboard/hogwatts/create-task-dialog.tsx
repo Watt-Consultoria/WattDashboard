@@ -3,7 +3,10 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import hogwattsService from '@/services/hogwattsService';
-import type { MemberSectorEnum } from '@/types/member/member';
+import type {
+  MemberSectorEnum,
+  MemberSectorEnumSimple
+} from '@/types/member/member';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -24,13 +27,10 @@ import {
   SelectValue
 } from '@/components/ui/select';
 
-const SECTORS: MemberSectorEnum[] = [
-  'Automação',
-  'Elétrica',
+const SECTORS: MemberSectorEnumSimple[] = [
   'Comercial',
-  'Institucional',
-  'Marketing',
-  'Executivo'
+  'Projetos',
+  'Marketing'
 ];
 
 interface CreateTaskDialogProps {
@@ -66,7 +66,7 @@ export function CreateTaskDialog({
         name,
         description,
         points: parsedPoints,
-        sector: sector as MemberSectorEnum
+        sector: sector as MemberSectorEnumSimple
       });
       toast.success('Tarefa criada com sucesso!');
       resetForm();

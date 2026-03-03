@@ -162,7 +162,7 @@ export default function HogwattsPage() {
             </TabsTrigger>
           )}
           <TabsTrigger value='history'>Histórico</TabsTrigger>
-          <TabsTrigger value='members'>Membros</TabsTrigger>
+          {isCoordinator && <TabsTrigger value='members'>Membros</TabsTrigger>}
         </TabsList>
 
         {/* ── Ranking ──────────────────────────────────────────────── */}
@@ -297,88 +297,90 @@ export default function HogwattsPage() {
         </TabsContent>
 
         {/* ── Membros e suas casas ─────────────────────────────────── */}
-        <TabsContent value='members' className='space-y-4'>
-          <Card className='overflow-hidden'>
-            <CardHeader className='px-3 pt-3 pb-2 sm:px-6 sm:pt-6 sm:pb-3'>
-              <div className='flex items-center justify-between'>
-                <div>
-                  <CardTitle className='text-sm sm:text-base'>
-                    Membros das Casas
-                  </CardTitle>
-                  <CardDescription className='text-xs'>
-                    {memberProfiles.length} membro(s) atribuído(s)
-                  </CardDescription>
+        {isCoordinator && (
+          <TabsContent value='members' className='space-y-4'>
+            <Card className='overflow-hidden'>
+              <CardHeader className='px-3 pt-3 pb-2 sm:px-6 sm:pt-6 sm:pb-3'>
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <CardTitle className='text-sm sm:text-base'>
+                      Membros das Casas
+                    </CardTitle>
+                    <CardDescription className='text-xs'>
+                      {memberProfiles.length} membro(s) atribuído(s)
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={() => setIsAssignOpen(true)}
+                    size='sm'
+                    className='h-8 gap-1'
+                  >
+                    <UserPlus className='h-4 w-4' />
+                    <span className='hidden sm:inline'>Atribuir membro</span>
+                    <span className='sm:hidden'>Atribuir</span>
+                  </Button>
                 </div>
-                <Button
-                  onClick={() => setIsAssignOpen(true)}
-                  size='sm'
-                  className='h-8 gap-1'
-                >
-                  <UserPlus className='h-4 w-4' />
-                  <span className='hidden sm:inline'>Atribuir membro</span>
-                  <span className='sm:hidden'>Atribuir</span>
-                </Button>
-              </div>
-            </CardHeader>
+              </CardHeader>
 
-            {memberProfiles.length === 0 ? (
-              <CardContent>
-                <p className='text-muted-foreground py-6 text-center text-sm'>
-                  Nenhum membro atribuído a uma casa ainda.
-                </p>
-              </CardContent>
-            ) : (
-              <>
-                {/* Desktop */}
-                <CardContent className='hidden p-0 sm:block md:p-6'>
-                  <div className='overflow-x-auto'>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Membro</TableHead>
-                          <TableHead>Casa</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {memberProfiles
-                          .sort((a, b) =>
-                            a.memberName.localeCompare(b.memberName)
-                          )
-                          .map((profile) => (
-                            <TableRow key={profile.id}>
-                              <TableCell>{profile.memberName}</TableCell>
-                              <TableCell>
-                                <Badge variant='outline'>
-                                  {profile.houseName}
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+              {memberProfiles.length === 0 ? (
+                <CardContent>
+                  <p className='text-muted-foreground py-6 text-center text-sm'>
+                    Nenhum membro atribuído a uma casa ainda.
+                  </p>
                 </CardContent>
+              ) : (
+                <>
+                  {/* Desktop */}
+                  <CardContent className='hidden p-0 sm:block md:p-6'>
+                    <div className='overflow-x-auto'>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Membro</TableHead>
+                            <TableHead>Casa</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {memberProfiles
+                            .sort((a, b) =>
+                              a.memberName.localeCompare(b.memberName)
+                            )
+                            .map((profile) => (
+                              <TableRow key={profile.id}>
+                                <TableCell>{profile.memberName}</TableCell>
+                                <TableCell>
+                                  <Badge variant='outline'>
+                                    {profile.houseName}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
 
-                {/* Mobile */}
-                <CardContent className='block p-2 sm:hidden'>
-                  <div className='space-y-2'>
-                    {memberProfiles.map((profile) => (
-                      <div
-                        key={profile.id}
-                        className='flex items-center justify-between rounded-lg border p-3'
-                      >
-                        <span className='text-sm font-medium'>
-                          {profile.memberName}
-                        </span>
-                        <Badge variant='outline'>{profile.houseName}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </>
-            )}
-          </Card>
-        </TabsContent>
+                  {/* Mobile */}
+                  <CardContent className='block p-2 sm:hidden'>
+                    <div className='space-y-2'>
+                      {memberProfiles.map((profile) => (
+                        <div
+                          key={profile.id}
+                          className='flex items-center justify-between rounded-lg border p-3'
+                        >
+                          <span className='text-sm font-medium'>
+                            {profile.memberName}
+                          </span>
+                          <Badge variant='outline'>{profile.houseName}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </>
+              )}
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
 
       <SubmitTaskDialog

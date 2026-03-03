@@ -1,5 +1,9 @@
 import type { Timestamp } from 'firebase/firestore';
-import type { MemberRoleEnum, MemberSectorEnum } from '@/types/member/member';
+import type {
+  MemberRoleEnum,
+  MemberSectorEnum,
+  MemberSectorEnumSimple
+} from '@/types/member/member';
 
 // ── Papéis com acesso de coordenação ───────────────────────────────────────
 
@@ -33,7 +37,7 @@ export type HogwattsTask = {
   name: string;
   description: string;
   points: number;
-  sector: MemberSectorEnum;
+  sector: MemberSectorEnumSimple;
   createdAt: Timestamp;
 };
 
@@ -115,5 +119,5 @@ export type CreateTaskInput = {
   name: string;
   description: string;
   points: number;
-  sector: MemberSectorEnum;
+  sector: MemberSectorEnumSimple;
 };

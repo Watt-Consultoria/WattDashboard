@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import type {
   HogwattsHouse,
   HogwattsHouseName,
@@ -12,6 +13,12 @@ interface HouseRankingProps {
   houses: HogwattsHouse[];
   topMembers: Record<HogwattsHouseName, HogwattsHouseTopMember[]>;
 }
+
+const houseLogo: Record<HogwattsHouseName, string> = {
+  Nexus: '/images/logosHogwatts/logo_nexus.png',
+  Lumina: '/images/logosHogwatts/logo_lumina.png',
+  Voltus: '/images/logosHogwatts/logo_voltus.png'
+};
 
 const houseColors: Record<string, string> = {
   Nexus: 'bg-[#23242d]',
@@ -43,7 +50,20 @@ export function HouseRanking({ houses, topMembers }: HouseRankingProps) {
             <div
               className={`absolute inset-x-0 top-0 h-1.5 ${houseColors[house.name]}`}
             />
-            <CardHeader className='flex flex-row items-center gap-3 pb-2'>
+
+            {/* Logo da Casa */}
+            <div className='from-background relative flex justify-center bg-linear-to-b to-transparent px-4 py-4'>
+              <Image
+                src={houseLogo[house.name]}
+                alt={`Logo ${house.name}`}
+                width={140}
+                height={140}
+                className='h-32 w-32 object-contain sm:h-40 sm:w-40'
+                priority
+              />
+            </div>
+
+            <CardHeader className='flex flex-row items-center gap-3 pt-0 pb-2'>
               <Trophy
                 className={`h-5 w-5 shrink-0 ${trophyColors[idx] ?? 'text-muted-foreground'}`}
               />
