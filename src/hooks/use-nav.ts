@@ -104,6 +104,10 @@ export function useFilteredNavItems(items: NavItem[]) {
     const allowHog = true;
     if (allowHog) {
       allowedUrls.add('/dashboard/hogwatts');
+      
+    const allowEstatisticas = ['diretor', 'presidente', 'assessor'].includes(role);
+    if (allowEstatisticas) {
+      allowedUrls.add('/dashboard/estatisticas');
     }
 
     const allowFinanceiro = ['presidente', 'assessor'].includes(role);

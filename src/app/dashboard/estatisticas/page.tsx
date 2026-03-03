@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { IconSettings, IconCalendar } from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { tiposAutomacao, tiposEletrica } from '@/constants/project-types';
 
 const lineTones = {
   meta: 'rgb(16 185 129)',
@@ -187,6 +188,13 @@ const formatCurrency = (value: number): string => {
   }).format(value);
 };
 
+const normalizeText = (value?: string): string =>
+  (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
 export default function EstatisticasPage() {
   const { projects, isLoading: isLoadingData } = useFirebaseData();
   const [pieCharts, setPieCharts] = React.useState<PieChartDefinition[]>([]);
@@ -269,22 +277,41 @@ export default function EstatisticasPage() {
     
     setGoalData(updatedGoalData);
 
-    // Calcular faturamento por tipo
-    const faturamentoDomotica = projects
-      .filter((p) => p.area === 'Automacao' && p.tipo === 'Domotica')
-      .reduce((sum, p) => sum + (p.value || 0), 0);
+    // Calcular faturamento por tipo usando as mesmas constantes de acompanhamento
+    const areaAutomacao = 'Automação';
+    const areaEletrica = 'Elétrica';
+    const [tipoDomotica, tipoIndustrial] = tiposAutomacao;
+    const [tipoProjetoEletrico, tipoSolar] = tiposEletrica;
 
-    const faturamentoIndustrial = projects
-      .filter((p) => p.area === 'Automacao' && p.tipo === 'Industrial')
-      .reduce((sum, p) => sum + (p.value || 0), 0);
+    const calcularFaturamentoPorTipo = (area: string, tipo: string) => {
+      const areaNormalizada = normalizeText(area);
+      const tipoNormalizado = normalizeText(tipo);
 
-    const faturamentoProjetoEletrico = projects
-      .filter((p) => p.area === 'Eletrica' && p.tipo === 'Projeto Eletrico')
-      .reduce((sum, p) => sum + (p.value || 0), 0);
+      return projects.reduce((sum, project) => {
+        if (
+          normalizeText(project.area) !== areaNormalizada ||
+          normalizeText(project.tipo) !== tipoNormalizado
+        ) {
+          return sum;
+        }
 
-    const faturamentoSolar = projects
-      .filter((p) => p.area === 'Eletrica' && p.tipo === 'Solar')
-      .reduce((sum, p) => sum + (p.value || 0), 0);
+        return sum + (project.value || 0);
+      }, 0);
+    };
+
+    const faturamentoDomotica = calcularFaturamentoPorTipo(
+      areaAutomacao,
+      tipoDomotica
+    );
+    const faturamentoIndustrial = calcularFaturamentoPorTipo(
+      areaAutomacao,
+      tipoIndustrial
+    );
+    const faturamentoProjetoEletrico = calcularFaturamentoPorTipo(
+      areaEletrica,
+      tipoProjetoEletrico
+    );
+    const faturamentoSolar = calcularFaturamentoPorTipo(areaEletrica, tipoSolar);
 
     const totalAutomacao = faturamentoDomotica + faturamentoIndustrial;
     const totalEletrica = faturamentoProjetoEletrico + faturamentoSolar;
@@ -299,18 +326,22 @@ export default function EstatisticasPage() {
     const percEletrica = totalGeral > 0 ? (totalEletrica / totalGeral * 100).toFixed(1) : 0;
 
     // Determinar líderes
-    const liderAutomacao = faturamentoDomotica >= faturamentoIndustrial ? 'Domotica' : 'Industrial';
+    const liderAutomacao =
+      faturamentoDomotica >= faturamentoIndustrial ? tipoDomotica : tipoIndustrial;
     const percLiderAutomacao = faturamentoDomotica >= faturamentoIndustrial ? percDomotica : percIndustrial;
     
-    const liderEletrica = faturamentoProjetoEletrico >= faturamentoSolar ? 'Projeto Eletrico' : 'Solar';
+    const liderEletrica =
+      faturamentoProjetoEletrico >= faturamentoSolar
+        ? tipoProjetoEletrico
+        : tipoSolar;
     const percLiderEletrica = faturamentoProjetoEletrico >= faturamentoSolar ? percProjetoEletrico : percSolar;
     
-    const liderGeral = totalAutomacao >= totalEletrica ? 'Automacao' : 'Eletrica';
+    const liderGeral = totalAutomacao >= totalEletrica ? 'Automação' : 'Eletrica';
     const percLiderGeral = totalAutomacao >= totalEletrica ? percAutomacao : percEletrica;
 
     const charts: PieChartDefinition[] = [
       {
-        title: 'Automacao',
+        title: 'Automação',
         caption: totalAutomacao === 0 
           ? 'Nenhum projeto de automação cadastrado'
           : `${liderAutomacao} lidera com ${percLiderAutomacao}%`,
@@ -353,7 +384,7 @@ export default function EstatisticasPage() {
           ? 'Nenhum projeto cadastrado'
           : `${liderGeral} lidera com ${percLiderGeral}%`,
         config: {
-          automacao: { label: 'Automacao', color: sectorTone },
+          automacao: { label: 'Automação', color: sectorTone },
           eletrica: { label: 'Eletrica', color: sectorTone },
           empty: { label: 'Sem dados', color: 'hsl(var(--muted))' }
         },
