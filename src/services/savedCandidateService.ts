@@ -1,5 +1,8 @@
 import savedCandidateRepository from '@/repositories/savedCandidateRepository';
-import type { Candidate } from '@/types/candidate/candidate';
+import type {
+  Candidate,
+  CandidateInterview
+} from '@/types/candidate/candidate';
 import type {
   SavedCandidate,
   SaveCandidateInput
@@ -86,7 +89,8 @@ class SavedCandidateService {
       tarefas: saved.tarefas ?? [],
       informacoesAdicionais: saved.informacoesAdicionais ?? [],
       tags: saved.tags ?? [],
-      desclassificado: saved.desclassificado ?? false
+      desclassificado: saved.desclassificado ?? false,
+      interview: saved.interview ?? { state: 'notSentEmail' }
     };
   }
 
@@ -210,6 +214,33 @@ class SavedCandidateService {
   async disqualifyCandidate(candidateId: string): Promise<void> {
     if (!candidateId) throw new Error('ID do candidato é obrigatório');
     await savedCandidateRepository.disqualifyCandidate(candidateId);
+  }
+
+  /**
+   * Atualiza o estado de entrevista de um candidato.
+   */
+  async updateInterviewState(
+    candidateId: string,
+    interview: CandidateInterview
+  ): Promise<void> {
+    if (!candidateId) throw new Error('ID do candidato é obrigatório');
+    await savedCandidateRepository.updateInterviewState(candidateId, interview);
+  }
+
+  /**
+   * Atualiza o estado de entrevista de múltiplos candidatos.
+   */
+  async updateInterviewStateForMultiple(
+    candidateIds: string[],
+    interview: CandidateInterview
+  ): Promise<void> {
+    if (!candidateIds || candidateIds.length === 0) {
+      throw new Error('IDs dos candidatos são obrigatórios');
+    }
+    await savedCandidateRepository.updateInterviewStateForMultiple(
+      candidateIds,
+      interview
+    );
   }
 }
 

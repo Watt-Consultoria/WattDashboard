@@ -1,4 +1,8 @@
-import type { CandidateTask, CandidateAdditionalInfo } from './candidate';
+import type {
+  CandidateTask,
+  CandidateAdditionalInfo,
+  CandidateInterview
+} from './candidate';
 
 /**
  * Candidato salvo na coleção `candidates` do Firestore.
@@ -31,6 +35,8 @@ export type SavedCandidate = {
   respostaIdOrigem: string;
   /** Indica se o candidato salvo foi desclassificado (sem alterar a etapa) */
   desclassificado?: boolean;
+  /** Dados de entrevista do candidato */
+  interview?: CandidateInterview;
   createdAt?: unknown;
   updatedAt?: unknown;
 };

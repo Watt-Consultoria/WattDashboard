@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import interviewService from '@/services/interviewService';
 import savedCandidateRepository from '@/repositories/savedCandidateRepository';
 import emailService from '@/services/emailService';
+import type { CandidateInterview } from '@/types/candidate/candidate';
 
 const PSEL_SENDER = {
   email: 'psel@wattconsultoria.com.br',
@@ -122,6 +123,24 @@ export async function POST(request: NextRequest) {
       text,
       { from: PSEL_SENDER }
     );
+
+    // Atualizar estado de entrevista do candidato para 'scheduled'
+    try {
+      const interviewData: CandidateInterview = {
+        state: 'scheduled',
+        date: slot.isoDate,
+        dateLabel: slot.dateLabel,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        googleMeetLink: googleMeetLink.trim()
+      };
+      await savedCandidateRepository.updateInterviewState(
+        slot.bookedByCandidateId,
+        interviewData
+      );
+    } catch {
+      // Não falhar a confirmação se a atualização de estado falhar
+    }
 
     return NextResponse.json(
       {

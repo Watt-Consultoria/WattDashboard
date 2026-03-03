@@ -3,6 +3,10 @@ import type {
   SavedCandidate,
   SaveCandidateInput
 } from '@/types/candidate/saved-candidate';
+import type {
+  CandidateInterview,
+  InterviewState
+} from '@/types/candidate/candidate';
 import { firebaseDb } from '@/lib/firebase/client';
 import {
   addDoc,
@@ -63,6 +67,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
       formIdOrigem: data.formIdOrigem,
       respostaIdOrigem: data.respostaIdOrigem,
       desclassificado: data.desclassificado ?? false,
+      interview: data.interview ?? { state: 'notSentEmail' },
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
@@ -106,6 +111,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
         formIdOrigem: data.formIdOrigem ?? '',
         respostaIdOrigem: data.respostaIdOrigem ?? '',
         desclassificado: data.desclassificado ?? false,
+        interview: this.normalizeInterview(data.interview),
         createdAt: data.createdAt ?? null,
         updatedAt: data.updatedAt ?? null
       };
@@ -144,6 +150,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
       formIdOrigem: data.formIdOrigem ?? '',
       respostaIdOrigem: data.respostaIdOrigem ?? '',
       desclassificado: data.desclassificado ?? false,
+      interview: this.normalizeInterview(data.interview),
       createdAt: data.createdAt ?? null,
       updatedAt: data.updatedAt ?? null
     };
@@ -181,6 +188,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
         formIdOrigem: data.formIdOrigem ?? '',
         respostaIdOrigem: data.respostaIdOrigem ?? '',
         desclassificado: data.desclassificado ?? false,
+        interview: this.normalizeInterview(data.interview),
         createdAt: data.createdAt ?? null,
         updatedAt: data.updatedAt ?? null
       };
@@ -235,6 +243,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
           formIdOrigem: data.formIdOrigem ?? '',
           respostaIdOrigem: data.respostaIdOrigem ?? '',
           desclassificado: data.desclassificado ?? false,
+          interview: this.normalizeInterview(data.interview),
           createdAt: data.createdAt ?? null,
           updatedAt: data.updatedAt ?? null
         });
@@ -416,6 +425,99 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
       desclassificado: true,
       updatedAt: serverTimestamp()
     });
+  }
+
+  async updateInterviewState(
+    candidateId: string,
+    interview: CandidateInterview
+  ): Promise<void> {
+    if (!candidateId) {
+      throw new MissingParameterError(['candidateId']);
+    }
+
+    const docRef = this.getDocRef(candidateId);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+      throw new ValidationError('Candidato não encontrado');
+    }
+
+    console.error(
+      'Updating interview state for candidate',
+      candidateId,
+      'to',
+      interview
+    );
+
+    await updateDoc(docRef, {
+      interview,
+      updatedAt: serverTimestamp()
+    });
+  }
+
+  async updateInterviewStateForMultiple(
+    candidateIds: string[],
+    interview: CandidateInterview
+  ): Promise<void> {
+    if (!candidateIds || candidateIds.length === 0) {
+      throw new MissingParameterError(['candidateIds']);
+    }
+
+    const errors: string[] = [];
+    for (const candidateId of candidateIds) {
+      try {
+        const docRef = this.getDocRef(candidateId);
+        const docSnap = await getDoc(docRef);
+
+        if (!docSnap.exists()) {
+          errors.push(`Candidato ${candidateId} não encontrado`);
+          continue;
+        }
+
+        await updateDoc(docRef, {
+          interview,
+          updatedAt: serverTimestamp()
+        });
+      } catch (error) {
+        errors.push(`Erro ao atualizar candidato ${candidateId}: ${error}`);
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new Error(
+        `Erros ao atualizar estado de entrevista: ${errors.join('; ')}`
+      );
+    }
+  }
+
+  /**
+   * Normaliza os dados de entrevista vindos do Firestore.
+   */
+  private normalizeInterview(raw: unknown): CandidateInterview {
+    if (!raw || typeof raw !== 'object') {
+      return { state: 'notSentEmail' };
+    }
+
+    const obj = raw as Record<string, unknown>;
+    const validStates: InterviewState[] = [
+      'notSentEmail',
+      'sentEmail',
+      'requested',
+      'scheduled'
+    ];
+    const state = validStates.includes(obj.state as InterviewState)
+      ? (obj.state as InterviewState)
+      : 'notSentEmail';
+
+    return {
+      state,
+      date: typeof obj.date === 'string' ? obj.date : undefined,
+      dateLabel: typeof obj.dateLabel === 'string' ? obj.dateLabel : undefined,
+      startTime: typeof obj.startTime === 'string' ? obj.startTime : undefined,
+      endTime: typeof obj.endTime === 'string' ? obj.endTime : undefined,
+      googleMeetLink:
+        typeof obj.googleMeetLink === 'string' ? obj.googleMeetLink : undefined
+    };
   }
 }
 

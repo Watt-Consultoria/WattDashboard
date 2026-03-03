@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import interviewService from '@/services/interviewService';
 import savedCandidateRepository from '@/repositories/savedCandidateRepository';
 import emailService from '@/services/emailService';
+import type { CandidateInterview } from '@/types/candidate/candidate';
 
 const PSEL_SENDER = {
   email: 'psel@wattconsultoria.com.br',
@@ -84,6 +85,23 @@ export async function POST(request: NextRequest) {
           text,
           { from: PSEL_SENDER }
         );
+
+        // Atualizar estado de entrevista para 'sentEmail' apenas se ainda não recebeu email
+        // (não sobrescreve estados mais avançados como requested/scheduled)
+        if (
+          !candidate.interview ||
+          candidate.interview.state === 'notSentEmail'
+        ) {
+          const interviewData: CandidateInterview = { state: 'sentEmail' };
+          try {
+            await savedCandidateRepository.updateInterviewState(
+              candidate.id,
+              interviewData
+            );
+          } catch {
+            // Não falhar o envio se a atualização de estado falhar
+          }
+        }
 
         sent++;
       } catch (err: any) {

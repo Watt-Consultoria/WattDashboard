@@ -11,6 +11,37 @@ export type CandidateAdditionalInfo = {
   valor: string;
 };
 
+/**
+ * Estado de entrevista de um candidato.
+ * - notSentEmail: candidato ainda não recebeu o email com horários
+ * - sentEmail: email com horários enviado, mas candidato ainda não escolheu
+ * - requested: candidato solicitou um horário de entrevista
+ * - scheduled: entrevista confirmada (link do Meet enviado)
+ */
+export type InterviewState =
+  | 'notSentEmail'
+  | 'sentEmail'
+  | 'requested'
+  | 'scheduled';
+
+/**
+ * Dados de entrevista associados a um candidato.
+ */
+export type CandidateInterview = {
+  /** Estado atual da entrevista */
+  state: InterviewState;
+  /** Data da entrevista no formato ISO (yyyy-MM-dd) */
+  date?: string;
+  /** Rótulo da data para exibição (ex.: "15/03/2026") */
+  dateLabel?: string;
+  /** Horário de início (ex.: "09:00") */
+  startTime?: string;
+  /** Horário de fim (ex.: "10:00") */
+  endTime?: string;
+  /** Link do Google Meet (preenchido quando scheduled) */
+  googleMeetLink?: string;
+};
+
 export type Candidate = {
   id: string;
   nome: string;
@@ -33,6 +64,8 @@ export type Candidate = {
   tags?: string[];
   /** Indica se o candidato foi desclassificado (sem alterar a etapa) */
   desclassificado?: boolean;
+  /** Dados de entrevista do candidato */
+  interview?: CandidateInterview;
 };
 
 export type CandidateForm = {
