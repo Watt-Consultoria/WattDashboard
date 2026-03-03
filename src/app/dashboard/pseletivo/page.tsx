@@ -33,6 +33,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import candidateService from '@/services/candidateService';
+import memberService from '@/services/memberService';
 import savedCandidateService from '@/services/savedCandidateService';
 import type {
   Candidate,
@@ -87,11 +88,11 @@ const taskStatusVariant: Record<
   CONCLUIDA: 'default'
 };
 
-const INTERVIEW_TIME_OPTIONS = Array.from({ length: 24 }, (_, index) => {
-  const value = `${String(index).padStart(2, '0')}:00`;
+const INTERVIEW_TIME_OPTIONS = Array.from({ length: 15 }, (_, index) => {
+  const value = `${String(index + 8).padStart(2, '0')}:00`;
   return {
     value,
-    label: `${index}:00`
+    label: `${index + 8}:00`
   };
 });
 
@@ -160,6 +161,9 @@ export default function PSeletivoPage() {
   const [interviewEndTime, setInterviewEndTime] = React.useState('10:00');
   const [interviewResponsibleMemberId, setInterviewResponsibleMemberId] =
     React.useState('');
+  const [interviewAllMembers, setInterviewAllMembers] = React.useState<
+    ResponsibleMember[]
+  >([]);
   const [availableInterviewSlots, setAvailableInterviewSlots] = React.useState<
     InterviewSlot[]
   >([]);
@@ -564,16 +568,53 @@ export default function PSeletivoPage() {
 
   const interviewResponsibleOptions = React.useMemo(
     () =>
-      companyMembers
-        .filter((member) => Boolean(member.id && member.name))
-        .filter((member) => member.tags?.some((t) => t === 'Psel'))
-        .map((member) => ({
-          id: member.id,
-          name: member.name
-        }))
-        .sort((left, right) => left.name.localeCompare(right.name)),
-    [companyMembers]
+      interviewAllMembers.length > 0
+        ? interviewAllMembers
+        : companyMembers
+            .filter((member) => Boolean(member.id && member.name))
+            .map((member) => ({
+              id: member.id,
+              name: member.name
+            }))
+            .sort((left, right) => left.name.localeCompare(right.name)),
+    [interviewAllMembers, companyMembers]
   );
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    async function loadAllMembersForInterview() {
+      if (!isInterviewSlotsDialogOpen) {
+        return;
+      }
+
+      try {
+        const allMembers = await memberService.getAllMembers();
+        if (!isMounted) return;
+
+        const normalizedMembers = allMembers
+          .filter((member) =>
+            Boolean(member.id && member.name && member.tags?.includes('Psel'))
+          )
+          .map((member) => ({
+            id: member.id,
+            name: member.name
+          }))
+          .sort((left, right) => left.name.localeCompare(right.name));
+
+        setInterviewAllMembers(normalizedMembers);
+      } catch (error) {
+        if (!isMounted) return;
+        console.error('Erro ao carregar membros para entrevistas:', error);
+      }
+    }
+
+    loadAllMembersForInterview();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isInterviewSlotsDialogOpen]);
 
   const selectedInterviewIsoDate = React.useMemo(() => {
     if (!interviewDate) {
@@ -2068,7 +2109,7 @@ export default function PSeletivoPage() {
         open={isInterviewSlotsDialogOpen}
         onOpenChange={setIsInterviewSlotsDialogOpen}
       >
-        <DialogContent className='flex max-h-[90dvh] w-[95vw] max-w-[95vw] flex-col overflow-hidden sm:max-w-2xl'>
+        <DialogContent className='max-h-[90vh] w-[95vw] max-w-[95vw] overflow-y-auto sm:max-w-2xl'>
           <DialogHeader>
             <DialogTitle>Disponibilizar horarios de entrevistas</DialogTitle>
             <DialogDescription>
@@ -2298,11 +2339,13 @@ export default function PSeletivoPage() {
                     <SelectValue placeholder='Selecione o responsavel' />
                   </SelectTrigger>
                   <SelectContent>
-                    {interviewResponsibleOptions.map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.name}
-                      </SelectItem>
-                    ))}
+                    {interviewResponsibleOptions
+                      .filter(() => true)
+                      .map((member) => (
+                        <SelectItem key={member.id} value={member.id}>
+                          {member.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -2336,7 +2379,13 @@ export default function PSeletivoPage() {
                       <SelectValue placeholder='Selecione o inicio' />
                     </SelectTrigger>
                     <SelectContent className='max-h-48'>
-                      {INTERVIEW_TIME_OPTIONS.map((timeOption) => (
+                      {INTERVIEW_TIME_OPTIONS.filter((timeOption) => {
+                        const hour = parseInt(
+                          timeOption.value.split(':')[0],
+                          10
+                        );
+                        return hour >= 8 && hour < 22;
+                      }).map((timeOption) => (
                         <SelectItem
                           key={`start-${timeOption.value}`}
                           value={timeOption.value}
