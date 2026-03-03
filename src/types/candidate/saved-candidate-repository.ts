@@ -1,4 +1,5 @@
 import type { SavedCandidate, SaveCandidateInput } from './saved-candidate';
+import type { CandidateInterview } from './candidate';
 
 export default interface ISavedCandidateRepository {
   /** Salva um pré-candidato como candidato na coleção `candidates` */
@@ -36,4 +37,16 @@ export default interface ISavedCandidateRepository {
 
   /** Define a flag desclassificado=true sem alterar a etapa */
   disqualifyCandidate(candidateId: string): Promise<void>;
+
+  /** Atualiza o estado de entrevista de um candidato */
+  updateInterviewState(
+    candidateId: string,
+    interview: CandidateInterview
+  ): Promise<void>;
+
+  /** Atualiza o estado de entrevista de múltiplos candidatos */
+  updateInterviewStateForMultiple(
+    candidateIds: string[],
+    interview: CandidateInterview
+  ): Promise<void>;
 }

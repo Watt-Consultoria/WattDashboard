@@ -33,11 +33,13 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import candidateService from '@/services/candidateService';
+import memberService from '@/services/memberService';
 import savedCandidateService from '@/services/savedCandidateService';
 import type {
   Candidate,
   CandidateForm,
-  CandidateTaskStatus
+  CandidateTaskStatus,
+  InterviewState
 } from '@/types/candidate/candidate';
 import { toast } from 'sonner';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -49,7 +51,9 @@ import {
   faCheck,
   faThumbsDown,
   faCalendarDays,
-  faTableCells
+  faTableCells,
+  faClock,
+  faVideo
 } from '@fortawesome/free-solid-svg-icons';
 import {
   PselScheduleSpreadsheet,
@@ -87,11 +91,48 @@ const taskStatusVariant: Record<
   CONCLUIDA: 'default'
 };
 
-const INTERVIEW_TIME_OPTIONS = Array.from({ length: 24 }, (_, index) => {
-  const value = `${String(index).padStart(2, '0')}:00`;
+const interviewStatusConfig: Record<
+  InterviewState,
+  { label: string; color: string; bgColor: string; borderColor: string }
+> = {
+  notSentEmail: {
+    label: 'Email não enviado',
+    color: 'text-red-700 dark:text-red-400',
+    bgColor: 'bg-red-50 dark:bg-red-950/30',
+    borderColor: 'border-red-200 dark:border-red-800/40'
+  },
+  sentEmail: {
+    label: 'Email enviado',
+    color: 'text-amber-700 dark:text-amber-400',
+    bgColor: 'bg-amber-50 dark:bg-amber-950/30',
+    borderColor: 'border-amber-200 dark:border-amber-800/40'
+  },
+  requested: {
+    label: 'Horário solicitado',
+    color: 'text-emerald-700 dark:text-emerald-400',
+    bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
+    borderColor: 'border-emerald-200 dark:border-emerald-800/40'
+  },
+  scheduled: {
+    label: 'Entrevista marcada',
+    color: 'text-blue-700 dark:text-blue-400',
+    bgColor: 'bg-blue-50 dark:bg-blue-950/30',
+    borderColor: 'border-blue-200 dark:border-blue-800/40'
+  }
+};
+
+const interviewStatusDotColor: Record<InterviewState, string> = {
+  notSentEmail: 'bg-red-500',
+  sentEmail: 'bg-amber-500',
+  requested: 'bg-emerald-500',
+  scheduled: 'bg-blue-500'
+};
+
+const INTERVIEW_TIME_OPTIONS = Array.from({ length: 15 }, (_, index) => {
+  const value = `${String(index + 8).padStart(2, '0')}:00`;
   return {
     value,
-    label: `${index}:00`
+    label: `${index + 8}:00`
   };
 });
 
@@ -160,6 +201,9 @@ export default function PSeletivoPage() {
   const [interviewEndTime, setInterviewEndTime] = React.useState('10:00');
   const [interviewResponsibleMemberId, setInterviewResponsibleMemberId] =
     React.useState('');
+  const [interviewAllMembers, setInterviewAllMembers] = React.useState<
+    ResponsibleMember[]
+  >([]);
   const [availableInterviewSlots, setAvailableInterviewSlots] = React.useState<
     InterviewSlot[]
   >([]);
@@ -564,16 +608,53 @@ export default function PSeletivoPage() {
 
   const interviewResponsibleOptions = React.useMemo(
     () =>
-      companyMembers
-        .filter((member) => Boolean(member.id && member.name))
-        .filter((member) => member.tags?.some((t) => t === 'Psel'))
-        .map((member) => ({
-          id: member.id,
-          name: member.name
-        }))
-        .sort((left, right) => left.name.localeCompare(right.name)),
-    [companyMembers]
+      interviewAllMembers.length > 0
+        ? interviewAllMembers
+        : companyMembers
+            .filter((member) => Boolean(member.id && member.name))
+            .map((member) => ({
+              id: member.id,
+              name: member.name
+            }))
+            .sort((left, right) => left.name.localeCompare(right.name)),
+    [interviewAllMembers, companyMembers]
   );
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    async function loadAllMembersForInterview() {
+      if (!isInterviewSlotsDialogOpen) {
+        return;
+      }
+
+      try {
+        const allMembers = await memberService.getAllMembers();
+        if (!isMounted) return;
+
+        const normalizedMembers = allMembers
+          .filter((member) =>
+            Boolean(member.id && member.name && member.tags?.includes('Psel'))
+          )
+          .map((member) => ({
+            id: member.id,
+            name: member.name
+          }))
+          .sort((left, right) => left.name.localeCompare(right.name));
+
+        setInterviewAllMembers(normalizedMembers);
+      } catch (error) {
+        if (!isMounted) return;
+        console.error('Erro ao carregar membros para entrevistas:', error);
+      }
+    }
+
+    loadAllMembersForInterview();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isInterviewSlotsDialogOpen]);
 
   const selectedInterviewIsoDate = React.useMemo(() => {
     if (!interviewDate) {
@@ -1184,6 +1265,19 @@ export default function PSeletivoPage() {
         toast.success(
           `Horários enviados com sucesso para ${data.sent}/${data.total} candidato(s).`
         );
+        // Atualizar localmente o estado de entrevista dos candidatos que receberam email
+        const sentIds = interviewEmailSelectedCandidateIds;
+        setSavedCandidates((prev) =>
+          prev.map((c) => {
+            if (
+              sentIds.has(c.id) &&
+              (!c.interview || c.interview.state === 'notSentEmail')
+            ) {
+              return { ...c, interview: { state: 'sentEmail' } };
+            }
+            return c;
+          })
+        );
         resetInterviewEmailDialog();
       } else if (res.status === 207) {
         toast.warning(
@@ -1777,6 +1871,84 @@ export default function PSeletivoPage() {
                             ))}
                           </div>
                         )}
+                        {viewMode === 'candidatos' &&
+                          (() => {
+                            const interview = member.interview ?? {
+                              state: 'notSentEmail' as const
+                            };
+                            const config =
+                              interviewStatusConfig[interview.state];
+                            const dotColor =
+                              interviewStatusDotColor[interview.state];
+                            return (
+                              <div
+                                className={cn(
+                                  'mt-1.5 rounded-md border p-1.5',
+                                  config.bgColor,
+                                  config.borderColor
+                                )}
+                              >
+                                <div className='flex items-center gap-1.5'>
+                                  <span
+                                    className={cn(
+                                      'inline-block h-2 w-2 shrink-0 rounded-full',
+                                      dotColor
+                                    )}
+                                  />
+                                  <span
+                                    className={cn(
+                                      'text-[10px] leading-tight font-semibold',
+                                      config.color
+                                    )}
+                                  >
+                                    {config.label}
+                                  </span>
+                                </div>
+                                {(interview.state === 'requested' ||
+                                  interview.state === 'scheduled') &&
+                                  interview.dateLabel &&
+                                  interview.startTime && (
+                                    <div
+                                      className={cn(
+                                        'mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px]',
+                                        config.color
+                                      )}
+                                    >
+                                      <span className='flex items-center gap-1'>
+                                        <FontAwesomeIcon
+                                          icon={faCalendarDays}
+                                          className='h-2.5 w-2.5'
+                                        />
+                                        {interview.dateLabel}
+                                      </span>
+                                      <span className='flex items-center gap-1'>
+                                        <FontAwesomeIcon
+                                          icon={faClock}
+                                          className='h-2.5 w-2.5'
+                                        />
+                                        {interview.startTime} -{' '}
+                                        {interview.endTime}
+                                      </span>
+                                      {interview.state === 'scheduled' &&
+                                        interview.googleMeetLink && (
+                                          <a
+                                            href={interview.googleMeetLink}
+                                            target='_blank'
+                                            rel='noopener noreferrer'
+                                            className='flex items-center gap-1 underline underline-offset-2 hover:opacity-80'
+                                          >
+                                            <FontAwesomeIcon
+                                              icon={faVideo}
+                                              className='h-2.5 w-2.5'
+                                            />
+                                            Meet
+                                          </a>
+                                        )}
+                                    </div>
+                                  )}
+                              </div>
+                            );
+                          })()}
                       </div>
                       <div className='flex items-center gap-1'>
                         {viewMode === 'candidatos' && (
@@ -2068,7 +2240,7 @@ export default function PSeletivoPage() {
         open={isInterviewSlotsDialogOpen}
         onOpenChange={setIsInterviewSlotsDialogOpen}
       >
-        <DialogContent className='flex max-h-[90dvh] w-[95vw] max-w-[95vw] flex-col overflow-hidden sm:max-w-2xl'>
+        <DialogContent className='max-h-[90vh] w-[95vw] max-w-[95vw] overflow-y-auto sm:max-w-2xl'>
           <DialogHeader>
             <DialogTitle>Disponibilizar horarios de entrevistas</DialogTitle>
             <DialogDescription>
@@ -2123,7 +2295,7 @@ export default function PSeletivoPage() {
                               return (
                                 <div
                                   key={slot.id}
-                                  className='rounded-md border p-2.5'
+                                  className='max-w-half rounded-md border p-2.5'
                                 >
                                   <div className='flex items-start justify-between gap-2'>
                                     <div className='min-w-0 flex-1'>
@@ -2199,7 +2371,8 @@ export default function PSeletivoPage() {
                                     </p>
                                     {entry.candidateName && (
                                       <p className='truncate text-xs text-amber-700 dark:text-amber-400'>
-                                        Reservado por: {entry.candidateName}
+                                        Reservado por:{' '}
+                                        {truncateName(entry.candidateName)}
                                       </p>
                                     )}
                                     {entry.googleMeetLink && (
@@ -2298,11 +2471,13 @@ export default function PSeletivoPage() {
                     <SelectValue placeholder='Selecione o responsavel' />
                   </SelectTrigger>
                   <SelectContent>
-                    {interviewResponsibleOptions.map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.name}
-                      </SelectItem>
-                    ))}
+                    {interviewResponsibleOptions
+                      .filter(() => true)
+                      .map((member) => (
+                        <SelectItem key={member.id} value={member.id}>
+                          {member.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -2336,7 +2511,13 @@ export default function PSeletivoPage() {
                       <SelectValue placeholder='Selecione o inicio' />
                     </SelectTrigger>
                     <SelectContent className='max-h-48'>
-                      {INTERVIEW_TIME_OPTIONS.map((timeOption) => (
+                      {INTERVIEW_TIME_OPTIONS.filter((timeOption) => {
+                        const hour = parseInt(
+                          timeOption.value.split(':')[0],
+                          10
+                        );
+                        return hour >= 8 && hour < 22;
+                      }).map((timeOption) => (
                         <SelectItem
                           key={`start-${timeOption.value}`}
                           value={timeOption.value}

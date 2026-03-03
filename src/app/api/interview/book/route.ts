@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import interviewService from '@/services/interviewService';
+import savedCandidateRepository from '@/repositories/savedCandidateRepository';
+import type { CandidateInterview } from '@/types/candidate/candidate';
 
 /**
  * POST /api/interview/book
@@ -86,6 +88,23 @@ export async function POST(request: NextRequest) {
       candidateId,
       candidateName
     );
+
+    // Atualizar estado de entrevista do candidato para 'requested'
+    try {
+      const interviewData: CandidateInterview = {
+        state: 'requested',
+        date: slotA.isoDate,
+        dateLabel: slotA.dateLabel,
+        startTime: slotA.startTime,
+        endTime: slotA.endTime
+      };
+      await savedCandidateRepository.updateInterviewState(
+        candidateId,
+        interviewData
+      );
+    } catch {
+      // Não falhar a reserva se a atualização de estado falhar
+    }
 
     return NextResponse.json(
       {
