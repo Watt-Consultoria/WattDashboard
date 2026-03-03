@@ -160,6 +160,13 @@ export const navItems: NavItem[] = [
     items: []
   },
   {
+    title: 'Hogwatts',
+    url: '/dashboard/hogwatts',
+    icon: 'hogwatts',
+    isActive: false,
+    items: []
+  },
+  {
     title: 'Precificação',
     url: '/dashboard/precificacao',
     icon: 'page',
