@@ -16,6 +16,12 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -53,7 +59,8 @@ import {
   faCalendarDays,
   faTableCells,
   faClock,
-  faVideo
+  faVideo,
+  faEllipsisVertical
 } from '@fortawesome/free-solid-svg-icons';
 import {
   PselScheduleSpreadsheet,
@@ -1653,66 +1660,59 @@ export default function PSeletivoPage() {
       pageDescription='Candidatos do processo seletivo'
       scrollable={false}
     >
-      <div className='flex h-full min-h-0 min-w-0 flex-col gap-3'>
-        <div className='bg-muted/20 flex flex-col gap-3 rounded-lg border p-3 lg:flex-row lg:items-center lg:justify-between'>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3'>
-            <p className='text-sm font-semibold'>
-              Total de{' '}
-              {viewMode === 'pre-candidatos'
-                ? 'pré-candidatos'
-                : viewMode === 'candidatos'
-                  ? 'candidatos'
-                  : 'desclassificados'}
-              : {filteredMembers.length}
+      <div className='flex h-full min-h-0 min-w-0 flex-col gap-2 sm:gap-3'>
+        <div className='bg-muted/20 flex flex-col gap-2 rounded-lg border p-2 sm:gap-3 sm:p-3 lg:items-center lg:justify-between xl:flex-row'>
+          {/* Top row: Total count, main buttons, and dropdown menu */}
+          <div className='flex flex-wrap items-center gap-1 sm:gap-3'>
+            <p className='text-xs font-semibold sm:text-sm'>
+              Total: {filteredMembers.length}
             </p>
 
+            {/* Tags button - visible on all sizes */}
             <Button
               type='button'
               variant='outline'
               size='sm'
               onClick={openBulkTagsDialog}
               disabled={isLoadingMembers || isLoadingForms}
-              className='w-full gap-2 sm:w-auto'
+              className='gap-2 px-2 sm:px-3'
             >
               <FontAwesomeIcon icon={faTags} className='h-3 w-3' />
-              Tags
+              <span className='hidden text-xs sm:inline'>Tags</span>
             </Button>
-            {/* <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              onClick={handleCopyLink}
-              disabled={!selectedFormPublicPath}
-              className='w-full sm:w-auto'
-            >
-              Link
-            </Button> */}
+
+            {/* Interview slots button - visible on sm+ */}
             <Button
               type='button'
               variant='outline'
-              size='sm'
+              size='icon'
               onClick={() => setIsInterviewSlotsDialogOpen(true)}
-              className='w-full sm:w-auto'
+              className='hidden h-8 w-8 sm:inline-flex'
+              title='Horários de entrevista'
             >
-              Horarios de entrevista
+              <FontAwesomeIcon icon={faCalendarDays} className='h-3 w-3' />
             </Button>
+
+            {/* Schedule spreadsheet button - visible on sm+ */}
             <Button
               type='button'
               variant='outline'
-              size='sm'
+              size='icon'
               onClick={() => setIsScheduleSpreadsheetOpen(true)}
-              className='w-full gap-2 sm:w-auto'
+              className='hidden h-8 w-8 sm:inline-flex'
+              title='Planilha PSEL'
             >
               <FontAwesomeIcon icon={faTableCells} className='h-3 w-3' />
-              Planilha PSEL
             </Button>
-            <div className='w-full sm:w-72'>
+
+            {/* View mode select */}
+            <div className='flex-1 sm:w-40 sm:flex-none'>
               <Select
                 value={viewMode}
                 onValueChange={(value) => setViewMode(value as ViewMode)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder='Visualização' />
+                <SelectTrigger className='h-8 text-xs sm:h-9 sm:text-sm'>
+                  <SelectValue placeholder='Vis.' />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='pre-candidatos'>Pré-candidatos</SelectItem>
@@ -1723,90 +1723,116 @@ export default function PSeletivoPage() {
                 </SelectContent>
               </Select>
             </div>
-            {/* {viewMode === 'candidatos' && (
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                onClick={openBulkTagsDialog}
-                disabled={isCurrentlyLoading || isLoadingForms}
-                className='w-full gap-2 sm:w-auto'
-              >
-                <FontAwesomeIcon icon={faTags} className='h-3 w-3' />
-                Tags
-              </Button>
-            )} */}
-            {viewMode === 'candidatos' && (
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                onClick={() => setIsEmailDialogOpen(true)}
-                disabled={isCurrentlyLoading || isLoadingForms}
-                className='w-full gap-2 sm:w-auto'
-              >
-                <FontAwesomeIcon icon={faEnvelope} className='h-3 w-3' />
-                Notificar
-              </Button>
-            )}
-            {viewMode === 'candidatos' && (
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                onClick={() => {
-                  setInterviewEmailFormId(selectedFormId);
-                  setInterviewEmailSelectedCandidateIds(new Set());
-                  setIsInterviewEmailDialogOpen(true);
-                }}
-                disabled={isCurrentlyLoading || isLoadingForms}
-                className='w-full gap-2 sm:w-auto'
-              >
-                <FontAwesomeIcon icon={faCalendarDays} className='h-3 w-3' />
-                Enviar Entrevistas
-              </Button>
-            )}
-            {viewMode === 'pre-candidatos' && (
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                onClick={handleCopyLink}
-                disabled={!selectedFormPublicPath}
-                className='w-full sm:w-auto'
-              >
-                Link
-              </Button>
-            )}
-            {viewMode === 'pre-candidatos' && (
-              <div className='w-full sm:w-72'>
-                <Select
-                  value={selectedFormId}
-                  onValueChange={setSelectedFormId}
-                  disabled={isLoadingForms || pselForms.length === 0}
+
+            {/* More actions dropdown menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='gap-2 px-2 sm:px-3'
+                  title='Mais ações'
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder='Selecione o formulario PSEL' />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {pselForms.map((form) => (
-                      <SelectItem key={form.id} value={form.id}>
-                        {form.nomeFormulario}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+                  <FontAwesomeIcon
+                    icon={faEllipsisVertical}
+                    className='h-3 w-3'
+                  />
+                  <span className='hidden text-xs sm:inline'>Mais</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end' className='w-48'>
+                <DropdownMenuItem
+                  onClick={() => setIsInterviewSlotsDialogOpen(true)}
+                  className='sm:hidden'
+                >
+                  <FontAwesomeIcon
+                    icon={faCalendarDays}
+                    className='mr-2 h-4 w-4'
+                  />
+                  Horários de entrevista
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setIsScheduleSpreadsheetOpen(true)}
+                  className='sm:hidden'
+                >
+                  <FontAwesomeIcon
+                    icon={faTableCells}
+                    className='mr-2 h-4 w-4'
+                  />
+                  Planilha PSEL
+                </DropdownMenuItem>
+                {viewMode === 'candidatos' && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => setIsEmailDialogOpen(true)}
+                      disabled={isCurrentlyLoading || isLoadingForms}
+                    >
+                      <FontAwesomeIcon
+                        icon={faEnvelope}
+                        className='mr-2 h-4 w-4'
+                      />
+                      Notificar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setInterviewEmailFormId(selectedFormId);
+                        setInterviewEmailSelectedCandidateIds(new Set());
+                        setIsInterviewEmailDialogOpen(true);
+                      }}
+                      disabled={isCurrentlyLoading || isLoadingForms}
+                    >
+                      <FontAwesomeIcon
+                        icon={faCalendarDays}
+                        className='mr-2 h-4 w-4'
+                      />
+                      Enviar Entrevistas
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {viewMode === 'pre-candidatos' && (
+                  <DropdownMenuItem
+                    onClick={handleCopyLink}
+                    disabled={!selectedFormPublicPath}
+                  >
+                    Link
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
+
+          {/* Right side: Search input */}
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder='Buscar por nome ou curso...'
-            className='w-full lg:max-w-sm'
+            placeholder='Buscar...'
+            className='w-full text-xs sm:text-sm lg:max-w-xs xl:max-w-sm'
             disabled={isCurrentlyLoading || isLoadingForms}
           />
         </div>
+
+        {/* Bottom row: Form select for pre-candidatos */}
+        {viewMode === 'pre-candidatos' && (
+          <div className='w-full sm:w-80'>
+            <Select
+              value={selectedFormId}
+              onValueChange={setSelectedFormId}
+              disabled={isLoadingForms || pselForms.length === 0}
+            >
+              <SelectTrigger className='h-8 text-xs sm:h-9 sm:text-sm'>
+                <SelectValue placeholder='Selecione o formulario PSEL' />
+              </SelectTrigger>
+              <SelectContent>
+                {pselForms.map((form) => (
+                  <SelectItem key={form.id} value={form.id}>
+                    {form.nomeFormulario}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {copyMessage && viewMode === 'pre-candidatos' ? (
           <p className='text-muted-foreground px-1 text-sm'>{copyMessage}</p>
@@ -3441,7 +3467,7 @@ export default function PSeletivoPage() {
                         />
                         <label
                           htmlFor={`interview-email-${candidate.id}`}
-                          className='flex-1 cursor-pointer break-words'
+                          className='flex-1 cursor-pointer text-wrap'
                         >
                           <div className='flex items-center gap-1.5'>
                             <span
