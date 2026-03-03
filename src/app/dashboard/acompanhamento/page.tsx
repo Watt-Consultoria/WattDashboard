@@ -69,6 +69,7 @@ import { faXmark, faTags } from '@fortawesome/free-solid-svg-icons';
 import { useRouter } from 'next/navigation';
 import useMetadata from '@/hooks/use-metadata';
 import memberService from '@/services/memberService';
+import { tiposAutomacao, tiposEletrica } from '@/constants/project-types';
 
 type Project = {
   id: string;
@@ -144,8 +145,6 @@ const areaOptions = [
   'Marketing',
   'Executivo'
 ];
-const tiposAutomacao = ['Domótica', 'Industrial'];
-const tiposEletrica = ['Projeto Elétrico', 'Solar'];
 const defaultMemberStatus = 'online';
 const roleOptions = [
   'Consultor',
