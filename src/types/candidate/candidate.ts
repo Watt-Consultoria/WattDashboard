@@ -1,3 +1,5 @@
+import type { InterviewResult } from '@/types/interview/interview';
+
 export type CandidateTaskStatus = 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDA';
 
 export type CandidateTask = {
@@ -22,7 +24,9 @@ export type InterviewState =
   | 'notSentEmail'
   | 'sentEmail'
   | 'requested'
-  | 'scheduled';
+  | 'scheduled'
+  | 'finished'
+  | 'canceled';
 
 /**
  * Dados de entrevista associados a um candidato.
@@ -40,6 +44,8 @@ export type CandidateInterview = {
   endTime?: string;
   /** Link do Google Meet (preenchido quando scheduled) */
   googleMeetLink?: string;
+  /** Resultado da avaliação da entrevista (preenchido pelo entrevistador) */
+  result?: InterviewResult;
 };
 
 export type Candidate = {

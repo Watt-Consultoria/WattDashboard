@@ -20,6 +20,7 @@ export type Member = {
 
 export type MemberRoleEnum =
   | 'Consultor'
+  | 'Assessor'
   | 'Asessor'
   | 'Gerente'
   | 'Diretor'
@@ -32,6 +33,8 @@ export type MemberSectorEnum =
   | 'Institucional'
   | 'Marketing'
   | 'Executivo';
+
+export type MemberSectorEnumSimple = 'Projetos' | 'Marketing' | 'Comercial';
 
 export type MemberStatusEnum = 'Ativo' | 'Inativo';
 

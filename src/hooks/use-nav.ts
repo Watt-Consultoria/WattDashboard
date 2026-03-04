@@ -101,9 +101,16 @@ export function useFilteredNavItems(items: NavItem[]) {
       allowedUrls.add('/dashboard/faltas');
     }
 
-    const allowEstatisticas = ['diretor', 'presidente', 'assessor'].includes(role);
+    const allowEstatisticas = ['diretor', 'presidente', 'assessor'].includes(
+      role
+    );
     if (allowEstatisticas) {
       allowedUrls.add('/dashboard/estatisticas');
+    }
+
+    const allowHog = true;
+    if (allowHog) {
+      allowedUrls.add('/dashboard/hogwatts');
     }
 
     const allowFinanceiro = ['presidente', 'assessor'].includes(role);

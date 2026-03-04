@@ -1,9 +1,25 @@
 import interviewRepository from '@/repositories/interviewRepository';
+import savedCandidateRepository from '@/repositories/savedCandidateRepository';
 import type {
   InterviewSlot,
   CreateInterviewSlotInput,
-  AvailableInterviewSlotView
+  AvailableInterviewSlotView,
+  DesiredTraitRating,
+  DesiredTraitKey,
+  UndesiredTraitAssessment,
+  UndesiredTraitKey,
+  InterviewResult,
+  SubmitInterviewResultInput,
+  InterviewResultView,
+  InterviewStatistics,
+  DesiredTraitAverages,
+  UndesiredTraitDistribution
 } from '@/types/interview/interview';
+import type {
+  Candidate,
+  CandidateInterview
+} from '@/types/candidate/candidate';
+import { ValidationError } from '@/errors/serviceErrors';
 
 class InterviewService {
   /**
@@ -42,11 +58,35 @@ class InterviewService {
 
   /**
    * Remove um horário de entrevista.
+   * Se o horário está atribuído a um candidato, reseta o estado da entrevista
+   * para 'notSentEmail'.
    */
   async removeSlot(formId: string, slotId: string): Promise<void> {
     if (!formId?.trim() || !slotId?.trim()) {
       throw new Error('Formulário e horário são obrigatórios');
     }
+
+    // Buscar o slot antes de remover para verificar se está atribuído
+    const slot = await interviewRepository.getSlotById(formId, slotId);
+
+    if (slot && slot.status === 'booked' && slot.bookedByCandidateId) {
+      // Reset interview state para 'notSentEmail' quando o slot é removido
+      const resetInterview: CandidateInterview = {
+        state: 'canceled'
+      };
+      await savedCandidateRepository.updateInterviewState(
+        slot.bookedByCandidateId,
+        resetInterview
+      );
+    }
+
+    console.error(
+      'Resetting interview state for candidate',
+      slot?.bookedByCandidateId,
+      'to canceled'
+    );
+
+    // Remover o slot
     await interviewRepository.removeSlot(formId, slotId);
   }
 
@@ -374,6 +414,288 @@ class InterviewService {
   </table>
 </body>
 </html>`;
+  }
+
+  // ── Avaliação de entrevista ──────────────────────────────────────────────
+
+  /** Chaves válidas para qualidades desejadas */
+  private readonly DESIRED_TRAIT_KEYS: readonly DesiredTraitKey[] = [
+    'proatividade',
+    'compromisso',
+    'lideranca',
+    'proposito',
+    'transparencia',
+    'autoresponsabilidade',
+    'uniaoDeTime',
+    'autoconfianca',
+    'comunicacao',
+    'responsabilidadeSocial',
+    'seriedade',
+    'criatividade'
+  ] as const;
+
+  /** Chaves válidas para habilidades indesejadas */
+  private readonly UNDESIRED_TRAIT_KEYS: readonly UndesiredTraitKey[] = [
+    'procrastinacao',
+    'propositoVago',
+    'desinteresse',
+    'vitimizacao',
+    'faltaDeTransparencia',
+    'faltaDeConfianca'
+  ] as const;
+
+  /** Valores válidos para a escala numérica (1–5) */
+  private readonly VALID_RATINGS: readonly DesiredTraitRating[] = [
+    1, 2, 3, 4, 5
+  ] as const;
+
+  /** Valores válidos para a escala qualitativa */
+  private readonly VALID_ASSESSMENTS: readonly UndesiredTraitAssessment[] = [
+    'notPresented',
+    'presented',
+    'unclear'
+  ] as const;
+
+  /**
+   * Submete a avaliação de entrevista de um candidato.
+   *
+   * Valida:
+   * - existência do candidato
+   * - identificação do avaliador
+   * - todas as qualidades desejadas com notas de 1 a 5
+   * - todas as habilidades indesejadas com classificação válida
+   *
+   * Monta a estrutura final de `InterviewResult` e persiste em
+   * `interview.result` via repository.
+   */
+  async submitInterviewResult(
+    input: SubmitInterviewResultInput
+  ): Promise<void> {
+    // ── Validação dos parâmetros obrigatórios ──
+    if (!input.candidateId?.trim()) {
+      throw new ValidationError('ID do candidato é obrigatório');
+    }
+    if (!input.reviewerId?.trim()) {
+      throw new ValidationError('ID do avaliador é obrigatório');
+    }
+    if (!input.reviewerName?.trim()) {
+      throw new ValidationError('Nome do avaliador é obrigatório');
+    }
+
+    // ── Validação da existência do candidato ──
+    const candidate = await savedCandidateRepository.getCandidateById(
+      input.candidateId
+    );
+    if (!candidate) {
+      throw new ValidationError('Candidato não encontrado');
+    }
+
+    // ── Validação das qualidades desejadas ──
+    this.validateDesiredTraits(input.desiredTraits);
+
+    // ── Validação das habilidades indesejadas ──
+    this.validateUndesiredTraits(input.undesiredTraits);
+
+    // ── Montagem da estrutura final ──
+    const result: InterviewResult = {
+      desiredTraits: input.desiredTraits,
+      undesiredTraits: input.undesiredTraits,
+      reviewer: {
+        id: input.reviewerId.trim(),
+        name: input.reviewerName.trim()
+      },
+      reviewedAt: new Date().toISOString(),
+      notes: input.notes?.trim() || undefined
+    };
+
+    // ── Persistência via repository ──
+    await savedCandidateRepository.setInterviewResult(
+      input.candidateId,
+      result
+    );
+  }
+
+  /**
+   * Valida que todas as qualidades desejadas estão presentes e possuem
+   * notas válidas (1–5).
+   */
+  private validateDesiredTraits(
+    traits: SubmitInterviewResultInput['desiredTraits']
+  ): void {
+    if (!traits || typeof traits !== 'object') {
+      throw new ValidationError('Qualidades desejadas são obrigatórias');
+    }
+
+    for (const key of this.DESIRED_TRAIT_KEYS) {
+      const value = traits[key];
+      if (value === undefined || value === null) {
+        throw new ValidationError(`Qualidade desejada "${key}" é obrigatória`);
+      }
+      if (!this.VALID_RATINGS.includes(value as DesiredTraitRating)) {
+        throw new ValidationError(
+          `Qualidade desejada "${key}" deve ter nota de 1 a 5, recebeu: ${value}`
+        );
+      }
+    }
+
+    // Verificar se não há chaves extra
+    const extraKeys = Object.keys(traits).filter(
+      (k) => !this.DESIRED_TRAIT_KEYS.includes(k as DesiredTraitKey)
+    );
+    if (extraKeys.length > 0) {
+      throw new ValidationError(
+        `Qualidades desejadas inválidas: ${extraKeys.join(', ')}`
+      );
+    }
+  }
+
+  /**
+   * Valida que todas as habilidades indesejadas estão presentes e possuem
+   * classificações válidas.
+   */
+  private validateUndesiredTraits(
+    traits: SubmitInterviewResultInput['undesiredTraits']
+  ): void {
+    if (!traits || typeof traits !== 'object') {
+      throw new ValidationError('Habilidades indesejadas são obrigatórias');
+    }
+
+    for (const key of this.UNDESIRED_TRAIT_KEYS) {
+      const value = traits[key];
+      if (value === undefined || value === null) {
+        throw new ValidationError(
+          `Habilidade indesejada "${key}" é obrigatória`
+        );
+      }
+      if (!this.VALID_ASSESSMENTS.includes(value as UndesiredTraitAssessment)) {
+        throw new ValidationError(
+          `Habilidade indesejada "${key}" deve ser "notPresented", "presented" ou "unclear", recebeu: "${value}"`
+        );
+      }
+    }
+
+    // Verificar se não há chaves extra
+    const extraKeys = Object.keys(traits).filter(
+      (k) => !this.UNDESIRED_TRAIT_KEYS.includes(k as UndesiredTraitKey)
+    );
+    if (extraKeys.length > 0) {
+      throw new ValidationError(
+        `Habilidades indesejadas inválidas: ${extraKeys.join(', ')}`
+      );
+    }
+  }
+
+  // ── Estatísticas de entrevista ────────────────────────────────────────────
+
+  /**
+   * Computa estatísticas agregadas a partir de uma lista de candidatos.
+   * Filtra apenas os que possuem `interview.result` preenchido.
+   *
+   * Penalidade por habilidade indesejada marcada como "presented": −0.5 por ocorrência.
+   * "unclear" penaliza com −0.25.
+   */
+  computeInterviewStatistics(candidates: Candidate[]): InterviewStatistics {
+    const evaluated = candidates.filter((c) => c.interview?.result);
+
+    if (evaluated.length === 0) {
+      return {
+        totalEvaluated: 0,
+        overallDesiredAverage: 0,
+        desiredTraitAverages: this.emptyDesiredAverages(),
+        undesiredTraitDistribution: this.emptyUndesiredDistribution(),
+        rankings: []
+      };
+    }
+
+    // Somas para médias de qualidades desejadas
+    const desiredSums: Record<string, number> = {};
+    for (const key of this.DESIRED_TRAIT_KEYS) {
+      desiredSums[key] = 0;
+    }
+
+    // Distribuição de indesejadas
+    const undesiredDist = this.emptyUndesiredDistribution();
+
+    const rankings: InterviewResultView[] = [];
+
+    for (const candidate of evaluated) {
+      const result = candidate.interview!.result!;
+
+      // Soma qualidades desejadas
+      let desiredSum = 0;
+      for (const key of this.DESIRED_TRAIT_KEYS) {
+        const val = result.desiredTraits[key];
+        desiredSums[key] += val;
+        desiredSum += val;
+      }
+      const desiredAvg = desiredSum / this.DESIRED_TRAIT_KEYS.length;
+
+      // Contagem de indesejadas
+      let undesiredPenalty = 0;
+      let undesiredPresentedCount = 0;
+      for (const key of this.UNDESIRED_TRAIT_KEYS) {
+        const assessment = result.undesiredTraits[key];
+        undesiredDist[key][assessment]++;
+        if (assessment === 'presented') {
+          undesiredPenalty += 0.5;
+          undesiredPresentedCount++;
+        } else if (assessment === 'unclear') {
+          undesiredPenalty += 0.25;
+        }
+      }
+
+      const finalScore = Math.max(0, desiredAvg - undesiredPenalty);
+
+      rankings.push({
+        candidateId: candidate.id,
+        candidateName: `${candidate.nome} ${candidate.sobrenome}`,
+        desiredTraitsAverage: Math.round(desiredAvg * 100) / 100,
+        undesiredPresented: undesiredPresentedCount,
+        finalScore: Math.round(finalScore * 100) / 100,
+        result
+      });
+    }
+
+    // Ordenar por pontuação final decrescente
+    rankings.sort((a, b) => b.finalScore - a.finalScore);
+
+    // Médias por qualidade desejada
+    const desiredTraitAverages = {} as DesiredTraitAverages;
+    for (const key of this.DESIRED_TRAIT_KEYS) {
+      desiredTraitAverages[key] =
+        Math.round((desiredSums[key] / evaluated.length) * 100) / 100;
+    }
+
+    const overallDesiredAverage =
+      Math.round(
+        (Object.values(desiredTraitAverages).reduce((s, v) => s + v, 0) /
+          this.DESIRED_TRAIT_KEYS.length) *
+          100
+      ) / 100;
+
+    return {
+      totalEvaluated: evaluated.length,
+      overallDesiredAverage,
+      desiredTraitAverages,
+      undesiredTraitDistribution: undesiredDist,
+      rankings
+    };
+  }
+
+  private emptyDesiredAverages(): DesiredTraitAverages {
+    const avgs = {} as DesiredTraitAverages;
+    for (const key of this.DESIRED_TRAIT_KEYS) {
+      avgs[key] = 0;
+    }
+    return avgs;
+  }
+
+  private emptyUndesiredDistribution(): UndesiredTraitDistribution {
+    const dist = {} as UndesiredTraitDistribution;
+    for (const key of this.UNDESIRED_TRAIT_KEYS) {
+      dist[key] = { notPresented: 0, presented: 0, unclear: 0 };
+    }
+    return dist;
   }
 }
 

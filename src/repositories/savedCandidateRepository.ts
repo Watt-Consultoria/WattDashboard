@@ -7,6 +7,7 @@ import type {
   CandidateInterview,
   InterviewState
 } from '@/types/candidate/candidate';
+import type { InterviewResult } from '@/types/interview/interview';
 import { firebaseDb } from '@/lib/firebase/client';
 import {
   addDoc,
@@ -442,13 +443,6 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
       throw new ValidationError('Candidato não encontrado');
     }
 
-    console.error(
-      'Updating interview state for candidate',
-      candidateId,
-      'to',
-      interview
-    );
-
     await updateDoc(docRef, {
       interview,
       updatedAt: serverTimestamp()
@@ -490,6 +484,34 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
     }
   }
 
+  async setInterviewResult(
+    candidateId: string,
+    result: InterviewResult
+  ): Promise<void> {
+    if (!candidateId) {
+      throw new MissingParameterError(['candidateId']);
+    }
+
+    const docRef = this.getDocRef(candidateId);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+      throw new ValidationError('Candidato não encontrado');
+    }
+
+    const currentData = docSnap.data();
+    const currentInterview = this.normalizeInterview(currentData.interview);
+
+    await updateDoc(docRef, {
+      interview: {
+        ...currentInterview,
+        state: 'finished',
+        result
+      },
+      updatedAt: serverTimestamp()
+    });
+  }
+
   /**
    * Normaliza os dados de entrevista vindos do Firestore.
    */
@@ -503,13 +525,15 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
       'notSentEmail',
       'sentEmail',
       'requested',
-      'scheduled'
+      'scheduled',
+      'finished',
+      'canceled'
     ];
     const state = validStates.includes(obj.state as InterviewState)
       ? (obj.state as InterviewState)
       : 'notSentEmail';
 
-    return {
+    const interview: CandidateInterview = {
       state,
       date: typeof obj.date === 'string' ? obj.date : undefined,
       dateLabel: typeof obj.dateLabel === 'string' ? obj.dateLabel : undefined,
@@ -518,6 +542,13 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
       googleMeetLink:
         typeof obj.googleMeetLink === 'string' ? obj.googleMeetLink : undefined
     };
+
+    // Normaliza resultado da avaliação, se existir
+    if (obj.result && typeof obj.result === 'object') {
+      interview.result = obj.result as InterviewResult;
+    }
+
+    return interview;
   }
 }
 
