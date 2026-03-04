@@ -7,22 +7,13 @@
  * Cada seção representa um bloco temático da entrevista.
  */
 export type InterviewQuestionSection =
-  | 'PESSOAL'
-  | 'AUTOCONHECIMENTO'
-  | 'VISÃO DE OUTROS SOBRE O CANDIDATO'
-  | 'SOBRE A WATT CONSULTORIA'
-  | 'EXPECTATIVAS SOBRE A EMPRESA'
-  | 'VISÃO DE FUTURO'
-  | 'LIDERANÇA'
-  | 'COMPROMISSO'
-  | 'DESTAQUE'
-  | 'FEEDBACK / TRABALHO EM EQUIPE'
-  | 'CRIATIVIDADE'
-  | 'TRANSPARÊNCIA'
-  | 'PROPÓSITO'
-  | 'AUTORESPONSABILIDADE'
-  | 'RESPONSABILIDADE SOCIAL'
-  | 'DISPOSIÇÕES FINAIS';
+  | 'APRESENTAÇÃO DO CANDIDATO'
+  | 'DINÂMICA BREVE'
+  | 'PERFIL DO CANDIDATO'
+  | 'WATT'
+  | 'COMPETÊNCIAS E HABILIDADES'
+  | 'DISPONIBILIDADE DO CANDIDATO'
+  | 'DÚVIDAS DO CANDIDATO';
 
 /**
  * Uma dica para o entrevistador sobre como conduzir a pergunta.
@@ -60,6 +51,41 @@ export type InterviewSliderState = {
   currentIndex: number;
   totalQuestions: number;
   currentQuestion: InterviewQuestion;
+};
+
+// ---------------------------------------------------------------------------
+// Tipos para captura e persistência de respostas do roteiro
+// ---------------------------------------------------------------------------
+
+/**
+ * Resposta registrada pelo entrevistador para uma pergunta do roteiro.
+ *
+ * - `questionId`: vincula à pergunta correspondente (InterviewQuestion.id)
+ * - `section`: seção/bloco da pergunta (redundância intencional para consultas)
+ * - `order`: posição da pergunta no roteiro
+ * - `answer`: texto livre da resposta/anotação
+ * - `updatedAt`: timestamp ISO da última atualização
+ */
+export type InterviewQuestionAnswer = {
+  questionId: string;
+  section: InterviewQuestionSection;
+  order: number;
+  answer: string;
+  updatedAt: string;
+};
+
+/**
+ * Mapa de respostas do roteiro indexado pelo `questionId`.
+ * Facilita acesso O(1) e merge incremental.
+ */
+export type InterviewAnswersMap = Record<string, InterviewQuestionAnswer>;
+
+/**
+ * Payload para salvar/atualizar as respostas do roteiro de um candidato.
+ */
+export type SaveInterviewAnswersInput = {
+  candidateId: string;
+  answers: InterviewAnswersMap;
 };
 
 /**

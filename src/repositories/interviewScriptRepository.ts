@@ -9,400 +9,532 @@ import type { InterviewQuestion } from '@/types/interview/interview-script';
  */
 class InterviewScriptRepository implements IInterviewScriptRepository {
   private readonly questions: InterviewQuestion[] = [
-    // ── PESSOAL ──────────────────────────────────────────────────────────────
+    // ── APRESENTAÇÃO DO CANDIDATO ───────────────────────────────────────────
     {
       id: 'q-01',
-      section: 'PESSOAL',
+      section: 'APRESENTAÇÃO DO CANDIDATO',
       order: 1,
-      question: 'Me conta um pouquinho sobre você. O que te trouxe até aqui?',
+      question: 'Poderia se apresentar e me contar um pouco sobre você?',
       tipsForInterviewer: [
-        'Deixe o candidato falar livremente — observe naturalidade e comunicação.',
-        'Preste atenção em quais aspectos da própria vida ele destaca primeiro.',
-        'Esteja atento à clareza com que se apresenta e ao entusiasmo ao falar de si.'
+        'Deixe o candidato começar de forma livre e observe o que ele escolhe destacar primeiro.',
+        'Perceba clareza, espontaneidade e segurança ao falar de si.',
+        'Use essa resposta como base para comparar coerência com o restante da entrevista.'
       ],
       whatToObserve:
-        'Comunicação, autoconhecimento básico e motivação inicial para estar no processo seletivo.',
-      exampleFollowUps: ['O que exatamente te chamou atenção na Watt?']
+        'Comunicação inicial, autopercepção, clareza de apresentação e postura.',
+      exampleFollowUps: [
+        'O que você considera mais marcante na sua trajetória até aqui?',
+        'Que experiências mais te formaram até agora?'
+      ]
     },
 
-    // ── AUTOCONHECIMENTO ─────────────────────────────────────────────────────
+    // ── DINÂMICA BREVE ──────────────────────────────────────────────────────
     {
       id: 'q-02',
-      section: 'AUTOCONHECIMENTO',
+      section: 'DINÂMICA BREVE',
       order: 2,
       question:
-        'Liste 3 pontos fortes seus e em que momentos isso se evidenciou.',
+        'Me diga um personagem com o qual você se identifica. Por que você se identifica com ele? Quais são suas principais características?',
       tipsForInterviewer: [
-        'Peça exemplos concretos — não aceite apenas adjetivos genéricos.',
-        'Observe se o candidato consegue conectar o ponto forte a uma situação real.',
-        'Avalie a autoconsciência: os pontos listados são coerentes com o perfil apresentado?'
+        'Observe se a escolha faz sentido com a justificativa apresentada.',
+        'Avalie a facilidade do candidato em traduzir traços abstratos em características concretas.',
+        'Perceba se ele consegue se expressar com clareza e espontaneidade.'
       ],
       whatToObserve:
-        'Autoconhecimento, capacidade de dar exemplos concretos e coerência entre discurso e perfil.',
+        'Comunicação clara e assertiva, autoconhecimento e capacidade de associação.',
       exampleFollowUps: [
-        'Pode me dar um exemplo mais específico de quando isso aconteceu?'
-      ]
-    },
-    {
-      id: 'q-03',
-      section: 'AUTOCONHECIMENTO',
-      order: 3,
-      question: 'Agora liste 3 pontos de melhoria.',
-      tipsForInterviewer: [
-        'Observe se o candidato consegue falar de fraquezas reais ou apenas fraquezas "disfarçadas de virtudes".',
-        'Preste atenção em como ele lida com a vulnerabilidade — isso diz muito sobre maturidade.',
-        'Se os pontos parecerem vagos, aprofunde com "O que você já fez para trabalhar nisso?"'
-      ],
-      whatToObserve:
-        'Honestidade, maturidade emocional e consciência das próprias limitações.',
-      exampleFollowUps: [
-        'O que você já fez para trabalhar nesse ponto?',
-        'Esse ponto já te impactou em alguma situação específica?'
+        'Em que situações essas características aparecem em você?',
+        'Tem alguma dessas características que você considera mais forte hoje?'
       ]
     },
 
-    // ── VISÃO DE OUTROS SOBRE O CANDIDATO ─────────────────────────────────
+    // ── PERFIL DO CANDIDATO ────────────────────────────────────────────────
     {
-      id: 'q-04',
-      section: 'VISÃO DE OUTROS SOBRE O CANDIDATO',
-      order: 4,
+      id: 'q-03',
+      section: 'PERFIL DO CANDIDATO',
+      order: 3,
       question:
-        'Se eu ligasse agora para o(a) seu/sua melhor amigo(a), como ele(a) te definiria?',
+        'Qual é a sua familiaridade com o meio empresarial? Você já trabalhou antes?',
       tipsForInterviewer: [
-        'Esteja atento se o candidato atribui a si mesmo qualidades que os outros enxergariam ou apenas o que ele deseja ser.',
-        'Observe coerência entre o que foi dito anteriormente e a visão dos outros.',
-        'Uma boa resposta costuma incluir tanto qualidades quanto algo a melhorar.'
+        'Entenda se a vivência vem de estágio, empresa júnior, projeto, negócio próprio ou outro contexto.',
+        'Caso não tenha experiência formal, observe como ele construiu repertório mesmo assim.',
+        'Avalie maturidade ao falar de experiências e aprendizados.'
       ],
       whatToObserve:
-        'Perspectiva externa, humildade e coerência de imagem pública x autoimagem.',
+        'Responsabilidade, repertório profissional e familiaridade com contextos organizacionais.',
       exampleFollowUps: [
-        'Você concorda com essa visão que seu amigo(a) teria de você?'
+        'O que você aprendeu com essa experiência?',
+        'Como essa vivência influenciou sua forma de trabalhar?'
+      ]
+    },
+    {
+      id: 'q-04',
+      section: 'PERFIL DO CANDIDATO',
+      order: 4,
+      question: 'Qual sua(s) área(s) de interesse dentro do seu curso?',
+      tipsForInterviewer: [
+        'Observe se o candidato já demonstra algum direcionamento ou curiosidade genuína.',
+        'Avalie se ele consegue explicar o porquê do interesse, e não apenas citar áreas.',
+        'Perceba o nível de reflexão sobre a própria formação.'
+      ],
+      whatToObserve:
+        'Interesses acadêmicos, maturidade de escolha e potencial de conexão com a empresa.',
+      exampleFollowUps: [
+        'O que te atrai nessas áreas especificamente?',
+        'Você já buscou algo prático relacionado a isso?'
       ]
     },
     {
       id: 'q-05',
-      section: 'VISÃO DE OUTROS SOBRE O CANDIDATO',
+      section: 'PERFIL DO CANDIDATO',
       order: 5,
       question:
-        'Agora uma pergunta relacionada ao nosso tema, qual pokemon inicial você escolheria? Pokemon tipo fogo (Determinado, corajoso e energético), Pokemon tipo água (Paciente, adaptável e social) ou Pokemon tipo grama (Resiliente, compreensível e constante)?',
+        'Como você costuma trabalhar/estudar? Por qual motivo você utiliza esse(s) método(s)?',
       tipsForInterviewer: [
-        'Não há resposta certa — o objetivo é entender autoconsciência e facilidade de expressão.',
-        'Observe se o candidato consegue justificar a escolha com exemplos ou experiências.',
-        'Perfis diferentes são igualmente válidos para a empresa — avalie a coerência, não a escolha.'
+        'Peça exemplos concretos de rotina, ferramentas ou estratégias usadas.',
+        'Observe se o método faz sentido com os resultados que ele busca.',
+        'Perceba se há consciência sobre o próprio funcionamento.'
       ],
       whatToObserve:
-        'Autoconhecimento, facilidade de expressão pessoal e coerência.',
-      exampleFollowUps: ['Uma situação em que isso ficou evidente?']
+        'Organização pessoal, autoconhecimento operacional e disciplina.',
+      exampleFollowUps: [
+        'Esse método funciona bem em grupo também?',
+        'Você já precisou adaptar sua forma de estudar ou trabalhar?'
+      ]
     },
-
-    // ── SOBRE A WATT CONSULTORIA ─────────────────────────────────────────
     {
       id: 'q-06',
-      section: 'SOBRE A WATT CONSULTORIA',
+      section: 'PERFIL DO CANDIDATO',
       order: 6,
       question:
-        'Dentre as oportunidades que você poderia viver na universidade, projetos de extensão e empresas juniores, por que escolheu a Watt? O que te motivou?',
+        'Como você lida com prazos atualmente? Utiliza alguma ferramenta de gestão de tempo, como Google Agenda, planner físico ou estratégias próprias?',
       tipsForInterviewer: [
-        'Observe se o candidato pesquisou sobre a empresa ou se veio "por indicação" sem motivação própria.',
-        'Atenção a respostas genéricas tipo "quero experiência" — aprofunde se necessário.',
-        'A motivação pode ser prática (currículo), mas precisa ser autêntica.'
+        'Observe se existe método real de organização ou apenas intenção.',
+        'Respostas com exemplos concretos tendem a revelar maior maturidade.',
+        'Avalie também a capacidade de priorização.'
       ],
       whatToObserve:
-        'Motivação genuína, conhecimento sobre a empresa e clareza de propósito.',
+        'Planejamento, organização, responsabilidade com entregas e gestão do tempo.',
       exampleFollowUps: [
-        'O que você sabe sobre o trabalho da Watt?',
-        'Você conhece alguém que já passou pela Watt?'
+        'O que você faz quando percebe que não vai conseguir cumprir um prazo?',
+        'Qual ferramenta ou estratégia mais funciona para você hoje?'
       ]
     },
 
-    // ── EXPECTATIVAS SOBRE A EMPRESA ─────────────────────────────────────
+    // ── WATT ────────────────────────────────────────────────────────────────
     {
       id: 'q-07',
-      section: 'EXPECTATIVAS SOBRE A EMPRESA',
+      section: 'WATT',
       order: 7,
-      question: 'Que tipo de experiência você imagina encontrar aqui na Watt?',
+      question:
+        'O que te motivou a escolher a Watt dentre tantas opções disponíveis de EJs, atividades de extensão e outros?',
       tipsForInterviewer: [
-        'Observe se as expectativas são realistas e alinhadas ao que a empresa oferece.',
-        'Atenção a expectativas excessivamente idealistas ou muito vagas.',
-        'Aproveite para corrigir percepções equivocadas com naturalidade, se necessário.'
+        'Observe se existe motivação genuína ou resposta muito genérica.',
+        'Perceba se o candidato conhece minimamente a empresa.',
+        'Aprofunde se ele trouxer respostas vagas como “aprender” ou “crescer”.'
       ],
-      whatToObserve: 'Alinhamento de expectativas e maturidade profissional.',
-      exampleFollowUps: ['O que você espera aprender nos primeiros meses?']
+      whatToObserve:
+        'Motivação, alinhamento com a empresa e clareza de escolha.',
+      exampleFollowUps: [
+        'O que chamou mais sua atenção na Watt?',
+        'Houve algo específico que te fez se inscrever?'
+      ]
     },
     {
       id: 'q-08',
-      section: 'EXPECTATIVAS SOBRE A EMPRESA',
+      section: 'WATT',
       order: 8,
       question:
-        'Sabendo que nosso trabalho não tem remuneração financeira, o que te motivaria a estar trabalhando na Watt todos os dias?',
+        'O que te motivaria a continuar trabalhando diariamente mesmo sem um incentivo financeiro?',
       tipsForInterviewer: [
-        'Esta pergunta avalia diretamente propósito e motivação intrínseca.',
-        'Observe se o candidato tem clareza sobre o que busca além do dinheiro.',
-        'Respostas como "crescimento profissional" podem ser válidas — peça exemplos concretos.'
+        'Avalie motivação intrínseca, propósito e visão de desenvolvimento.',
+        'Observe se a resposta vai além de frases prontas.',
+        'Perceba se ele entende a lógica de empresa júnior.'
       ],
-      whatToObserve:
-        'Motivação intrínseca, propósito e comprometimento sem retorno financeiro.',
+      whatToObserve: 'Comprometimento, propósito e motivação não financeira.',
       exampleFollowUps: [
-        'Já passou por outras experiências voluntárias ou sem remuneração? Como foi?'
+        'Você já viveu alguma experiência parecida sem remuneração?',
+        'O que mais te engaja em um ambiente de trabalho?'
       ]
     },
     {
       id: 'q-09',
-      section: 'EXPECTATIVAS SOBRE A EMPRESA',
+      section: 'WATT',
       order: 9,
-      question: 'Como você se imagina saindo da Watt Consultoria?',
+      question:
+        'Quais são as suas expectativas em relação à Watt? O que você espera vivenciar aqui?',
       tipsForInterviewer: [
-        'Observe se o candidato pensa no longo prazo e no legado que quer deixar.',
-        'Respostas que incluem crescimento pessoal, aprendizado e contribuição à empresa são positivas.',
-        'Atenção a respostas que focam apenas em "sair com currículo melhor".'
-      ],
-      whatToObserve: 'Visão de futuro, propósito e intenção de contribuição.',
-      exampleFollowUps: [
-        'O que você gostaria que as pessoas dissessem sobre sua passagem pela Watt?'
-      ]
-    },
-
-    // ── VISÃO DE FUTURO ───────────────────────────────────────────────────
-    {
-      id: 'q-10',
-      section: 'VISÃO DE FUTURO',
-      order: 10,
-      question: 'Quanto tempo você pretende passar na empresa?',
-      tipsForInterviewer: [
-        'Não há resposta certa — o importante é que o candidato tenha uma perspectiva clara.',
-        'Observe se há comprometimento com a empresa ou se o candidato vê como experiência passageira.',
-        'Esta pergunta pode revelar a maturidade da visão de carreira do candidato.'
+        'Observe se as expectativas são realistas e compatíveis com o que a empresa oferece.',
+        'Atenção a idealizações excessivas ou respostas muito amplas.',
+        'Use a resposta para medir alinhamento.'
       ],
       whatToObserve:
-        'Comprometimento, visão de carreira e alinhamento com a empresa.',
-      exampleFollowUps: ['O que te faria ficar mais tempo?']
+        'Alinhamento de expectativas, maturidade profissional e visão sobre a experiência.',
+      exampleFollowUps: [
+        'O que você espera aprender nos primeiros meses?',
+        'Que tipo de desafio você gostaria de viver aqui?'
+      ]
+    },
+    {
+      id: 'q-10',
+      section: 'WATT',
+      order: 10,
+      question:
+        'De que forma você acredita que pode contribuir com a Watt a partir dos seus conhecimentos acadêmicos?',
+      tipsForInterviewer: [
+        'Observe se o candidato consegue transformar conhecimento em contribuição prática.',
+        'Não espere domínio técnico completo; avalie potencial e clareza de raciocínio.',
+        'Perceba se ele tem noção de valor agregado.'
+      ],
+      whatToObserve:
+        'Conhecimento técnico, proatividade intelectual e noção de contribuição.',
+      exampleFollowUps: [
+        'Tem algum conteúdo ou habilidade que você acredita que pode aplicar logo no início?',
+        'Como isso poderia gerar valor para a equipe?'
+      ]
     },
     {
       id: 'q-11',
-      section: 'VISÃO DE FUTURO',
+      section: 'WATT',
       order: 11,
       question:
-        'Vou te dizer os valores da empresa: A Watt é a energia que nos move; Meu amanhã é o agora; Ética e transparência; Nada resiste ao trabalho; Responsabilidade social e ambiental; Profissionalismo e excelência; A mudança compõe o progresso. Com qual valor você mais se identifica e por quê?',
+        'Com qual perfil profissional você se imagina quando estiver saindo da Watt?',
       tipsForInterviewer: [
-        'Leia os valores devagar e claramente para o candidato.',
-        'Observe se a escolha é genuína ou apenas estratégica para "agradar".',
-        'Peça que conecte o valor a uma experiência real da vida do candidato.'
+        'Observe visão de futuro e nível de reflexão sobre desenvolvimento profissional.',
+        'A resposta não precisa ser fechada, mas deve mostrar direção.',
+        'Veja se a expectativa combina com a proposta da empresa.'
       ],
       whatToObserve:
-        'Alinhamento cultural, autenticidade e capacidade de conectar valores a experiências pessoais.',
+        'Visão de futuro, ambição saudável e intenção de desenvolvimento.',
       exampleFollowUps: [
-        'Tem alguma situação em que você viveu esse valor na prática?'
+        'Que competências você espera ter desenvolvido até lá?',
+        'Como a Watt entra nessa construção?'
       ]
     },
-
-    // ── LIDERANÇA ─────────────────────────────────────────────────────────
     {
       id: 'q-12',
-      section: 'LIDERANÇA',
+      section: 'WATT',
       order: 12,
       question:
-        'Teve algum momento em que você teve que tomar a frente de uma situação ou atuar como líder?',
+        'De que modo você pretende aplicar os conhecimentos adquiridos na Watt futuramente em um outro contexto de atuação?',
       tipsForInterviewer: [
-        'Peça um exemplo concreto — situações reais valem mais do que hipóteses.',
-        'Observe como o candidato descreve sua atuação: foi protagonista ou apenas participante?',
-        'Atenção à postura de liderança: foi imposta ou emergiu naturalmente?'
+        'Observe se o candidato enxerga transferência de aprendizado para outros cenários.',
+        'Perceba se há maturidade para conectar presente e futuro.',
+        'A resposta ajuda a entender o valor que ele atribui à experiência.'
       ],
       whatToObserve:
-        'Proatividade, liderança situacional e capacidade de tomar iniciativa.',
+        'Visão estratégica de aprendizado e capacidade de extrapolar experiências.',
       exampleFollowUps: [
-        'Como o grupo reagiu à sua liderança?',
-        'O que você faria diferente hoje?'
+        'Em que contexto futuro você imagina usar esse aprendizado?',
+        'Que tipo de crescimento você espera levar para depois da Watt?'
       ]
     },
-
-    // ── COMPROMISSO ───────────────────────────────────────────────────────
     {
       id: 'q-13',
-      section: 'COMPROMISSO',
+      section: 'WATT',
       order: 13,
       question:
-        'Como você prioriza suas atividades? Vamos supor que você tenha uma semana com várias provas importantes e, ao mesmo tempo, um prazo curto para entregar um projeto. Como você lidaria com isso?',
+        'Como você se vê contribuindo para a equipe, caso seja selecionado?',
       tipsForInterviewer: [
-        'Observe se o candidato tem um método real de priorização ou improvisa.',
-        'Atenção à postura diante do conflito: ele tende a abandonar um dos compromissos ou busca equilibrar?',
-        'Respostas que incluem comunicação ativa com o time são positivas.'
+        'Observe se a resposta considera time, rotina e colaboração, e não apenas desempenho individual.',
+        'Avalie segurança ao falar do que pode entregar.',
+        'Procure coerência com o restante da entrevista.'
       ],
       whatToObserve:
-        'Gestão de tempo, compromisso, resiliência e capacidade de comunicação sob pressão.',
+        'Espírito de equipe, noção de contribuição prática e confiança.',
       exampleFollowUps: [
-        'Já viveu uma situação parecida? Como resolveu?',
-        'Você comunicaria a dificuldade ao time?'
+        'O que você acredita que conseguiria agregar já no começo?',
+        'Como você costuma colaborar em grupo?'
       ]
     },
 
-    // ── DESTAQUE ──────────────────────────────────────────────────────────
+    // ── COMPETÊNCIAS E HABILIDADES ─────────────────────────────────────────
     {
       id: 'q-14',
-      section: 'DESTAQUE',
+      section: 'COMPETÊNCIAS E HABILIDADES',
       order: 14,
-      question: 'Por que você acha que deveria estar na Watt?',
+      question:
+        'Conte sobre uma situação em que você percebeu algo que precisava ser feito, mas que não era sua responsabilidade direta. O que você fez?',
       tipsForInterviewer: [
-        'Observe confiança, autoconhecimento e capacidade de síntese.',
-        'O candidato deve conseguir articular o que tem a oferecer — não apenas o que quer receber.',
-        'Respostas genéricas merecem aprofundamento: "O que especificamente você traria?"'
+        'Busque entender se houve iniciativa real ou apenas opinião.',
+        'Observe se o candidato agiu com senso de dono, responsabilidade e maturidade.',
+        'Aprofunde em contexto, ação e resultado.'
       ],
-      whatToObserve:
-        'Autoconfiança, clareza de valor pessoal e alinhamento com a empresa.',
+      whatToObserve: 'Proatividade, senso de responsabilidade e iniciativa.',
       exampleFollowUps: [
-        'O que você traria que outros candidatos talvez não trouxessem?'
+        'O que te levou a agir naquela situação?',
+        'Qual foi o resultado da sua atitude?'
       ]
     },
-
-    // ── FEEDBACK / TRABALHO EM EQUIPE ─────────────────────────────────────
     {
       id: 'q-15',
-      section: 'FEEDBACK / TRABALHO EM EQUIPE',
+      section: 'COMPETÊNCIAS E HABILIDADES',
       order: 15,
       question:
-        'Suponha que você esteja trabalhando em um projeto junto com outra pessoa e, um dia antes da entrega, ela envie a parte dela feita de qualquer jeito, com baixa qualidade. Você acaba tendo que corrigir tudo. Como reagiria a essa situação?',
+        'Você já precisou dar uma notícia difícil ou feedback para alguém? Como foi a conversa?',
       tipsForInterviewer: [
-        'Observe como o candidato lida com conflito — fuga, agressividade ou maturidade?',
-        'Atenção a candidatos que "absorvem tudo sozinhos" sem comunicar — sinal de falta de assertividade.',
-        'A melhor resposta inclui comunicação direta e construtiva com o colega.'
+        'Observe equilíbrio entre empatia e firmeza.',
+        'Perceba se houve preocupação com a forma e com o impacto da mensagem.',
+        'Busque exemplos concretos, não respostas hipotéticas.'
       ],
       whatToObserve:
-        'Gestão de conflitos, trabalho em equipe, assertividade e maturidade relacional.',
+        'Clareza, empatia, assertividade e maturidade na comunicação.',
       exampleFollowUps: [
-        'Já viveu algo parecido? Como resolveu?',
-        'Você conversaria com a pessoa depois? O que diria?'
+        'Como a pessoa reagiu?',
+        'Se tivesse que repetir essa conversa hoje, faria algo diferente?'
       ]
     },
-
-    // ── CRIATIVIDADE ─────────────────────────────────────────────────────
     {
       id: 'q-16',
-      section: 'CRIATIVIDADE',
+      section: 'COMPETÊNCIAS E HABILIDADES',
       order: 16,
       question:
-        'Se você tivesse recursos para tirar uma ideia empreendedora do papel, qual problema gostaria de resolver? Como organizaria as pessoas e os times para fazer essa ideia acontecer?',
+        'Já aconteceu de você ter que cumprir uma tarefa ou entregar um resultado mesmo quando estava com outras prioridades pessoais ou se sentindo desmotivado? Como você lidou com isso?',
       tipsForInterviewer: [
-        'Observe criatividade, mas principalmente a capacidade de estruturar uma ideia de forma coerente.',
-        'Atenção ao raciocínio de gestão de pessoas: como o candidato pensa sobre times e colaboração?',
-        'Não há resposta certa — avalie a clareza do raciocínio, não a ideia em si.'
+        'Observe se o candidato demonstra disciplina mesmo em cenários desfavoráveis.',
+        'Avalie como ele organiza energia, prioridades e compromisso.',
+        'Respostas maduras costumam incluir responsabilidade e comunicação.'
       ],
       whatToObserve:
-        'Criatividade, visão empreendedora e capacidade de organizar times e ideias.',
+        'Responsabilidade, comprometimento, resiliência e disciplina.',
       exampleFollowUps: [
-        'Por que esse problema em específico?',
-        'Que habilidades você buscaria no time para isso?'
+        'O que te ajudou a manter a entrega?',
+        'Você pediu ajuda ou reorganizou algo para conseguir cumprir?'
       ]
     },
-
-    // ── TRANSPARÊNCIA ─────────────────────────────────────────────────────
     {
       id: 'q-17',
-      section: 'TRANSPARÊNCIA',
+      section: 'COMPETÊNCIAS E HABILIDADES',
       order: 17,
       question:
-        'Como você lida e separa as situações profissionais das situações pessoais?',
+        'Me fale sobre um projeto em grupo que teve bons resultados. O que você acha que contribuiu para isso?',
       tipsForInterviewer: [
-        'Observe maturidade emocional e capacidade de estabelecer limites saudáveis.',
-        'Respostas que ignoram a separação (ex.: "levo tudo para casa") podem indicar falta de equilíbrio.',
-        'Atenção também ao extremo oposto: total frieza pode indicar falta de empatia.'
+        'Observe se ele reconhece o papel do coletivo e o próprio papel dentro dele.',
+        'Perceba se ele valoriza comunicação, divisão de tarefas e confiança.',
+        'Aprofunde sobre o que efetivamente fez diferença no resultado.'
       ],
       whatToObserve:
-        'Equilíbrio emocional, maturidade e capacidade de separar vida profissional e pessoal.',
+        'Trabalho em equipe, colaboração e leitura de dinâmica coletiva.',
       exampleFollowUps: [
-        'Já teve dificuldade com essa separação em algum momento?'
+        'Qual foi seu papel nesse grupo?',
+        'O que você acha que mais fortaleceu esse time?'
       ]
     },
-
-    // ── PROPÓSITO ─────────────────────────────────────────────────────────
     {
       id: 'q-18',
-      section: 'PROPÓSITO',
+      section: 'COMPETÊNCIAS E HABILIDADES',
       order: 18,
       question:
-        'O que você entende como propósito de vida e propósito profissional? Qual seria o seu?',
+        'Conte sobre uma situação em que um grupo ou equipe estava sem direção clara ou desmotivado. O que você fez nessa situação?',
       tipsForInterviewer: [
-        'Esta é uma das perguntas mais profundas da entrevista — dê tempo para o candidato pensar.',
-        'Observe clareza e autenticidade: respostas ensaiadas soam diferentes de respostas genuínas.',
-        'Não há resposta errada, mas a coerência com o restante da entrevista importa.'
+        'Observe se houve iniciativa prática ou apenas percepção do problema.',
+        'Liderança pode aparecer sem cargo formal; avalie influência e postura.',
+        'Entenda como ele mobilizou pessoas ou ajudou a reorganizar o contexto.'
       ],
-      whatToObserve:
-        'Clareza de propósito, profundidade reflexiva e coerência com o restante da entrevista.',
+      whatToObserve: 'Liderança, iniciativa e capacidade de mobilizar pessoas.',
       exampleFollowUps: [
-        'Quando você começou a pensar nisso?',
-        'O que te aproxima desse propósito hoje?'
+        'Como as pessoas reagiram à sua postura?',
+        'O que você faria de diferente hoje?'
       ]
     },
     {
       id: 'q-19',
-      section: 'PROPÓSITO',
+      section: 'COMPETÊNCIAS E HABILIDADES',
       order: 19,
-      question: 'O que você pretende fazer depois de formado(a)?',
+      question:
+        'Como você costuma organizar seu tempo quando tem várias tarefas ou prazos para cumprir?',
       tipsForInterviewer: [
-        'Observe se o candidato tem uma visão de futuro ou se ainda está sem direção.',
-        'Respostas flexíveis e abertas são normais — o importante é que haja reflexão.',
-        'Observe se a Watt se encaixa na trajetória que ele descreve.'
+        'Observe se o candidato possui método prático de priorização.',
+        'Peça exemplos de ferramentas, rotinas ou critérios de decisão.',
+        'Perceba se ele sabe equilibrar urgência, importância e comunicação.'
       ],
       whatToObserve:
-        'Visão de futuro, clareza de objetivos e maturidade profissional.',
+        'Planejamento, organização, priorização e gestão do tempo.',
       exampleFollowUps: [
-        'A Watt faz sentido nessa trajetória que você está construindo?'
+        'Como você define o que vem primeiro?',
+        'O que faz quando tudo parece urgente?'
       ]
     },
-
-    // ── AUTORESPONSABILIDADE ──────────────────────────────────────────────
     {
       id: 'q-20',
-      section: 'AUTORESPONSABILIDADE',
+      section: 'COMPETÊNCIAS E HABILIDADES',
       order: 20,
       question:
-        'Digamos que eu seja seu diretor e você meu gerente. Você e seu time receberam uma tarefa na semana passada, duas pessoas não participaram por negligência e o projeto terminou atrasando. Como você se explicaria para mim e quais providências tomaria com o time?',
+        'Conte sobre uma situação em que você teve que mudar seu plano ou se adaptar rapidamente a uma mudança inesperada.',
       tipsForInterviewer: [
-        'Observe se o candidato assume responsabilidade como líder ou transfere a culpa para o time.',
-        'A melhor resposta inclui reconhecer a falha, propor solução e agir com o time.',
-        'Atenção a candidatos que "culpam os outros" sem reflexão sobre o próprio papel.'
+        'Observe se a adaptação foi apenas reativa ou também estratégica.',
+        'Perceba como o candidato lida com frustração e mudança de rota.',
+        'Busque clareza entre contexto, ação e resultado.'
       ],
       whatToObserve:
-        'Autoresponsabilidade, liderança, capacidade de resolver conflitos e postura profissional sob pressão.',
+        'Adaptabilidade, flexibilidade e capacidade de resposta diante de mudanças.',
       exampleFollowUps: [
-        'Como você evitaria que isso acontecesse novamente?',
-        'O que faria de diferente na liderança do projeto?'
+        'O que foi mais difícil nessa adaptação?',
+        'Como você decidiu o que fazer depois da mudança?'
       ]
     },
-
-    // ── RESPONSABILIDADE SOCIAL ───────────────────────────────────────────
     {
       id: 'q-21',
-      section: 'RESPONSABILIDADE SOCIAL',
+      section: 'COMPETÊNCIAS E HABILIDADES',
       order: 21,
-      question: 'Na sua visão, qual é o papel da Watt com a sociedade?',
+      question:
+        'Você já se deparou com um problema inesperado no meio de uma tarefa ou projeto, e não havia ninguém por perto para ajudar de imediato? O que você fez para lidar com a situação?',
       tipsForInterviewer: [
-        'Observe se o candidato tem consciência do impacto que uma empresa júnior pode ter.',
-        'Atenção a respostas puramente técnicas — a dimensão social importa.',
-        'Uma boa resposta considera clientes, comunidade e o papel da empresa júnior no ecossistema.'
+        'Observe o raciocínio do candidato diante da incerteza.',
+        'Avalie se ele tentou entender o problema, testar caminhos e agir com autonomia.',
+        'Mais importante que “acertar” é mostrar processo de resolução.'
       ],
       whatToObserve:
-        'Consciência social, visão de impacto e alinhamento com os valores da empresa.',
+        'Resolução de problemas, autonomia e capacidade analítica.',
       exampleFollowUps: [
-        'Você já se envolveu em alguma ação social ou comunitária?'
+        'Qual foi seu primeiro passo diante do problema?',
+        'Como você avaliou se a solução estava funcionando?'
+      ]
+    },
+    {
+      id: 'q-22',
+      section: 'COMPETÊNCIAS E HABILIDADES',
+      order: 22,
+      question:
+        'Você já presenciou ou vivenciou uma situação em que algo parecia errado ou injusto? Como você reagiu?',
+      tipsForInterviewer: [
+        'Observe senso ético, respeito e coragem para se posicionar.',
+        'Perceba se o candidato consegue equilibrar firmeza com responsabilidade.',
+        'A resposta pode revelar valores muito importantes para a cultura.'
+      ],
+      whatToObserve:
+        'Ética, respeito, senso de justiça e postura diante de situações sensíveis.',
+      exampleFollowUps: [
+        'O que guiou sua decisão naquela situação?',
+        'Você faria algo diferente hoje?'
+      ]
+    },
+    {
+      id: 'q-23',
+      section: 'COMPETÊNCIAS E HABILIDADES',
+      order: 23,
+      question:
+        'Quando você está diante de uma tarefa desafiadora, como você lida com a insegurança ou pressão para entregar um bom resultado?',
+      tipsForInterviewer: [
+        'Observe se o candidato reconhece a pressão sem se paralisar por ela.',
+        'Perceba estratégias de autorregulação, preparação e busca de apoio.',
+        'A resposta ajuda a medir confiança e maturidade.'
+      ],
+      whatToObserve:
+        'Confiança, controle emocional e postura diante de desafios.',
+      exampleFollowUps: [
+        'O que normalmente te ajuda a ganhar segurança?',
+        'Você costuma pedir ajuda ou prefere tentar primeiro sozinho?'
+      ]
+    },
+    {
+      id: 'q-24',
+      section: 'COMPETÊNCIAS E HABILIDADES',
+      order: 24,
+      question:
+        'Você já usou um conhecimento técnico que aprendeu fora do ambiente de trabalho, como em curso, projeto pessoal ou hobby, para resolver uma situação profissional? Como isso aconteceu?',
+      tipsForInterviewer: [
+        'Observe capacidade de transferir aprendizado entre contextos.',
+        'Não avalie apenas profundidade técnica, mas aplicação prática do conhecimento.',
+        'Peça detalhes para entender o raciocínio.'
+      ],
+      whatToObserve:
+        'Conhecimento técnico, curiosidade, aprendizado aplicado e repertório prático.',
+      exampleFollowUps: [
+        'Como você aprendeu esse conhecimento?',
+        'Qual foi o impacto de aplicar isso na prática?'
+      ]
+    },
+    {
+      id: 'q-25',
+      section: 'COMPETÊNCIAS E HABILIDADES',
+      order: 25,
+      question:
+        'Por último... Por que a Watt não deveria te escolher como novo membro?',
+      tipsForInterviewer: [
+        'Observe honestidade, maturidade e nível de autocrítica.',
+        'Atenção a respostas que tentam apenas transformar fraqueza em propaganda.',
+        'O ideal é que ele reconheça limitações sem se desqualificar completamente.'
+      ],
+      whatToObserve:
+        'Capacidade autocrítica, autenticidade e equilíbrio entre humildade e confiança.',
+      exampleFollowUps: [
+        'E o que você faria para melhorar esse ponto?',
+        'Por outro lado, por que deveria ser escolhido?'
       ]
     },
 
-    // ── DISPOSIÇÕES FINAIS ────────────────────────────────────────────────
+    // ── DISPONIBILIDADE DO CANDIDATO ───────────────────────────────────────
     {
-      id: 'q-22',
-      section: 'DISPOSIÇÕES FINAIS',
-      order: 22,
+      id: 'q-26',
+      section: 'DISPONIBILIDADE DO CANDIDATO',
+      order: 26,
       question:
-        'Por último: por que a Watt não deveria te escolher como novo membro?',
+        'Quais são seus principais compromissos fora desta possível função? Qual a carga horária de cada um?',
       tipsForInterviewer: [
-        'Esta é uma pergunta de fechamento — observe como o candidato lida com a vulnerabilidade.',
-        'Uma boa resposta demonstra honestidade e consciência das próprias limitações sem se desqualificar.',
-        'Observe se o candidato usa a pergunta para se promover disfarçadamente ou se responde com autenticidade.'
+        'Mapeie rotina real e consistência da disponibilidade apresentada.',
+        'Observe se o candidato consegue dimensionar o próprio tempo com clareza.',
+        'Essa pergunta é importante para alinhamento prático.'
       ],
       whatToObserve:
-        'Honestidade, autoconhecimento, equilíbrio entre humildade e confiança.',
+        'Disponibilidade real, organização de rotina e transparência.',
       exampleFollowUps: [
-        'E por que deveria?',
-        'O que você faria para superar essa limitação na Watt?'
+        'Quais desses compromissos são fixos e quais variam?',
+        'Como você costuma se organizar com eles ao longo da semana?'
+      ]
+    },
+    {
+      id: 'q-27',
+      section: 'DISPONIBILIDADE DO CANDIDATO',
+      order: 27,
+      question:
+        'Você acredita que esses compromissos podem interferir na sua dedicação a esta vaga?',
+      tipsForInterviewer: [
+        'Observe honestidade e maturidade para reconhecer possíveis conflitos.',
+        'A resposta não precisa ser “não”; o mais importante é a consciência e a gestão.',
+        'Procure entender se existe plano para conciliar.'
+      ],
+      whatToObserve:
+        'Comprometimento, realismo e capacidade de conciliar demandas.',
+      exampleFollowUps: [
+        'Como você lidaria caso surgisse conflito de agenda?',
+        'Já passou por algo parecido antes?'
+      ]
+    },
+
+    // ── DÚVIDAS DO CANDIDATO ───────────────────────────────────────────────
+    {
+      id: 'q-28',
+      section: 'DÚVIDAS DO CANDIDATO',
+      order: 28,
+      question:
+        'Você gostaria de fazer alguma pergunta sobre a vaga, a equipe ou a empresa?',
+      tipsForInterviewer: [
+        'Observe o tipo de dúvida levantada: isso revela interesse, preparo e prioridades.',
+        'Mesmo se a pessoa disser que não tem perguntas, note a naturalidade dessa resposta.',
+        'Use esse momento também para fechar a entrevista com acolhimento.'
+      ],
+      whatToObserve:
+        'Interesse, preparação, curiosidade e engajamento com a oportunidade.',
+      exampleFollowUps: [
+        'Tem algo sobre rotina, desenvolvimento ou cultura que você gostaria de entender melhor?'
+      ]
+    },
+    {
+      id: 'q-29',
+      section: 'DÚVIDAS DO CANDIDATO',
+      order: 29,
+      question: 'Tem algo que você gostaria de acrescentar ou destacar?',
+      tipsForInterviewer: [
+        'Dê espaço para o candidato trazer algo que não apareceu naturalmente.',
+        'Esse momento costuma revelar prioridades pessoais ou mensagens finais importantes.',
+        'Observe também a capacidade de síntese no encerramento.'
+      ],
+      whatToObserve:
+        'Capacidade de fechamento, senso de prioridade e expressão final do candidato.',
+      exampleFollowUps: [
+        'Existe algum ponto da sua trajetória que você considera importante reforçar?',
+        'Tem algo que você sente que ainda não conseguiu mostrar na entrevista?'
       ]
     }
   ];

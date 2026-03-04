@@ -58,7 +58,7 @@ export function useFilteredNavItems(items: NavItem[]) {
 
     const allowLeads =
       ['diretor', 'presidente', 'assessor'].includes(role) ||
-      sector === 'Comercial';
+      sector === 'comercial';
     if (allowLeads) {
       allowedUrls.add('/dashboard/leads');
     }
