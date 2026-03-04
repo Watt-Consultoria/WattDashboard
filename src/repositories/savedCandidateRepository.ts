@@ -8,6 +8,7 @@ import type {
   InterviewState
 } from '@/types/candidate/candidate';
 import type { InterviewResult } from '@/types/interview/interview';
+import type { InterviewAnswersMap } from '@/types/interview/interview-script';
 import { firebaseDb } from '@/lib/firebase/client';
 import {
   addDoc,
@@ -513,6 +514,38 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
   }
 
   /**
+   * Persiste as respostas do roteiro de entrevista dentro de `interview.answers`.
+   * Faz merge com os dados existentes do campo `interview`, preservando
+   * state, result e demais propriedades.
+   */
+  async setInterviewAnswers(
+    candidateId: string,
+    answers: InterviewAnswersMap
+  ): Promise<void> {
+    if (!candidateId) {
+      throw new MissingParameterError(['candidateId']);
+    }
+
+    const docRef = this.getDocRef(candidateId);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+      throw new ValidationError('Candidato não encontrado');
+    }
+
+    const currentData = docSnap.data();
+    const currentInterview = this.normalizeInterview(currentData.interview);
+
+    await updateDoc(docRef, {
+      interview: {
+        ...currentInterview,
+        answers
+      },
+      updatedAt: serverTimestamp()
+    });
+  }
+
+  /**
    * Normaliza os dados de entrevista vindos do Firestore.
    */
   private normalizeInterview(raw: unknown): CandidateInterview {
@@ -546,6 +579,11 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
     // Normaliza resultado da avaliação, se existir
     if (obj.result && typeof obj.result === 'object') {
       interview.result = obj.result as InterviewResult;
+    }
+
+    // Normaliza respostas do roteiro de entrevista, se existirem
+    if (obj.answers && typeof obj.answers === 'object') {
+      interview.answers = obj.answers as InterviewAnswersMap;
     }
 
     return interview;

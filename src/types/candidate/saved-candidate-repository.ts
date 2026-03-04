@@ -1,6 +1,7 @@
 import type { SavedCandidate, SaveCandidateInput } from './saved-candidate';
 import type { CandidateInterview } from './candidate';
 import type { InterviewResult } from '@/types/interview/interview';
+import type { InterviewAnswersMap } from '@/types/interview/interview-script';
 
 export default interface ISavedCandidateRepository {
   /** Salva um pré-candidato como candidato na coleção `candidates` */
@@ -55,5 +56,11 @@ export default interface ISavedCandidateRepository {
   setInterviewResult(
     candidateId: string,
     result: InterviewResult
+  ): Promise<void>;
+
+  /** Persiste as respostas do roteiro de entrevista no campo interview.answers */
+  setInterviewAnswers(
+    candidateId: string,
+    answers: InterviewAnswersMap
   ): Promise<void>;
 }

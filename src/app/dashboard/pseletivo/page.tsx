@@ -328,6 +328,9 @@ export default function PSeletivoPage() {
   // Estado para o slider de roteiro de entrevista
   const [isInterviewScriptSliderOpen, setIsInterviewScriptSliderOpen] =
     React.useState(false);
+  // Candidato selecionado para o roteiro de entrevista (com persistência de respostas)
+  const [interviewScriptCandidate, setInterviewScriptCandidate] =
+    React.useState<Candidate | null>(null);
 
   // Membros da empresa com tag "Psel" para a planilha de entrevistas
   const pselMembers: ResponsibleMember[] = React.useMemo(
@@ -2072,6 +2075,38 @@ export default function PSeletivoPage() {
                                 />
                               </Button>
                             )}
+                          {viewMode === 'candidatos' &&
+                            member.interview?.state === 'scheduled' && (
+                              <Button
+                                type='button'
+                                size='icon'
+                                variant='ghost'
+                                className='h-8 w-8 shrink-0 cursor-pointer rounded-md border text-cyan-600 hover:bg-cyan-600/10 [&_svg]:h-[0.875em]! [&_svg]:w-[0.875em]!'
+                                onClick={() => {
+                                  setInterviewScriptCandidate(member);
+                                  setIsInterviewScriptSliderOpen(true);
+                                }}
+                                aria-label={`Roteiro de entrevista de ${member.nome} ${member.sobrenome}`}
+                                title={
+                                  member.interview?.answers &&
+                                  Object.keys(member.interview.answers).length >
+                                    0
+                                    ? 'Ver/editar respostas do roteiro'
+                                    : 'Preencher roteiro de entrevista'
+                                }
+                              >
+                                <FontAwesomeIcon
+                                  icon={faClipboardList}
+                                  className={
+                                    member.interview?.answers &&
+                                    Object.keys(member.interview.answers)
+                                      .length > 0
+                                      ? 'text-cyan-600'
+                                      : ''
+                                  }
+                                />
+                              </Button>
+                            )}
                           {viewMode === 'candidatos' && (
                             <Button
                               type='button'
@@ -3747,7 +3782,25 @@ export default function PSeletivoPage() {
       {/* Dialog: roteiro de entrevista (slider) */}
       <InterviewScriptSliderDialog
         open={isInterviewScriptSliderOpen}
-        onOpenChange={setIsInterviewScriptSliderOpen}
+        onOpenChange={(open) => {
+          setIsInterviewScriptSliderOpen(open);
+          if (!open) setInterviewScriptCandidate(null);
+        }}
+        candidateId={interviewScriptCandidate?.id}
+        candidateName={
+          interviewScriptCandidate
+            ? `${interviewScriptCandidate.nome} ${interviewScriptCandidate.sobrenome}`
+            : undefined
+        }
+        onSaveSuccess={async () => {
+          try {
+            const updated =
+              await savedCandidateService.listActiveSavedCandidatesAsCandidate();
+            setSavedCandidates(updated.filter((c) => !c.desclassificado));
+          } catch {
+            // silencioso
+          }
+        }}
       />
 
       {/* Dialog de avaliação de entrevista */}

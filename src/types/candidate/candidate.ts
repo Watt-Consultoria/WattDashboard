@@ -1,4 +1,5 @@
 import type { InterviewResult } from '@/types/interview/interview';
+import type { InterviewAnswersMap } from '@/types/interview/interview-script';
 
 export type CandidateTaskStatus = 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDA';
 
@@ -46,6 +47,8 @@ export type CandidateInterview = {
   googleMeetLink?: string;
   /** Resultado da avaliação da entrevista (preenchido pelo entrevistador) */
   result?: InterviewResult;
+  /** Respostas das perguntas do roteiro de entrevista (indexadas por questionId) */
+  answers?: InterviewAnswersMap;
 };
 
 export type Candidate = {
