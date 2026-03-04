@@ -25,7 +25,8 @@ export type InterviewState =
   | 'sentEmail'
   | 'requested'
   | 'scheduled'
-  | 'finished';
+  | 'finished'
+  | 'canceled';
 
 /**
  * Dados de entrevista associados a um candidato.

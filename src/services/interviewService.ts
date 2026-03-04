@@ -15,7 +15,10 @@ import type {
   DesiredTraitAverages,
   UndesiredTraitDistribution
 } from '@/types/interview/interview';
-import type { Candidate } from '@/types/candidate/candidate';
+import type {
+  Candidate,
+  CandidateInterview
+} from '@/types/candidate/candidate';
 import { ValidationError } from '@/errors/serviceErrors';
 
 class InterviewService {
@@ -55,11 +58,35 @@ class InterviewService {
 
   /**
    * Remove um horário de entrevista.
+   * Se o horário está atribuído a um candidato, reseta o estado da entrevista
+   * para 'notSentEmail'.
    */
   async removeSlot(formId: string, slotId: string): Promise<void> {
     if (!formId?.trim() || !slotId?.trim()) {
       throw new Error('Formulário e horário são obrigatórios');
     }
+
+    // Buscar o slot antes de remover para verificar se está atribuído
+    const slot = await interviewRepository.getSlotById(formId, slotId);
+
+    if (slot && slot.status === 'booked' && slot.bookedByCandidateId) {
+      // Reset interview state para 'notSentEmail' quando o slot é removido
+      const resetInterview: CandidateInterview = {
+        state: 'canceled'
+      };
+      await savedCandidateRepository.updateInterviewState(
+        slot.bookedByCandidateId,
+        resetInterview
+      );
+    }
+
+    console.error(
+      'Resetting interview state for candidate',
+      slot?.bookedByCandidateId,
+      'to canceled'
+    );
+
+    // Remover o slot
     await interviewRepository.removeSlot(formId, slotId);
   }
 

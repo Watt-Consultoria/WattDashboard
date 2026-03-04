@@ -443,13 +443,6 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
       throw new ValidationError('Candidato não encontrado');
     }
 
-    console.error(
-      'Updating interview state for candidate',
-      candidateId,
-      'to',
-      interview
-    );
-
     await updateDoc(docRef, {
       interview,
       updatedAt: serverTimestamp()
@@ -533,7 +526,8 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
       'sentEmail',
       'requested',
       'scheduled',
-      'finished'
+      'finished',
+      'canceled'
     ];
     const state = validStates.includes(obj.state as InterviewState)
       ? (obj.state as InterviewState)

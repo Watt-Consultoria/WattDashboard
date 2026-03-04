@@ -138,6 +138,12 @@ const interviewStatusConfig: Record<
     color: 'text-green-700 dark:text-green-400',
     bgColor: 'bg-green-50 dark:bg-green-950/30',
     borderColor: 'border-green-200 dark:border-green-800/40'
+  },
+  canceled: {
+    label: 'Entrevista cancelada',
+    color: 'text-gray-700 dark:text-gray-400',
+    bgColor: 'bg-gray-50 dark:bg-gray-950/30',
+    borderColor: 'border-gray-200 dark:border-gray-800/40'
   }
 };
 
@@ -146,7 +152,8 @@ const interviewStatusDotColor: Record<InterviewState, string> = {
   sentEmail: 'bg-amber-500',
   requested: 'bg-emerald-500',
   scheduled: 'bg-blue-500',
-  finished: 'bg-green-500'
+  finished: 'bg-green-500',
+  canceled: 'bg-gray-500'
 };
 
 const INTERVIEW_TIME_OPTIONS = Array.from({ length: 15 }, (_, index) => {
@@ -2010,7 +2017,7 @@ export default function PSeletivoPage() {
                         </div>
                         <div className='flex items-center gap-1'>
                           {viewMode === 'candidatos' &&
-                            member.interview?.state !== 'finished' && (
+                            member.interview?.state === 'scheduled' && (
                               <Button
                                 type='button'
                                 size='icon'
