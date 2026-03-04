@@ -1,5 +1,6 @@
 import type { SavedCandidate, SaveCandidateInput } from './saved-candidate';
 import type { CandidateInterview } from './candidate';
+import type { InterviewResult } from '@/types/interview/interview';
 
 export default interface ISavedCandidateRepository {
   /** Salva um pré-candidato como candidato na coleção `candidates` */
@@ -48,5 +49,11 @@ export default interface ISavedCandidateRepository {
   updateInterviewStateForMultiple(
     candidateIds: string[],
     interview: CandidateInterview
+  ): Promise<void>;
+
+  /** Persiste o resultado da avaliação de entrevista no campo interview.result */
+  setInterviewResult(
+    candidateId: string,
+    result: InterviewResult
   ): Promise<void>;
 }

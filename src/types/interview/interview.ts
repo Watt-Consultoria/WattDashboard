@@ -2,6 +2,144 @@
 // Tipos para o sistema de entrevistas do PSEL
 // ---------------------------------------------------------------------------
 
+// ── Avaliação de entrevista ──────────────────────────────────────────────────
+
+/**
+ * Nota de 1 a 5 para qualidades desejadas.
+ *
+ * - 1: Não apresentou desempenho correspondente com as expectativas
+ * - 2: Apresentou um desempenho abaixo do correspondente com as expectativas
+ * - 3: Apresentou um desempenho razoável correspondente com as expectativas
+ * - 4: Apresentou um bom desempenho correspondente com as expectativas
+ * - 5: Apresentou um ótimo desempenho correspondente com as expectativas
+ */
+export type DesiredTraitRating = 1 | 2 | 3 | 4 | 5;
+
+/**
+ * Classificação qualitativa para habilidades/comportamentos indesejados.
+ *
+ * - 'notPresented': Não apresentou
+ * - 'presented': Apresentou
+ * - 'unclear': Pareceu apresentar, mas não ficou claro
+ */
+export type UndesiredTraitAssessment = 'notPresented' | 'presented' | 'unclear';
+
+/** Chaves válidas para as qualidades desejadas. */
+export type DesiredTraitKey =
+  | 'proatividade'
+  | 'compromisso'
+  | 'lideranca'
+  | 'proposito'
+  | 'transparencia'
+  | 'autoresponsabilidade'
+  | 'uniaoDeTime'
+  | 'autoconfianca'
+  | 'comunicacao'
+  | 'responsabilidadeSocial'
+  | 'seriedade'
+  | 'criatividade';
+
+/** Chaves válidas para as habilidades indesejadas. */
+export type UndesiredTraitKey =
+  | 'procrastinacao'
+  | 'propositoVago'
+  | 'desinteresse'
+  | 'vitimizacao'
+  | 'faltaDeTransparencia'
+  | 'faltaDeConfianca';
+
+/** Mapa de qualidades desejadas com suas respectivas notas (1–5). */
+export type InterviewDesiredTraits = Record<
+  DesiredTraitKey,
+  DesiredTraitRating
+>;
+
+/** Mapa de habilidades indesejadas com suas classificações qualitativas. */
+export type InterviewUndesiredTraits = Record<
+  UndesiredTraitKey,
+  UndesiredTraitAssessment
+>;
+
+/** Identificação do avaliador que registrou a avaliação. */
+export type InterviewReviewer = {
+  /** ID do membro avaliador */
+  id: string;
+  /** Nome do membro avaliador */
+  name: string;
+};
+
+/**
+ * Resultado da avaliação de entrevista, armazenado em `interview.result`.
+ *
+ * Estrutura escalável para suportar futuramente múltiplos avaliadores,
+ * média consolidada, parecer final e recomendação de aprovação/reprovação.
+ */
+export type InterviewResult = {
+  /** Notas das qualidades desejadas */
+  desiredTraits: InterviewDesiredTraits;
+  /** Avaliações das habilidades indesejadas */
+  undesiredTraits: InterviewUndesiredTraits;
+  /** Identificação do avaliador */
+  reviewer: InterviewReviewer;
+  /** Timestamp ISO de quando a avaliação foi registrada */
+  reviewedAt: string;
+  /** Observações gerais sobre a entrevista (opcional) */
+  notes?: string;
+};
+
+/**
+ * Dados de entrada para submeter uma avaliação de entrevista.
+ * Omite campos gerados automaticamente (reviewedAt).
+ */
+export type SubmitInterviewResultInput = {
+  candidateId: string;
+  reviewerId: string;
+  reviewerName: string;
+  desiredTraits: InterviewDesiredTraits;
+  undesiredTraits: InterviewUndesiredTraits;
+  notes?: string;
+};
+
+// ── Estatísticas de entrevista ───────────────────────────────────────────────
+
+/** Resultado individual de entrevista com dados do candidato. */
+export type InterviewResultView = {
+  candidateId: string;
+  candidateName: string;
+  /** Média aritmética das notas de qualidades desejadas (1–5). */
+  desiredTraitsAverage: number;
+  /** Quantidade de habilidades indesejadas marcadas como "presented". */
+  undesiredPresented: number;
+  /** Pontuação final = desiredTraitsAverage - (penalidade por indesejadas). */
+  finalScore: number;
+  result: InterviewResult;
+};
+
+/** Média de cada qualidade desejada no conjunto de candidatos avaliados. */
+export type DesiredTraitAverages = Record<DesiredTraitKey, number>;
+
+/** Distribuição de classificações para cada habilidade indesejada. */
+export type UndesiredTraitDistribution = Record<
+  UndesiredTraitKey,
+  { notPresented: number; presented: number; unclear: number }
+>;
+
+/** Estatísticas agregadas de todas as entrevistas avaliadas. */
+export type InterviewStatistics = {
+  /** Total de candidatos avaliados */
+  totalEvaluated: number;
+  /** Média geral das médias individuais de qualidades desejadas */
+  overallDesiredAverage: number;
+  /** Média de cada qualidade desejada */
+  desiredTraitAverages: DesiredTraitAverages;
+  /** Distribuição de classificações por habilidade indesejada */
+  undesiredTraitDistribution: UndesiredTraitDistribution;
+  /** Resultados individuais ordenados por pontuação final (decrescente) */
+  rankings: InterviewResultView[];
+};
+
+// ── Agendamento de entrevista ────────────────────────────────────────────────
+
 /**
  * Status de ocupação de um horário de entrevista.
  * - 'available': horário livre para agendamento
