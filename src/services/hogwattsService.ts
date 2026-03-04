@@ -181,18 +181,6 @@ class HogwattsService {
     const task = await hogwattsRepository.getTaskById(taskId);
     if (!task) throw new ValidationError('Tarefa não encontrada');
 
-    // Prevenir submissão duplicada pendente (mesma tarefa + mesmo membro + status Pendente)
-    const existing = await hogwattsRepository.getSubmissions({
-      memberId,
-      status: 'Pendente'
-    });
-    const duplicatePending = existing.find((s) => s.taskId === taskId);
-    if (duplicatePending) {
-      throw new ValidationError(
-        'Já existe uma submissão pendente para esta tarefa'
-      );
-    }
-
     // Upload do arquivo de comprovação, se fornecido
     let proofFileUrl: string | null = null;
     if (input.proofFile) {
