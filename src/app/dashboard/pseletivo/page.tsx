@@ -60,7 +60,8 @@ import {
   faTableCells,
   faClock,
   faVideo,
-  faEllipsisVertical
+  faEllipsisVertical,
+  faClipboardList
 } from '@fortawesome/free-solid-svg-icons';
 import {
   PselScheduleSpreadsheet,
@@ -82,6 +83,7 @@ import {
 } from './interview';
 import { InterviewEvaluationDialog } from '@/components/interview-evaluation-dialog';
 import { InterviewResultsTab } from '@/components/interview-results-tab';
+import { InterviewScriptSliderDialog } from '@/components/interview-script-slider';
 import { faStar, faChartBar } from '@fortawesome/free-solid-svg-icons';
 
 type ViewMode =
@@ -321,6 +323,10 @@ export default function PSeletivoPage() {
 
   // Estado para o dialog da planilha de disponibilidade PSEL
   const [isScheduleSpreadsheetOpen, setIsScheduleSpreadsheetOpen] =
+    React.useState(false);
+
+  // Estado para o slider de roteiro de entrevista
+  const [isInterviewScriptSliderOpen, setIsInterviewScriptSliderOpen] =
     React.useState(false);
 
   // Membros da empresa com tag "Psel" para a planilha de entrevistas
@@ -1724,6 +1730,18 @@ export default function PSeletivoPage() {
               <FontAwesomeIcon icon={faCalendarDays} className='h-3 w-3' />
             </Button>
 
+            {/* Interview script slider button - visible on sm+ */}
+            <Button
+              type='button'
+              variant='outline'
+              size='icon'
+              onClick={() => setIsInterviewScriptSliderOpen(true)}
+              className='hidden h-8 w-8 sm:inline-flex'
+              title='Roteiro de entrevista'
+            >
+              <FontAwesomeIcon icon={faClipboardList} className='h-3 w-3' />
+            </Button>
+
             {/* Schedule spreadsheet button - visible on sm+ */}
             <Button
               type='button'
@@ -1793,6 +1811,16 @@ export default function PSeletivoPage() {
                     className='mr-2 h-4 w-4'
                   />
                   Planilha PSEL
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setIsInterviewScriptSliderOpen(true)}
+                  className='sm:hidden'
+                >
+                  <FontAwesomeIcon
+                    icon={faClipboardList}
+                    className='mr-2 h-4 w-4'
+                  />
+                  Roteiro de entrevista
                 </DropdownMenuItem>
                 {viewMode === 'candidatos' && (
                   <>
@@ -3716,6 +3744,12 @@ export default function PSeletivoPage() {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Dialog: roteiro de entrevista (slider) */}
+      <InterviewScriptSliderDialog
+        open={isInterviewScriptSliderOpen}
+        onOpenChange={setIsInterviewScriptSliderOpen}
+      />
+
       {/* Dialog de avaliação de entrevista */}
       {evaluationCandidate && (
         <InterviewEvaluationDialog

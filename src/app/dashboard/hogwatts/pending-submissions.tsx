@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Check, X } from 'lucide-react';
+import { Check, X, FileText } from 'lucide-react';
 import hogwattsService from '@/services/hogwattsService';
 import type { HogwattsSubmission } from '@/types/hogwatts/hogwatts';
 import { Button } from '@/components/ui/button';
@@ -105,6 +105,7 @@ export function PendingSubmissions({
                 <TableHead>Tarefa</TableHead>
                 <TableHead className='text-right'>Pontos</TableHead>
                 <TableHead>Observação</TableHead>
+                <TableHead className='text-center'>Comprovação</TableHead>
                 <TableHead className='text-center'>Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -124,6 +125,22 @@ export function PendingSubmissions({
                   </TableCell>
                   <TableCell className='max-w-xs truncate'>
                     {sub.note || '-'}
+                  </TableCell>
+                  <TableCell className='text-center'>
+                    {sub.proofFileUrl ? (
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='h-8 gap-1'
+                        onClick={() => window.open(sub.proofFileUrl!, '_blank')}
+                        title='Ver arquivo de comprovação'
+                      >
+                        <FileText className='h-4 w-4' />
+                        Ver arquivo
+                      </Button>
+                    ) : (
+                      <span className='text-muted-foreground text-xs'>-</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className='flex items-center justify-center gap-2'>
@@ -182,6 +199,18 @@ export function PendingSubmissions({
                 <p className='text-muted-foreground mb-2 line-clamp-2 text-xs'>
                   {sub.note}
                 </p>
+              )}
+
+              {sub.proofFileUrl && (
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='mb-2 h-8 w-full gap-1 text-xs'
+                  onClick={() => window.open(sub.proofFileUrl!, '_blank')}
+                >
+                  <FileText className='h-3.5 w-3.5' />
+                  Ver arquivo de comprovação
+                </Button>
               )}
 
               <div className='flex items-center gap-2'>

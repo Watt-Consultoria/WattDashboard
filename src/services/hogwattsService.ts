@@ -1,4 +1,5 @@
 import hogwattsRepository from '@/repositories/hogwattsRepository';
+import hogwattsUploadRepository from '@/repositories/hogwattsUploadRepository';
 import memberRepository from '@/repositories/memberRepository';
 import { ValidationError } from '@/errors/serviceErrors';
 import type {
@@ -144,6 +145,20 @@ class HogwattsService {
 
   // ── Submissão de tarefa ────────────────────────────────────────────────
 
+  /**
+   * Gera ID único para o arquivo de comprovação usando data + timestamp
+   * Formato: YYYYMMDD-timestamp
+   */
+  private generateProofFileId(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const timestamp = Date.now();
+
+    return `${year}${month}${day}-${timestamp}`;
+  }
+
   async submitTask(input: CreateSubmissionInput): Promise<void> {
     const memberId = input.memberId?.trim();
     if (!memberId) throw new ValidationError('Membro inválido');
@@ -166,16 +181,23 @@ class HogwattsService {
     const task = await hogwattsRepository.getTaskById(taskId);
     if (!task) throw new ValidationError('Tarefa não encontrada');
 
-    // Prevenir submissão duplicada pendente (mesma tarefa + mesmo membro + status Pendente)
-    const existing = await hogwattsRepository.getSubmissions({
-      memberId,
-      status: 'Pendente'
-    });
-    const duplicatePending = existing.find((s) => s.taskId === taskId);
-    if (duplicatePending) {
-      throw new ValidationError(
-        'Já existe uma submissão pendente para esta tarefa'
-      );
+    // Upload do arquivo de comprovação, se fornecido
+    let proofFileUrl: string | null = null;
+    if (input.proofFile) {
+      try {
+        const fileId = this.generateProofFileId();
+        const uploadResult = await hogwattsUploadRepository.uploadProofFile(
+          fileId,
+          input.proofFile
+        );
+        proofFileUrl = uploadResult.downloadUrl;
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Erro ao fazer upload do arquivo de comprovação';
+        throw new ValidationError(message);
+      }
     }
 
     await hogwattsRepository.createSubmission({
@@ -187,6 +209,7 @@ class HogwattsService {
       houseName: profile.houseName,
       status: 'Pendente',
       note: input.note?.trim() ?? '',
+      proofFileUrl,
       reviewedBy: '',
       reviewedAt: null
     });

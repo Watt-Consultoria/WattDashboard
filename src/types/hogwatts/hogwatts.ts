@@ -61,6 +61,7 @@ export type HogwattsSubmission = {
   houseName: HogwattsHouseName;
   status: HogwattsSubmissionStatus;
   note: string;
+  proofFileUrl: string | null;
   reviewedBy: string;
   reviewedAt: Timestamp | null;
   createdAt: Timestamp;
@@ -83,6 +84,7 @@ export type CreateSubmissionInput = {
   taskId: string;
   memberId: string;
   note?: string;
+  proofFile?: File;
 };
 
 export type ReviewSubmissionInput = {

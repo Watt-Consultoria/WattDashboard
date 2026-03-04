@@ -116,12 +116,12 @@ export function FileUploader(props: FileUploaderProps) {
   const onDrop = React.useCallback(
     (acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
       if (!multiple && maxFiles === 1 && acceptedFiles.length > 1) {
-        toast.error('Cannot upload more than 1 file at a time');
+        toast.error('Não é possível enviar mais de um arquivo de uma vez');
         return;
       }
 
       if ((files?.length ?? 0) + acceptedFiles.length > maxFiles) {
-        toast.error(`Cannot upload more than ${maxFiles} files`);
+        toast.error(`Não é possível enviar mais de ${maxFiles} arquivos`);
         return;
       }
 
@@ -137,7 +137,9 @@ export function FileUploader(props: FileUploaderProps) {
 
       if (rejectedFiles.length > 0) {
         rejectedFiles.forEach(({ file }) => {
-          toast.error(`File ${file.name} was rejected`);
+          toast.error(
+            `O arquivo ${file.name} foi rejeitado. Verifique o tipo e o tamanho do arquivo.`
+          );
         });
       }
 
@@ -150,12 +152,12 @@ export function FileUploader(props: FileUploaderProps) {
           updatedFiles.length > 0 ? `${updatedFiles.length} files` : `file`;
 
         toast.promise(onUpload(updatedFiles), {
-          loading: `Uploading ${target}...`,
+          loading: `Fazendo upload de ${target}...`,
           success: () => {
             setFiles([]);
-            return `${target} uploaded`;
+            return `${target} enviado com sucesso`;
           },
-          error: `Failed to upload ${target}`
+          error: `Falha ao realizar upload de ${target}`
         });
       }
     },
@@ -230,12 +232,13 @@ export function FileUploader(props: FileUploaderProps) {
                 </div>
                 <div className='space-y-px'>
                   <p className='text-muted-foreground font-medium'>
-                    Drag {`'n'`} drop files here, or click to select files
+                    Arraste e solte os arquivos aqui, ou clique para selecionar
+                    arquivos
                   </p>
                   <p className='text-muted-foreground/70 text-sm'>
-                    You can upload
+                    Você pode enviar
                     {maxFiles > 1
-                      ? ` ${maxFiles === Infinity ? 'multiple' : maxFiles}
+                      ? ` ${maxFiles === Infinity ? 'múltiplos' : maxFiles}
                       files (up to ${formatBytes(maxSize)} each)`
                       : ` a file with ${formatBytes(maxSize)}`}
                   </p>
