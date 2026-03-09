@@ -248,7 +248,7 @@ export function InterviewEvaluationDialog({
         reviewerName,
         desiredTraits: desiredTraits as InterviewDesiredTraits,
         undesiredTraits: undesiredTraits as InterviewUndesiredTraits,
-        notes: notes.trim() || undefined
+        notes: notes.trim() || ''
       });
       toast.success('Avaliação registrada com sucesso!');
       onOpenChange(false);

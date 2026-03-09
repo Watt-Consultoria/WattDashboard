@@ -3,8 +3,7 @@
 import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Progress } from '@/components/ui/progress';
+
 import {
   Tooltip,
   TooltipContent,
@@ -197,72 +196,70 @@ function RankingSection({ rankings }: { rankings: InterviewResultView[] }) {
         </CardTitle>
       </CardHeader>
       <CardContent className='p-0'>
-        <ScrollArea className='max-h-125'>
-          <div className='divide-y'>
-            {rankings.map((r, idx) => (
-              <div
-                key={r.candidateId}
-                className='flex items-center gap-3 px-4 py-3'
+        <div className='divide-y'>
+          {rankings.map((r, idx) => (
+            <div
+              key={r.candidateId}
+              className='flex items-center gap-3 px-3 py-3 sm:px-4'
+            >
+              {/* Posição */}
+              <span
+                className={cn(
+                  'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                  idx === 0
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                    : idx === 1
+                      ? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                      : idx === 2
+                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
+                        : 'bg-muted text-muted-foreground'
+                )}
               >
-                {/* Posição */}
-                <span
-                  className={cn(
-                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold',
-                    idx === 0
-                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
-                      : idx === 1
-                        ? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-                        : idx === 2
-                          ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
-                          : 'bg-muted text-muted-foreground'
-                  )}
-                >
-                  {idx + 1}
-                </span>
+                {idx + 1}
+              </span>
 
-                {/* Nome */}
-                <div className='min-w-0 flex-1'>
-                  <p className='truncate text-sm font-medium'>
-                    {r.candidateName}
-                  </p>
-                  <p className='text-muted-foreground text-xs'>
-                    Média desejadas:{' '}
-                    <span className={ratingTextColor(r.desiredTraitsAverage)}>
-                      {r.desiredTraitsAverage.toFixed(2)}
+              {/* Nome */}
+              <div className='min-w-0 flex-1'>
+                <p className='truncate text-sm font-medium'>
+                  {r.candidateName}
+                </p>
+                <p className='text-muted-foreground text-xs'>
+                  Média desejadas:{' '}
+                  <span className={ratingTextColor(r.desiredTraitsAverage)}>
+                    {r.desiredTraitsAverage.toFixed(2)}
+                  </span>
+                  {r.undesiredPresented > 0 && (
+                    <span className='ml-2 text-red-500'>
+                      {r.undesiredPresented} indesejada
+                      {r.undesiredPresented !== 1 ? 's' : ''}
                     </span>
-                    {r.undesiredPresented > 0 && (
-                      <span className='ml-2 text-red-500'>
-                        {r.undesiredPresented} indesejada
-                        {r.undesiredPresented !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                  </p>
-                </div>
-
-                {/* Score */}
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span
-                        className={cn(
-                          'shrink-0 text-lg font-bold tabular-nums',
-                          ratingTextColor(r.finalScore)
-                        )}
-                      >
-                        {r.finalScore.toFixed(2)}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side='left'>
-                      <p className='text-xs'>
-                        Pontuação final = média desejadas − penalidades
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                  )}
+                </p>
               </div>
-            ))}
-          </div>
-        </ScrollArea>
+
+              {/* Score */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className={cn(
+                        'shrink-0 text-lg font-bold tabular-nums',
+                        ratingTextColor(r.finalScore)
+                      )}
+                    >
+                      {r.finalScore.toFixed(2)}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side='left'>
+                    <p className='text-xs'>
+                      Pontuação final = média desejadas − penalidades
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );
@@ -354,7 +351,7 @@ function AggregateStatisticsSection({ stats }: { stats: InterviewStatistics }) {
                   <p className='text-xs font-medium'>
                     {UNDESIRED_TRAIT_LABELS[key]}
                   </p>
-                  <div className='flex gap-2 text-xs'>
+                  <div className='flex flex-wrap gap-x-3 gap-y-0.5 text-xs'>
                     <span className='text-green-600 dark:text-green-400'>
                       Não apresentou: {dist.notPresented}
                       {total > 0 &&
@@ -415,114 +412,107 @@ function IndividualDetailsSection({
         <CardTitle className='text-base'>Detalhes por candidato</CardTitle>
       </CardHeader>
       <CardContent className='p-0'>
-        <ScrollArea className='max-h-150'>
-          <Accordion type='single' collapsible className='px-4'>
-            {rankings.map((r) => (
-              <AccordionItem key={r.candidateId} value={r.candidateId}>
-                <AccordionTrigger className='py-3 text-sm hover:no-underline'>
-                  <div className='flex w-full items-center gap-2 pr-2'>
-                    <span className='flex-1 truncate text-left font-medium'>
-                      {r.candidateName}
-                    </span>
-                    <Badge
-                      variant='outline'
-                      className={cn(
-                        'shrink-0 text-xs',
-                        ratingTextColor(r.finalScore)
-                      )}
-                    >
-                      {r.finalScore.toFixed(2)}
-                    </Badge>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className='space-y-4 pb-2'>
-                    {/* Avaliador e data */}
-                    <p className='text-muted-foreground text-xs'>
-                      Avaliado por{' '}
-                      <span className='text-foreground font-medium'>
-                        {r.result.reviewer.name}
-                      </span>{' '}
-                      em{' '}
-                      {new Date(r.result.reviewedAt).toLocaleDateString(
-                        'pt-BR',
-                        {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        }
-                      )}
-                    </p>
+        <Accordion type='single' collapsible className='px-3 sm:px-4'>
+          {rankings.map((r) => (
+            <AccordionItem key={r.candidateId} value={r.candidateId}>
+              <AccordionTrigger className='py-3 text-sm hover:no-underline'>
+                <div className='flex w-full items-center gap-2 pr-2'>
+                  <span className='flex-1 truncate text-left font-medium'>
+                    {r.candidateName}
+                  </span>
+                  <Badge
+                    variant='outline'
+                    className={cn(
+                      'shrink-0 text-xs',
+                      ratingTextColor(r.finalScore)
+                    )}
+                  >
+                    {r.finalScore.toFixed(2)}
+                  </Badge>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className='space-y-4 pb-2'>
+                  {/* Avaliador e data */}
+                  <p className='text-muted-foreground text-xs'>
+                    Avaliado por{' '}
+                    <span className='text-foreground font-medium'>
+                      {r.result.reviewer.name}
+                    </span>{' '}
+                    em{' '}
+                    {new Date(r.result.reviewedAt).toLocaleDateString('pt-BR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
 
-                    {/* Qualidades desejadas */}
-                    <div>
-                      <p className='mb-2 text-xs font-semibold'>
-                        Qualidades desejadas
-                      </p>
-                      <div className='grid grid-cols-1 gap-1.5 sm:grid-cols-2'>
-                        {DESIRED_TRAIT_KEYS.map((key) => (
+                  {/* Qualidades desejadas */}
+                  <div>
+                    <p className='mb-2 text-xs font-semibold'>
+                      Qualidades desejadas
+                    </p>
+                    <div className='grid grid-cols-1 gap-1.5 sm:grid-cols-2'>
+                      {DESIRED_TRAIT_KEYS.map((key) => (
+                        <div
+                          key={key}
+                          className='flex items-center justify-between gap-2 text-xs'
+                        >
+                          <span className='text-muted-foreground'>
+                            {DESIRED_TRAIT_LABELS[key]}
+                          </span>
+                          {renderStars(r.result.desiredTraits[key])}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Habilidades indesejadas */}
+                  <div>
+                    <p className='mb-2 text-xs font-semibold'>
+                      Habilidades indesejadas
+                    </p>
+                    <div className='grid grid-cols-1 gap-1.5 sm:grid-cols-2'>
+                      {UNDESIRED_TRAIT_KEYS.map((key) => {
+                        const assessment = r.result.undesiredTraits[key];
+                        return (
                           <div
                             key={key}
                             className='flex items-center justify-between gap-2 text-xs'
                           >
                             <span className='text-muted-foreground'>
-                              {DESIRED_TRAIT_LABELS[key]}
+                              {UNDESIRED_TRAIT_LABELS[key]}
                             </span>
-                            {renderStars(r.result.desiredTraits[key])}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Habilidades indesejadas */}
-                    <div>
-                      <p className='mb-2 text-xs font-semibold'>
-                        Habilidades indesejadas
-                      </p>
-                      <div className='grid grid-cols-1 gap-1.5 sm:grid-cols-2'>
-                        {UNDESIRED_TRAIT_KEYS.map((key) => {
-                          const assessment = r.result.undesiredTraits[key];
-                          return (
-                            <div
-                              key={key}
-                              className='flex items-center justify-between gap-2 text-xs'
+                            <span
+                              className={cn(
+                                'font-medium',
+                                ASSESSMENT_COLORS[assessment]
+                              )}
                             >
-                              <span className='text-muted-foreground'>
-                                {UNDESIRED_TRAIT_LABELS[key]}
-                              </span>
-                              <span
-                                className={cn(
-                                  'font-medium',
-                                  ASSESSMENT_COLORS[assessment]
-                                )}
-                              >
-                                {ASSESSMENT_LABELS[assessment]}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
+                              {ASSESSMENT_LABELS[assessment]}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
-
-                    {/* Observações */}
-                    {r.result.notes && (
-                      <div>
-                        <p className='mb-1 text-xs font-semibold'>
-                          Observações
-                        </p>
-                        <p className='bg-muted rounded-md p-2 text-xs whitespace-pre-wrap'>
-                          {r.result.notes}
-                        </p>
-                      </div>
-                    )}
                   </div>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </ScrollArea>
+
+                  {/* Observações */}
+                  {r.result.notes && (
+                    <div>
+                      <p className='mb-1 text-xs font-semibold'>Observações</p>
+                      <p className='bg-muted rounded-md p-2 text-xs whitespace-pre-wrap'>
+                        {r.result.notes}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
       </CardContent>
     </Card>
   );
