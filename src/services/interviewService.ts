@@ -206,18 +206,21 @@ class InterviewService {
     for (const [key, entries] of grouped) {
       if (entries.length < 2) continue;
 
-      // Pegar os dois primeiros membros disponíveis como par
+      // Aleatorizar a ordem dos entrevistadores disponíveis para distribuir a carga
+      const shuffledEntries = this.shuffleArray(entries);
+
+      // Pegar os dois primeiros membros da lista aleatorizada
       result.push({
         id: key,
-        slotIds: [entries[0].slot.id, entries[1].slot.id],
+        slotIds: [shuffledEntries[0].slot.id, shuffledEntries[1].slot.id],
         interviewerNames: [
-          entries[0].slot.responsibleMemberName,
-          entries[1].slot.responsibleMemberName
+          shuffledEntries[0].slot.responsibleMemberName,
+          shuffledEntries[1].slot.responsibleMemberName
         ],
-        isoDate: entries[0].slot.isoDate,
-        dateLabel: entries[0].slot.dateLabel,
-        startTime: entries[0].slot.startTime,
-        endTime: entries[0].slot.endTime
+        isoDate: shuffledEntries[0].slot.isoDate,
+        dateLabel: shuffledEntries[0].slot.dateLabel,
+        startTime: shuffledEntries[0].slot.startTime,
+        endTime: shuffledEntries[0].slot.endTime
       });
     }
 
@@ -365,6 +368,18 @@ class InterviewService {
   }
 
   // ── Helpers privados ──
+
+  /**
+   * Aleatoriza a ordem dos elementos de um array usando Fisher-Yates shuffle.
+   */
+  private shuffleArray<T>(array: T[]): T[] {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }
 
   private todayIsoDate(): string {
     const now = new Date();
