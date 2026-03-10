@@ -538,6 +538,11 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
 
     await updateDoc(docRef, {
       interview: {
+        date: '-',
+        dateLabel: '-',
+        endTime: '-',
+        googleMeetLink: '-',
+        startTime: '-',
         ...currentInterview,
         answers
       },
@@ -568,12 +573,12 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
 
     const interview: CandidateInterview = {
       state,
-      date: typeof obj.date === 'string' ? obj.date : undefined,
-      dateLabel: typeof obj.dateLabel === 'string' ? obj.dateLabel : undefined,
-      startTime: typeof obj.startTime === 'string' ? obj.startTime : undefined,
-      endTime: typeof obj.endTime === 'string' ? obj.endTime : undefined,
+      date: typeof obj.date === 'string' ? obj.date : '',
+      dateLabel: typeof obj.dateLabel === 'string' ? obj.dateLabel : '',
+      startTime: typeof obj.startTime === 'string' ? obj.startTime : '',
+      endTime: typeof obj.endTime === 'string' ? obj.endTime : '',
       googleMeetLink:
-        typeof obj.googleMeetLink === 'string' ? obj.googleMeetLink : undefined
+        typeof obj.googleMeetLink === 'string' ? obj.googleMeetLink : ''
     };
 
     // Normaliza resultado da avaliação, se existir

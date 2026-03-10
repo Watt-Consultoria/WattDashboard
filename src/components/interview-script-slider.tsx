@@ -148,6 +148,7 @@ export function InterviewScriptSliderDialog({
 
   // Salvar respostas
   const handleSave = React.useCallback(async () => {
+    console.error('Persistindo respostas do roteiro de entrevista:');
     if (!candidateId || isSaving) return;
 
     setIsSaving(true);
