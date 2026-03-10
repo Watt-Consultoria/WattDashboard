@@ -1927,233 +1927,240 @@ export default function PSeletivoPage() {
           <div className='flex min-h-0 w-full max-w-full flex-1 overflow-hidden rounded-md'>
             <div className='h-full w-full max-w-full overflow-y-auto'>
               <div className='grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3'>
-                {filteredMembers.map((member) => (
-                  <Card
-                    key={member.id}
-                    className='flex h-full min-h-0 flex-col overflow-hidden'
-                  >
-                    <CardHeader className='pb-3'>
-                      <div className='flex items-start justify-between gap-2'>
-                        <div className='min-w-0 flex-1'>
-                          <CardTitle className='truncate text-base'>
-                            {truncateName(member.nome + ' ' + member.sobrenome)}
-                          </CardTitle>
-                          <p className='text-muted-foreground text-xs'>
-                            {member.curso} | {member.periodo} periodo
-                          </p>
-                          {viewMode === 'desclassificados' && (
-                            <div className='mt-1 flex flex-wrap gap-1'>
-                              <Badge
-                                variant='destructive'
-                                className='text-[10px]'
-                              >
-                                Desclassificado
-                              </Badge>
-                              <Badge variant='outline' className='text-[10px]'>
-                                Etapa: {member.etapa}
-                              </Badge>
-                            </div>
-                          )}
-                          {member.tags && member.tags.length > 0 && (
-                            <div className='mt-1 flex flex-wrap gap-1'>
-                              {member.tags.map((tag) => (
+                {filteredMembers
+                  .sort((a, b) => a.nome.localeCompare(b.nome))
+                  .map((member) => (
+                    <Card
+                      key={member.id}
+                      className='flex h-full min-h-0 flex-col overflow-hidden'
+                    >
+                      <CardHeader className='pb-3'>
+                        <div className='flex items-start justify-between gap-2'>
+                          <div className='min-w-0 flex-1'>
+                            <CardTitle className='truncate text-base'>
+                              {truncateName(
+                                member.nome + ' ' + member.sobrenome
+                              )}
+                            </CardTitle>
+                            <p className='text-muted-foreground text-xs'>
+                              {member.curso} | {member.periodo} periodo
+                            </p>
+                            {viewMode === 'desclassificados' && (
+                              <div className='mt-1 flex flex-wrap gap-1'>
                                 <Badge
-                                  key={tag}
-                                  variant='secondary'
+                                  variant='destructive'
                                   className='text-[10px]'
                                 >
-                                  {tag}
+                                  Desclassificado
                                 </Badge>
-                              ))}
-                            </div>
-                          )}
-                          {viewMode === 'candidatos' &&
-                            (() => {
-                              const interview = member.interview ?? {
-                                state: 'notSentEmail' as const
-                              };
-                              const config =
-                                interviewStatusConfig[interview.state];
-                              const dotColor =
-                                interviewStatusDotColor[interview.state];
-                              return (
-                                <div
-                                  className={cn(
-                                    'mt-1.5 rounded-md border p-1.5',
-                                    config.bgColor,
-                                    config.borderColor
-                                  )}
+                                <Badge
+                                  variant='outline'
+                                  className='text-[10px]'
                                 >
-                                  <div className='flex items-center gap-1.5'>
-                                    <span
-                                      className={cn(
-                                        'inline-block h-2 w-2 shrink-0 rounded-full',
-                                        dotColor
-                                      )}
-                                    />
-                                    <span
-                                      className={cn(
-                                        'text-[10px] leading-tight font-semibold',
-                                        config.color
-                                      )}
-                                    >
-                                      {config.label}
-                                    </span>
-                                  </div>
-                                  {(interview.state === 'requested' ||
-                                    interview.state === 'scheduled') &&
-                                    interview.dateLabel &&
-                                    interview.startTime && (
-                                      <div
+                                  Etapa: {member.etapa}
+                                </Badge>
+                              </div>
+                            )}
+                            {member.tags && member.tags.length > 0 && (
+                              <div className='mt-1 flex flex-wrap gap-1'>
+                                {member.tags.map((tag) => (
+                                  <Badge
+                                    key={tag}
+                                    variant='secondary'
+                                    className='text-[10px]'
+                                  >
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                            {viewMode === 'candidatos' &&
+                              (() => {
+                                const interview = member.interview ?? {
+                                  state: 'notSentEmail' as const
+                                };
+                                const config =
+                                  interviewStatusConfig[interview.state];
+                                const dotColor =
+                                  interviewStatusDotColor[interview.state];
+                                return (
+                                  <div
+                                    className={cn(
+                                      'mt-1.5 rounded-md border p-1.5',
+                                      config.bgColor,
+                                      config.borderColor
+                                    )}
+                                  >
+                                    <div className='flex items-center gap-1.5'>
+                                      <span
                                         className={cn(
-                                          'mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px]',
+                                          'inline-block h-2 w-2 shrink-0 rounded-full',
+                                          dotColor
+                                        )}
+                                      />
+                                      <span
+                                        className={cn(
+                                          'text-[10px] leading-tight font-semibold',
                                           config.color
                                         )}
                                       >
-                                        <span className='flex items-center gap-1'>
-                                          <FontAwesomeIcon
-                                            icon={faCalendarDays}
-                                            className='h-2.5 w-2.5'
-                                          />
-                                          {interview.dateLabel}
-                                        </span>
-                                        <span className='flex items-center gap-1'>
-                                          <FontAwesomeIcon
-                                            icon={faClock}
-                                            className='h-2.5 w-2.5'
-                                          />
-                                          {interview.startTime} -{' '}
-                                          {interview.endTime}
-                                        </span>
-                                        {interview.state === 'scheduled' &&
-                                          interview.googleMeetLink && (
-                                            <a
-                                              href={interview.googleMeetLink}
-                                              target='_blank'
-                                              rel='noopener noreferrer'
-                                              className='flex items-center gap-1 underline underline-offset-2 hover:opacity-80'
-                                            >
-                                              <FontAwesomeIcon
-                                                icon={faVideo}
-                                                className='h-2.5 w-2.5'
-                                              />
-                                              Meet
-                                            </a>
+                                        {config.label}
+                                      </span>
+                                    </div>
+                                    {(interview.state === 'requested' ||
+                                      interview.state === 'scheduled') &&
+                                      interview.dateLabel &&
+                                      interview.startTime && (
+                                        <div
+                                          className={cn(
+                                            'mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px]',
+                                            config.color
                                           )}
-                                      </div>
-                                    )}
-                                </div>
-                              );
-                            })()}
-                        </div>
-                        <div className='flex items-center gap-1'>
-                          {viewMode === 'candidatos' &&
-                            member.interview?.state === 'scheduled' && (
-                              <Button
-                                type='button'
-                                size='icon'
-                                variant='ghost'
-                                className='h-8 w-8 shrink-0 cursor-pointer rounded-md border text-amber-500 hover:bg-amber-500/10 [&_svg]:h-[0.875em]! [&_svg]:w-[0.875em]!'
-                                onClick={() => {
-                                  setEvaluationCandidate(member);
-                                  setIsEvaluationDialogOpen(true);
-                                }}
-                                aria-label={`Avaliar entrevista de ${member.nome} ${member.sobrenome}`}
-                                title={
-                                  member.interview?.result
-                                    ? 'Reavaliar entrevista'
-                                    : 'Avaliar entrevista'
-                                }
-                              >
-                                <FontAwesomeIcon
-                                  icon={faStar}
-                                  className={
+                                        >
+                                          <span className='flex items-center gap-1'>
+                                            <FontAwesomeIcon
+                                              icon={faCalendarDays}
+                                              className='h-2.5 w-2.5'
+                                            />
+                                            {interview.dateLabel}
+                                          </span>
+                                          <span className='flex items-center gap-1'>
+                                            <FontAwesomeIcon
+                                              icon={faClock}
+                                              className='h-2.5 w-2.5'
+                                            />
+                                            {interview.startTime} -{' '}
+                                            {interview.endTime}
+                                          </span>
+                                          {interview.state === 'scheduled' &&
+                                            interview.googleMeetLink && (
+                                              <a
+                                                href={interview.googleMeetLink}
+                                                target='_blank'
+                                                rel='noopener noreferrer'
+                                                className='flex items-center gap-1 underline underline-offset-2 hover:opacity-80'
+                                              >
+                                                <FontAwesomeIcon
+                                                  icon={faVideo}
+                                                  className='h-2.5 w-2.5'
+                                                />
+                                                Meet
+                                              </a>
+                                            )}
+                                        </div>
+                                      )}
+                                  </div>
+                                );
+                              })()}
+                          </div>
+                          <div className='flex items-center gap-1'>
+                            {viewMode === 'candidatos' &&
+                              member.interview?.state === 'scheduled' && (
+                                <Button
+                                  type='button'
+                                  size='icon'
+                                  variant='ghost'
+                                  className='h-8 w-8 shrink-0 cursor-pointer rounded-md border text-amber-500 hover:bg-amber-500/10 [&_svg]:h-[0.875em]! [&_svg]:w-[0.875em]!'
+                                  onClick={() => {
+                                    setEvaluationCandidate(member);
+                                    setIsEvaluationDialogOpen(true);
+                                  }}
+                                  aria-label={`Avaliar entrevista de ${member.nome} ${member.sobrenome}`}
+                                  title={
                                     member.interview?.result
-                                      ? 'text-amber-500'
-                                      : ''
+                                      ? 'Reavaliar entrevista'
+                                      : 'Avaliar entrevista'
                                   }
-                                />
-                              </Button>
-                            )}
-                          {viewMode === 'candidatos' &&
-                            member.interview?.state === 'scheduled' && (
-                              <Button
-                                type='button'
-                                size='icon'
-                                variant='ghost'
-                                className='h-8 w-8 shrink-0 cursor-pointer rounded-md border text-cyan-600 hover:bg-cyan-600/10 [&_svg]:h-[0.875em]! [&_svg]:w-[0.875em]!'
-                                onClick={() => {
-                                  setInterviewScriptCandidate(member);
-                                  setIsInterviewScriptSliderOpen(true);
-                                }}
-                                aria-label={`Roteiro de entrevista de ${member.nome} ${member.sobrenome}`}
-                                title={
-                                  member.interview?.answers &&
-                                  Object.keys(member.interview.answers).length >
-                                    0
-                                    ? 'Ver/editar respostas do roteiro'
-                                    : 'Preencher roteiro de entrevista'
-                                }
-                              >
-                                <FontAwesomeIcon
-                                  icon={faClipboardList}
-                                  className={
+                                >
+                                  <FontAwesomeIcon
+                                    icon={faStar}
+                                    className={
+                                      member.interview?.result
+                                        ? 'text-amber-500'
+                                        : ''
+                                    }
+                                  />
+                                </Button>
+                              )}
+                            {viewMode === 'candidatos' &&
+                              member.interview?.state === 'scheduled' && (
+                                <Button
+                                  type='button'
+                                  size='icon'
+                                  variant='ghost'
+                                  className='h-8 w-8 shrink-0 cursor-pointer rounded-md border text-cyan-600 hover:bg-cyan-600/10 [&_svg]:h-[0.875em]! [&_svg]:w-[0.875em]!'
+                                  onClick={() => {
+                                    setInterviewScriptCandidate(member);
+                                    setIsInterviewScriptSliderOpen(true);
+                                  }}
+                                  aria-label={`Roteiro de entrevista de ${member.nome} ${member.sobrenome}`}
+                                  title={
                                     member.interview?.answers &&
                                     Object.keys(member.interview.answers)
                                       .length > 0
-                                      ? 'text-cyan-600'
+                                      ? 'Ver/editar respostas do roteiro'
+                                      : 'Preencher roteiro de entrevista'
+                                  }
+                                >
+                                  <FontAwesomeIcon
+                                    icon={faClipboardList}
+                                    className={
+                                      member.interview?.answers &&
+                                      Object.keys(member.interview.answers)
+                                        .length > 0
+                                        ? 'text-cyan-600'
+                                        : ''
+                                    }
+                                  />
+                                </Button>
+                              )}
+                            {viewMode === 'candidatos' && (
+                              <Button
+                                type='button'
+                                size='icon'
+                                variant='ghost'
+                                className='h-8 w-8 shrink-0 cursor-pointer rounded-md border hover:bg-white/10 [&_svg]:h-[0.875em]! [&_svg]:w-[0.875em]!'
+                                onClick={() => openTagsDialog(member)}
+                                aria-label='Gerenciar tags'
+                              >
+                                <FontAwesomeIcon icon={faTags} />
+                              </Button>
+                            )}
+                            {viewMode === 'pre-candidatos' && (
+                              <Button
+                                type='button'
+                                size='icon'
+                                variant='ghost'
+                                className='h-8 w-8 shrink-0 cursor-pointer rounded-md border text-green-600 hover:bg-green-600/10 [&_svg]:h-[0.875em]! [&_svg]:w-[0.875em]!'
+                                onClick={() => handleSaveAsCandidate(member)}
+                                disabled={
+                                  isSavingAsCandidate === member.id ||
+                                  savedPreCandidateIds.has(member.id)
+                                }
+                                aria-label={
+                                  savedPreCandidateIds.has(member.id)
+                                    ? 'Já salvo como candidato'
+                                    : `Salvar ${member.nome} como candidato`
+                                }
+                                title={
+                                  savedPreCandidateIds.has(member.id)
+                                    ? 'Já salvo como candidato'
+                                    : 'Salvar como candidato'
+                                }
+                              >
+                                <FontAwesomeIcon
+                                  icon={faUserPlus}
+                                  className={
+                                    savedPreCandidateIds.has(member.id)
+                                      ? 'opacity-40'
                                       : ''
                                   }
                                 />
                               </Button>
                             )}
-                          {viewMode === 'candidatos' && (
-                            <Button
-                              type='button'
-                              size='icon'
-                              variant='ghost'
-                              className='h-8 w-8 shrink-0 cursor-pointer rounded-md border hover:bg-white/10 [&_svg]:h-[0.875em]! [&_svg]:w-[0.875em]!'
-                              onClick={() => openTagsDialog(member)}
-                              aria-label='Gerenciar tags'
-                            >
-                              <FontAwesomeIcon icon={faTags} />
-                            </Button>
-                          )}
-                          {viewMode === 'pre-candidatos' && (
-                            <Button
-                              type='button'
-                              size='icon'
-                              variant='ghost'
-                              className='h-8 w-8 shrink-0 cursor-pointer rounded-md border text-green-600 hover:bg-green-600/10 [&_svg]:h-[0.875em]! [&_svg]:w-[0.875em]!'
-                              onClick={() => handleSaveAsCandidate(member)}
-                              disabled={
-                                isSavingAsCandidate === member.id ||
-                                savedPreCandidateIds.has(member.id)
-                              }
-                              aria-label={
-                                savedPreCandidateIds.has(member.id)
-                                  ? 'Já salvo como candidato'
-                                  : `Salvar ${member.nome} como candidato`
-                              }
-                              title={
-                                savedPreCandidateIds.has(member.id)
-                                  ? 'Já salvo como candidato'
-                                  : 'Salvar como candidato'
-                              }
-                            >
-                              <FontAwesomeIcon
-                                icon={faUserPlus}
-                                className={
-                                  savedPreCandidateIds.has(member.id)
-                                    ? 'opacity-40'
-                                    : ''
-                                }
-                              />
-                            </Button>
-                          )}
-                          {viewMode === 'candidatos' && (
-                            <>
-                              {/* <Button
+                            {viewMode === 'candidatos' && (
+                              <>
+                                {/* <Button
                               type='button'
                               size='icon'
                               variant='default'
@@ -2168,7 +2175,7 @@ export default function PSeletivoPage() {
                             >
                               <FontAwesomeIcon icon={faCheck} />
                             </Button> */}
-                              {/* <Button
+                                {/* <Button
                               type='button'
                               size='icon'
                               variant='destructive'
@@ -2188,199 +2195,199 @@ export default function PSeletivoPage() {
                             >
                               <FontAwesomeIcon icon={faThumbsDown} />
                             </Button> */}
-                              <Button
-                                type='button'
-                                size='icon'
-                                variant='ghost'
-                                className='text-destructive h-8 w-8 shrink-0 rounded-full hover:bg-red-100'
-                                onClick={() => openDisqualifyDialog(member)}
-                                disabled={
-                                  Boolean(isDisqualifyingCandidateId) ||
-                                  Boolean(member.desclassificado)
-                                }
-                                aria-label={`Desclassificar ${member.nome} ${member.sobrenome}`}
-                                title='Desclassificar candidato'
-                              >
-                                <FontAwesomeIcon icon={faXmark} />
-                              </Button>
-                            </>
-                          )}
-                          {viewMode === 'pre-candidatos' &&
-                            !savedPreCandidateIds.has(member.id) && (
-                              <Button
-                                type='button'
-                                size='icon'
-                                variant='destructive'
-                                className='h-8 w-8 shrink-0 rounded-full'
-                                onClick={() => openDisqualifyDialog(member)}
-                                disabled={
-                                  Boolean(isDisqualifyingCandidateId) ||
-                                  Boolean(member.desclassificado)
-                                }
-                                aria-label={`Desclassificar ${member.nome} ${member.sobrenome}`}
-                              >
-                                <FontAwesomeIcon icon={faXmark} />
-                              </Button>
+                                <Button
+                                  type='button'
+                                  size='icon'
+                                  variant='ghost'
+                                  className='text-destructive h-8 w-8 shrink-0 rounded-full hover:bg-red-100'
+                                  onClick={() => openDisqualifyDialog(member)}
+                                  disabled={
+                                    Boolean(isDisqualifyingCandidateId) ||
+                                    Boolean(member.desclassificado)
+                                  }
+                                  aria-label={`Desclassificar ${member.nome} ${member.sobrenome}`}
+                                  title='Desclassificar candidato'
+                                >
+                                  <FontAwesomeIcon icon={faXmark} />
+                                </Button>
+                              </>
                             )}
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                variant='outline'
-                                size='icon'
-                                className='h-8 w-8 rounded-full'
-                                aria-label={`Abrir detalhes de ${member.nome} ${member.sobrenome}`}
-                              >
-                                i
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className='max-h-[90vh] w-[95vw] overflow-y-auto sm:max-w-xl'>
-                              <DialogHeader>
-                                <DialogTitle>
-                                  {truncateName(
-                                    member.nome + ' ' + member.sobrenome
-                                  )}
-                                </DialogTitle>
-                                <DialogDescription>
-                                  Detalhes completos do candidato.
-                                </DialogDescription>
-                              </DialogHeader>
-                              <div className='space-y-3'>
-                                <CandidateField
-                                  label='Nome'
-                                  value={member.nome}
-                                />
-                                <CandidateField
-                                  label='Sobrenome'
-                                  value={member.sobrenome}
-                                />
-                                <CandidateField
-                                  label='Curso'
-                                  value={member.curso}
-                                />
-                                <CandidateField
-                                  label='Periodo'
-                                  value={member.periodo}
-                                />
-                                <CandidateField
-                                  label='Etapa'
-                                  value={member.etapa}
-                                />
-                                <CandidateField
-                                  label='Tamanho da camisa'
-                                  value={member.tamanhoCamisa}
-                                />
-                                <CandidateField
-                                  label='Por onde voce ficou sabendo do PSEL?'
-                                  value={member.origemPsel}
-                                />
-                                <CandidateField
-                                  label='Telefone para contato'
-                                  value={member.telefone}
-                                />
-                                <CandidateField
-                                  label='E-mail para contato'
-                                  value={member.email}
-                                />
-                                <CandidateField
-                                  label='Qual o seu instagram'
-                                  value={member.instagram}
-                                />
-                                <CandidateField
-                                  label='O que te move'
-                                  value={member.oQueMove}
-                                />
-                                <CandidateField
-                                  label='Por que voce gostaria de entrar na WATT?'
-                                  value={member.porqueWatt}
-                                />
-                                <div className='space-y-1'>
-                                  <p className='text-muted-foreground text-xs font-medium'>
-                                    Documentos
-                                  </p>
-                                  <a
-                                    href={member.curriculumVitaeUrl}
-                                    target='_blank'
-                                    rel='noreferrer'
-                                    className='text-primary block text-sm hover:underline'
-                                  >
-                                    Curriculum Vitae
-                                  </a>
-                                  <a
-                                    href={member.historicoEscolarUrl}
-                                    target='_blank'
-                                    rel='noreferrer'
-                                    className='text-primary block text-sm hover:underline'
-                                  >
-                                    Historico escolar
-                                  </a>
-                                </div>
-                                {member.informacoesAdicionais.length > 0 ? (
-                                  <div className='space-y-2'>
-                                    <p className='text-muted-foreground text-xs font-medium'>
-                                      Informacoes adicionais
-                                    </p>
-                                    {member.informacoesAdicionais.map(
-                                      (info) => (
-                                        <CandidateField
-                                          key={`${member.id}-${info.titulo}`}
-                                          label={info.titulo}
-                                          value={info.valor}
-                                        />
-                                      )
+                            {viewMode === 'pre-candidatos' &&
+                              !savedPreCandidateIds.has(member.id) && (
+                                <Button
+                                  type='button'
+                                  size='icon'
+                                  variant='destructive'
+                                  className='h-8 w-8 shrink-0 rounded-full'
+                                  onClick={() => openDisqualifyDialog(member)}
+                                  disabled={
+                                    Boolean(isDisqualifyingCandidateId) ||
+                                    Boolean(member.desclassificado)
+                                  }
+                                  aria-label={`Desclassificar ${member.nome} ${member.sobrenome}`}
+                                >
+                                  <FontAwesomeIcon icon={faXmark} />
+                                </Button>
+                              )}
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button
+                                  variant='outline'
+                                  size='icon'
+                                  className='h-8 w-8 rounded-full'
+                                  aria-label={`Abrir detalhes de ${member.nome} ${member.sobrenome}`}
+                                >
+                                  i
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className='max-h-[90vh] w-[95vw] overflow-y-auto sm:max-w-xl'>
+                                <DialogHeader>
+                                  <DialogTitle>
+                                    {truncateName(
+                                      member.nome + ' ' + member.sobrenome
                                     )}
+                                  </DialogTitle>
+                                  <DialogDescription>
+                                    Detalhes completos do candidato.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className='space-y-3'>
+                                  <CandidateField
+                                    label='Nome'
+                                    value={member.nome}
+                                  />
+                                  <CandidateField
+                                    label='Sobrenome'
+                                    value={member.sobrenome}
+                                  />
+                                  <CandidateField
+                                    label='Curso'
+                                    value={member.curso}
+                                  />
+                                  <CandidateField
+                                    label='Periodo'
+                                    value={member.periodo}
+                                  />
+                                  <CandidateField
+                                    label='Etapa'
+                                    value={member.etapa}
+                                  />
+                                  <CandidateField
+                                    label='Tamanho da camisa'
+                                    value={member.tamanhoCamisa}
+                                  />
+                                  <CandidateField
+                                    label='Por onde voce ficou sabendo do PSEL?'
+                                    value={member.origemPsel}
+                                  />
+                                  <CandidateField
+                                    label='Telefone para contato'
+                                    value={member.telefone}
+                                  />
+                                  <CandidateField
+                                    label='E-mail para contato'
+                                    value={member.email}
+                                  />
+                                  <CandidateField
+                                    label='Qual o seu instagram'
+                                    value={member.instagram}
+                                  />
+                                  <CandidateField
+                                    label='O que te move'
+                                    value={member.oQueMove}
+                                  />
+                                  <CandidateField
+                                    label='Por que voce gostaria de entrar na WATT?'
+                                    value={member.porqueWatt}
+                                  />
+                                  <div className='space-y-1'>
+                                    <p className='text-muted-foreground text-xs font-medium'>
+                                      Documentos
+                                    </p>
+                                    <a
+                                      href={member.curriculumVitaeUrl}
+                                      target='_blank'
+                                      rel='noreferrer'
+                                      className='text-primary block text-sm hover:underline'
+                                    >
+                                      Curriculum Vitae
+                                    </a>
+                                    <a
+                                      href={member.historicoEscolarUrl}
+                                      target='_blank'
+                                      rel='noreferrer'
+                                      className='text-primary block text-sm hover:underline'
+                                    >
+                                      Historico escolar
+                                    </a>
                                   </div>
-                                ) : null}
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                        </div>
-                      </div>
-                      <div className='overflow-hidden rounded-md border'>
-                        <Image
-                          src={member.imagemUrl}
-                          alt={`Imagem do candidato ${member.nome} ${member.sobrenome}`}
-                          className='aspect-4/3 w-full object-cover'
-                          width={320}
-                          height={240}
-                        />
-                      </div>
-                    </CardHeader>
-
-                    {viewMode === 'candidatos' && (
-                      <CardContent className='flex min-h-0 flex-1 flex-col gap-3 overflow-hidden'>
-                        <p className='text-muted-foreground text-xs font-medium'>
-                          Tarefas relacionadas
-                        </p>
-                        <ScrollArea className='max-h-40 w-full pr-2 sm:max-h-48'>
-                          <ul className='space-y-2'>
-                            {member.tarefas.length === 0 ? (
-                              <li className='text-muted-foreground rounded-md border border-dashed p-2 text-sm'>
-                                Nenhuma tarefa relacionada.
-                              </li>
-                            ) : null}
-                            {member.tarefas.map((task) => (
-                              <li
-                                key={task.id}
-                                className='rounded-md border p-2'
-                              >
-                                <div className='flex items-center justify-between gap-2'>
-                                  <p className='text-sm font-medium'>
-                                    {task.titulo}
-                                  </p>
-                                  <Badge
-                                    variant={taskStatusVariant[task.status]}
-                                  >
-                                    {taskStatusLabel[task.status]}
-                                  </Badge>
+                                  {member.informacoesAdicionais.length > 0 ? (
+                                    <div className='space-y-2'>
+                                      <p className='text-muted-foreground text-xs font-medium'>
+                                        Informacoes adicionais
+                                      </p>
+                                      {member.informacoesAdicionais.map(
+                                        (info) => (
+                                          <CandidateField
+                                            key={`${member.id}-${info.titulo}`}
+                                            label={info.titulo}
+                                            value={info.valor}
+                                          />
+                                        )
+                                      )}
+                                    </div>
+                                  ) : null}
                                 </div>
-                              </li>
-                            ))}
-                          </ul>
-                        </ScrollArea>
-                      </CardContent>
-                    )}
-                  </Card>
-                ))}
+                              </DialogContent>
+                            </Dialog>
+                          </div>
+                        </div>
+                        <div className='overflow-hidden rounded-md border'>
+                          <Image
+                            src={member.imagemUrl}
+                            alt={`Imagem do candidato ${member.nome} ${member.sobrenome}`}
+                            className='aspect-4/3 w-full object-cover'
+                            width={320}
+                            height={240}
+                          />
+                        </div>
+                      </CardHeader>
+
+                      {viewMode === 'candidatos' && (
+                        <CardContent className='flex min-h-0 flex-1 flex-col gap-3 overflow-hidden'>
+                          <p className='text-muted-foreground text-xs font-medium'>
+                            Tarefas relacionadas
+                          </p>
+                          <ScrollArea className='max-h-40 w-full pr-2 sm:max-h-48'>
+                            <ul className='space-y-2'>
+                              {member.tarefas.length === 0 ? (
+                                <li className='text-muted-foreground rounded-md border border-dashed p-2 text-sm'>
+                                  Nenhuma tarefa relacionada.
+                                </li>
+                              ) : null}
+                              {member.tarefas.map((task) => (
+                                <li
+                                  key={task.id}
+                                  className='rounded-md border p-2'
+                                >
+                                  <div className='flex items-center justify-between gap-2'>
+                                    <p className='text-sm font-medium'>
+                                      {task.titulo}
+                                    </p>
+                                    <Badge
+                                      variant={taskStatusVariant[task.status]}
+                                    >
+                                      {taskStatusLabel[task.status]}
+                                    </Badge>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </ScrollArea>
+                        </CardContent>
+                      )}
+                    </Card>
+                  ))}
 
                 {filteredMembers.length === 0 ? (
                   <Card className='col-span-full flex min-h-55 items-center justify-center overflow-hidden border-dashed'>
@@ -3147,46 +3154,48 @@ export default function PSeletivoPage() {
               </div>
               <ScrollArea className='h-75 rounded-md border p-3'>
                 <div className='space-y-2'>
-                  {filteredMembers.map((candidate) => (
-                    <div
-                      key={candidate.id}
-                      className='flex items-start gap-3 rounded-md border p-3'
-                    >
-                      <Checkbox
-                        id={`candidate-${candidate.id}`}
-                        checked={selectedCandidateIds.has(candidate.id)}
-                        onCheckedChange={() =>
-                          toggleCandidateSelection(candidate.id)
-                        }
-                        disabled={isSavingTag}
-                        className='mt-0.5'
-                      />
-                      <label
-                        htmlFor={`candidate-${candidate.id}`}
-                        className='flex flex-1 cursor-pointer flex-col'
+                  {filteredMembers
+                    .sort((a, b) => a.nome.localeCompare(b.nome))
+                    .map((candidate) => (
+                      <div
+                        key={candidate.id}
+                        className='flex items-start gap-3 rounded-md border p-3'
                       >
-                        <span className='text-sm font-medium'>
-                          {candidate.nome} {candidate.sobrenome}
-                        </span>
-                        <span className='text-muted-foreground text-xs'>
-                          {candidate.curso} - {candidate.etapa}
-                        </span>
-                        {candidate.tags && candidate.tags.length > 0 && (
-                          <div className='mt-1 flex flex-wrap gap-1'>
-                            {candidate.tags.map((tag: string) => (
-                              <Badge
-                                key={tag}
-                                variant='secondary'
-                                className='text-[10px]'
-                              >
-                                {tag}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </label>
-                    </div>
-                  ))}
+                        <Checkbox
+                          id={`candidate-${candidate.id}`}
+                          checked={selectedCandidateIds.has(candidate.id)}
+                          onCheckedChange={() =>
+                            toggleCandidateSelection(candidate.id)
+                          }
+                          disabled={isSavingTag}
+                          className='mt-0.5'
+                        />
+                        <label
+                          htmlFor={`candidate-${candidate.id}`}
+                          className='flex flex-1 cursor-pointer flex-col'
+                        >
+                          <span className='text-sm font-medium'>
+                            {candidate.nome} {candidate.sobrenome}
+                          </span>
+                          <span className='text-muted-foreground text-xs'>
+                            {candidate.curso} - {candidate.etapa}
+                          </span>
+                          {candidate.tags && candidate.tags.length > 0 && (
+                            <div className='mt-1 flex flex-wrap gap-1'>
+                              {candidate.tags.map((tag: string) => (
+                                <Badge
+                                  key={tag}
+                                  variant='secondary'
+                                  className='text-[10px]'
+                                >
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </label>
+                      </div>
+                    ))}
                 </div>
               </ScrollArea>
             </div>
@@ -3307,34 +3316,36 @@ export default function PSeletivoPage() {
                     </div>
                     <ScrollArea className='h-44 rounded-md border p-2'>
                       <div className='flex flex-col gap-1'>
-                        {savedCandidates.map((candidate) => (
-                          <div
-                            key={candidate.id}
-                            className='hover:bg-accent flex items-center gap-2 rounded px-2 py-1.5'
-                          >
-                            <Checkbox
-                              id={`email-cand-${candidate.id}`}
-                              checked={emailSelectedCandidateIds.has(
-                                candidate.id
-                              )}
-                              onCheckedChange={() =>
-                                handleToggleEmailCandidate(candidate.id)
-                              }
-                            />
-                            <label
-                              htmlFor={`email-cand-${candidate.id}`}
-                              className='flex flex-1 cursor-pointer flex-col'
+                        {savedCandidates
+                          .sort((a, b) => a.nome.localeCompare(b.nome))
+                          .map((candidate) => (
+                            <div
+                              key={candidate.id}
+                              className='hover:bg-accent flex items-center gap-2 rounded px-2 py-1.5'
                             >
-                              <span className='text-sm font-medium'>
-                                {candidate.nome} {candidate.sobrenome}
-                              </span>
-                              <span className='text-muted-foreground text-xs'>
-                                {candidate.email || 'Sem email'} —{' '}
-                                {candidate.etapa}
-                              </span>
-                            </label>
-                          </div>
-                        ))}
+                              <Checkbox
+                                id={`email-cand-${candidate.id}`}
+                                checked={emailSelectedCandidateIds.has(
+                                  candidate.id
+                                )}
+                                onCheckedChange={() =>
+                                  handleToggleEmailCandidate(candidate.id)
+                                }
+                              />
+                              <label
+                                htmlFor={`email-cand-${candidate.id}`}
+                                className='flex flex-1 cursor-pointer flex-col'
+                              >
+                                <span className='text-sm font-medium'>
+                                  {candidate.nome} {candidate.sobrenome}
+                                </span>
+                                <span className='text-muted-foreground text-xs'>
+                                  {candidate.email || 'Sem email'} —{' '}
+                                  {candidate.etapa}
+                                </span>
+                              </label>
+                            </div>
+                          ))}
                         {savedCandidates.length === 0 && (
                           <p className='text-muted-foreground py-4 text-center text-xs'>
                             Nenhum candidato salvo.
@@ -3588,55 +3599,57 @@ export default function PSeletivoPage() {
                   </p>
                 ) : (
                   <ul className='space-y-1 p-2'>
-                    {savedCandidates.map((candidate) => (
-                      <li
-                        key={candidate.id}
-                        className='flex items-start gap-2 rounded px-2 py-1.5 hover:bg-white/5'
-                      >
-                        <Checkbox
-                          checked={interviewEmailSelectedCandidateIds.has(
-                            candidate.id
-                          )}
-                          onCheckedChange={() =>
-                            handleToggleInterviewEmailCandidate(candidate.id)
-                          }
-                          id={`interview-email-${candidate.id}`}
-                          className='mt-0.5'
-                        />
-                        <label
-                          htmlFor={`interview-email-${candidate.id}`}
-                          className='flex-1 cursor-pointer text-wrap'
+                    {savedCandidates
+                      .sort((a, b) => a.nome.localeCompare(b.nome))
+                      .map((candidate) => (
+                        <li
+                          key={candidate.id}
+                          className='flex items-start gap-2 rounded px-2 py-1.5 hover:bg-white/5'
                         >
-                          <div className='flex items-center gap-1.5'>
-                            <span
-                              className={cn(
-                                'inline-block h-2.5 w-2.5 shrink-0 rounded-full',
-                                interviewStatusDotColor[
-                                  candidate.interview?.state ?? 'notSentEmail'
-                                ]
-                              )}
-                              title={
-                                interviewStatusConfig[
-                                  candidate.interview?.state ?? 'notSentEmail'
-                                ].label
-                              }
-                            />
-                            <span className='text-sm'>
-                              {candidate.nome} {candidate.sobrenome}
-                            </span>
-                          </div>
-                          {candidate.email ? (
-                            <span className='text-muted-foreground ml-4 text-xs'>
-                              ({candidate.email})
-                            </span>
-                          ) : (
-                            <span className='ml-4 text-xs text-red-500'>
-                              (sem email)
-                            </span>
-                          )}
-                        </label>
-                      </li>
-                    ))}
+                          <Checkbox
+                            checked={interviewEmailSelectedCandidateIds.has(
+                              candidate.id
+                            )}
+                            onCheckedChange={() =>
+                              handleToggleInterviewEmailCandidate(candidate.id)
+                            }
+                            id={`interview-email-${candidate.id}`}
+                            className='mt-0.5'
+                          />
+                          <label
+                            htmlFor={`interview-email-${candidate.id}`}
+                            className='flex-1 cursor-pointer text-wrap'
+                          >
+                            <div className='flex items-center gap-1.5'>
+                              <span
+                                className={cn(
+                                  'inline-block h-2.5 w-2.5 shrink-0 rounded-full',
+                                  interviewStatusDotColor[
+                                    candidate.interview?.state ?? 'notSentEmail'
+                                  ]
+                                )}
+                                title={
+                                  interviewStatusConfig[
+                                    candidate.interview?.state ?? 'notSentEmail'
+                                  ].label
+                                }
+                              />
+                              <span className='text-sm'>
+                                {candidate.nome} {candidate.sobrenome}
+                              </span>
+                            </div>
+                            {candidate.email ? (
+                              <span className='text-muted-foreground ml-4 text-xs'>
+                                ({candidate.email})
+                              </span>
+                            ) : (
+                              <span className='ml-4 text-xs text-red-500'>
+                                (sem email)
+                              </span>
+                            )}
+                          </label>
+                        </li>
+                      ))}
                   </ul>
                 )}
               </ScrollArea>
