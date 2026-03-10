@@ -167,6 +167,14 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
         required: true
       },
       {
+        id: 'texto_principal',
+        label: 'Texto Principal',
+        placeholder:
+          'Ex.: Olá {{nome}}, parabéns por chegar até aqui! Você está sendo convocado(a)...',
+        type: 'text',
+        required: true
+      },
+      {
         id: 'data',
         label: 'Data',
         placeholder: 'Ex.: 15/03/2026',
@@ -312,7 +320,7 @@ const renderers: Record<EmailTemplateType, RenderFn> = {
 
     const html = wrapHtml(`
       <h2 style="margin:0 0 12px;font-size:18px;color:#1a1a2e;">Convocação para ${v.etapa}</h2>
-      <p style="margin:0 0 8px;font-size:14px;color:#3f3f46;">Olá, <strong>{{nome}}</strong>! Você está sendo convocado(a) para a próxima etapa do nosso processo seletivo.</p>
+      <p style="margin:0 0 8px;font-size:14px;color:#3f3f46;">${v.texto_principal}</p>
       <table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0;width:100%;">
         <tr>
           <td style="padding:12px 16px;background-color:#f4f4f5;border-radius:6px;">
