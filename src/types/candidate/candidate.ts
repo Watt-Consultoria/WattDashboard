@@ -71,6 +71,8 @@ export type Candidate = {
   tarefas: CandidateTask[];
   informacoesAdicionais: CandidateAdditionalInfo[];
   tags?: string[];
+  /** ID do formulário PSEL de origem (preenchido para candidatos salvos) */
+  formIdOrigem?: string;
   /** Indica se o candidato foi desclassificado (sem alterar a etapa) */
   desclassificado?: boolean;
   /** Dados de entrevista do candidato */

@@ -86,11 +86,13 @@ export async function POST(request: NextRequest) {
           { from: PSEL_SENDER }
         );
 
-        // Atualizar estado de entrevista para 'sentEmail' apenas se ainda não recebeu email
-        // (não sobrescreve estados mais avançados como requested/scheduled)
+        // Atualizar estado de entrevista para 'sentEmail' quando ainda não recebeu
+        // email ou quando a entrevista foi cancelada (permitindo reenvio).
+        // Não sobrescreve estados mais avançados como requested/scheduled.
         if (
           !candidate.interview ||
-          candidate.interview.state === 'notSentEmail'
+          candidate.interview.state === 'notSentEmail' ||
+          candidate.interview.state === 'canceled'
         ) {
           const interviewData: CandidateInterview = { state: 'sentEmail' };
           try {

@@ -289,6 +289,8 @@ export default function PSeletivoPage() {
   ] = React.useState<Set<string>>(new Set());
   const [isSendingInterviewEmail, setIsSendingInterviewEmail] =
     React.useState(false);
+  const [isUpdatingInterviewStateCandidateId, setIsUpdatingInterviewStateCandidateId] =
+    React.useState<string | null>(null);
 
   // Estados para confirmação de entrevista (Google Meet)
   const [isConfirmInterviewDialogOpen, setIsConfirmInterviewDialogOpen] =
@@ -1271,6 +1273,57 @@ export default function PSeletivoPage() {
     });
   };
 
+  const handleSetInterviewBackToSentEmail = async (candidate: Candidate) => {
+    const formIdToSend =
+      candidate.formIdOrigem?.trim() ||
+      selectedFormId.trim() ||
+      interviewEmailFormId.trim();
+
+    if (!formIdToSend) {
+      toast.error('Nao foi possivel identificar o formulario do candidato.');
+      return;
+    }
+
+    setIsUpdatingInterviewStateCandidateId(candidate.id);
+    try {
+      const res = await fetch('/api/candidate/send-interview-slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          formId: formIdToSend,
+          candidateIds: [candidate.id]
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok || data.sent > 0) {
+        setSavedCandidates((prev) =>
+          prev.map((c) =>
+            c.id === candidate.id
+              ? { ...c, interview: { ...(c.interview ?? {}), state: 'sentEmail' } }
+              : c
+          )
+        );
+      }
+
+      if (res.ok) {
+        toast.success('Email de entrevista reenviado com sucesso.');
+      } else if (res.status === 207) {
+        toast.warning(
+          `Envio parcial: ${data.sent}/${data.total}. Erros: ${data.errors?.join(', ')}`
+        );
+      } else {
+        toast.error(data.error ?? 'Nao foi possivel reenviar o email.');
+      }
+    } catch (error) {
+      console.error('Erro ao reenviar email de entrevista:', error);
+      toast.error('Nao foi possivel reenviar o email.');
+    } finally {
+      setIsUpdatingInterviewStateCandidateId(null);
+    }
+  };
+
   const handleToggleAllInterviewEmailCandidates = () => {
     if (interviewEmailSelectedCandidateIds.size === savedCandidates.length) {
       setInterviewEmailSelectedCandidateIds(new Set());
@@ -1314,7 +1367,9 @@ export default function PSeletivoPage() {
           prev.map((c) => {
             if (
               sentIds.has(c.id) &&
-              (!c.interview || c.interview.state === 'notSentEmail')
+              (!c.interview ||
+                c.interview.state === 'notSentEmail' ||
+                c.interview.state === 'canceled')
             ) {
               return { ...c, interview: { state: 'sentEmail' } };
             }
@@ -2123,9 +2178,29 @@ export default function PSeletivoPage() {
                                 onClick={() => openTagsDialog(member)}
                                 aria-label='Gerenciar tags'
                               >
-                                <FontAwesomeIcon icon={faTags} />
-                              </Button>
-                            )}
+                                  <FontAwesomeIcon icon={faTags} />
+                                </Button>
+                              )}
+                            {viewMode === 'candidatos' &&
+                              member.interview?.state === 'canceled' && (
+                                <Button
+                                  type='button'
+                                  size='icon'
+                                  variant='ghost'
+                                  className='h-8 w-8 shrink-0 cursor-pointer rounded-md border text-amber-600 hover:bg-amber-600/10 [&_svg]:h-[0.875em]! [&_svg]:w-[0.875em]!'
+                                  onClick={() =>
+                                    handleSetInterviewBackToSentEmail(member)
+                                  }
+                                  disabled={
+                                    isUpdatingInterviewStateCandidateId ===
+                                    member.id
+                                  }
+                                  aria-label={`Voltar entrevista de ${member.nome} ${member.sobrenome} para email enviado`}
+                                  title='Voltar para Email enviado'
+                                >
+                                  <FontAwesomeIcon icon={faEnvelope} />
+                                </Button>
+                              )}
                             {viewMode === 'pre-candidatos' && (
                               <Button
                                 type='button'

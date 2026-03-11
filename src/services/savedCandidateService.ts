@@ -89,6 +89,7 @@ class SavedCandidateService {
       tarefas: saved.tarefas ?? [],
       informacoesAdicionais: saved.informacoesAdicionais ?? [],
       tags: saved.tags ?? [],
+      formIdOrigem: saved.formIdOrigem,
       desclassificado: saved.desclassificado ?? false,
       interview: saved.interview ?? { state: 'notSentEmail' }
     };

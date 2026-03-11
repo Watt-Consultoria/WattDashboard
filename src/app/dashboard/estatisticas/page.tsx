@@ -6,7 +6,7 @@ import { ChartConfig } from '@/components/ui/chart';
 import { PieGraph } from '@/features/overview/components/pie-graph';
 import { LineGraph } from '@/features/overview/components/line-graph';
 import { firebaseDb } from '@/lib/firebase/client';
-import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { useFirebaseData, type Project } from '@/contexts/firebase-data-context';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,7 +24,8 @@ const lineTones = {
   faturamento: 'rgb(59 130 246)'
 };
 
-const sectorTone = 'var(--primary)';
+const automacaoPalette = ['#1D4ED8', '#2563EB', '#3B82F6', '#60A5FA', '#93C5FD'];
+const eletricaPalette = ['#CA8A04', '#EAB308', '#FACC15', '#FDE047', '#FEF08A'];
 
 type PieChartDefinition = {
   title: string;
@@ -32,7 +33,7 @@ type PieChartDefinition = {
   config: ChartConfig;
   data: { name: string; value: number }[];
   centerLabel: string;
-  totalValue: number;
+  centerValue: number | string;
 };
 
 const goalConfig = {
@@ -197,7 +198,8 @@ const normalizeText = (value?: string): string =>
 
 export default function EstatisticasPage() {
   const { projects, isLoading: isLoadingData } = useFirebaseData();
-  const [pieCharts, setPieCharts] = React.useState<PieChartDefinition[]>([]);
+  const [unifiedPieChart, setUnifiedPieChart] =
+    React.useState<PieChartDefinition | null>(null);
   const [metaAnual, setMetaAnual] = React.useState(1320000);
   const [metaInput, setMetaInput] = React.useState('');
   const [isMetaDialogOpen, setIsMetaDialogOpen] = React.useState(false);
@@ -280,9 +282,6 @@ export default function EstatisticasPage() {
     // Calcular faturamento por tipo usando as mesmas constantes de acompanhamento
     const areaAutomacao = 'Automação';
     const areaEletrica = 'Elétrica';
-    const [tipoDomotica, tipoIndustrial] = tiposAutomacao;
-    const [tipoProjetoEletrico, tipoSolar] = tiposEletrica;
-
     const calcularFaturamentoPorTipo = (area: string, tipo: string) => {
       const areaNormalizada = normalizeText(area);
       const tipoNormalizado = normalizeText(tipo);
@@ -299,107 +298,71 @@ export default function EstatisticasPage() {
       }, 0);
     };
 
-    const faturamentoDomotica = calcularFaturamentoPorTipo(
-      areaAutomacao,
-      tipoDomotica
-    );
-    const faturamentoIndustrial = calcularFaturamentoPorTipo(
-      areaAutomacao,
-      tipoIndustrial
-    );
-    const faturamentoProjetoEletrico = calcularFaturamentoPorTipo(
-      areaEletrica,
-      tipoProjetoEletrico
-    );
-    const faturamentoSolar = calcularFaturamentoPorTipo(areaEletrica, tipoSolar);
+    const segmentsAutomacao = tiposAutomacao.map((tipo, index) => ({
+      key: `auto_${index}`,
+      label: tipo,
+      value: calcularFaturamentoPorTipo(areaAutomacao, tipo),
+      color: automacaoPalette[index % automacaoPalette.length]
+    }));
 
-    const totalAutomacao = faturamentoDomotica + faturamentoIndustrial;
-    const totalEletrica = faturamentoProjetoEletrico + faturamentoSolar;
+    const segmentsEletrica = tiposEletrica.map((tipo, index) => ({
+      key: `ele_${index}`,
+      label: tipo,
+      value: calcularFaturamentoPorTipo(areaEletrica, tipo),
+      color: eletricaPalette[index % eletricaPalette.length]
+    }));
+
+    const totalAutomacao = segmentsAutomacao.reduce(
+      (total, segment) => total + segment.value,
+      0
+    );
+    const totalEletrica = segmentsEletrica.reduce(
+      (total, segment) => total + segment.value,
+      0
+    );
     const totalGeral = totalAutomacao + totalEletrica;
 
-    // Calcular percentuais e determinar líder
-    const percDomotica = totalAutomacao > 0 ? (faturamentoDomotica / totalAutomacao * 100).toFixed(1) : 0;
-    const percIndustrial = totalAutomacao > 0 ? (faturamentoIndustrial / totalAutomacao * 100).toFixed(1) : 0;
-    const percProjetoEletrico = totalEletrica > 0 ? (faturamentoProjetoEletrico / totalEletrica * 100).toFixed(1) : 0;
-    const percSolar = totalEletrica > 0 ? (faturamentoSolar / totalEletrica * 100).toFixed(1) : 0;
-    const percAutomacao = totalGeral > 0 ? (totalAutomacao / totalGeral * 100).toFixed(1) : 0;
-    const percEletrica = totalGeral > 0 ? (totalEletrica / totalGeral * 100).toFixed(1) : 0;
+    const percAutomacao =
+      totalGeral > 0 ? ((totalAutomacao / totalGeral) * 100).toFixed(1) : '0.0';
+    const percEletrica =
+      totalGeral > 0 ? ((totalEletrica / totalGeral) * 100).toFixed(1) : '0.0';
 
-    // Determinar líderes
-    const liderAutomacao =
-      faturamentoDomotica >= faturamentoIndustrial ? tipoDomotica : tipoIndustrial;
-    const percLiderAutomacao = faturamentoDomotica >= faturamentoIndustrial ? percDomotica : percIndustrial;
-    
-    const liderEletrica =
-      faturamentoProjetoEletrico >= faturamentoSolar
-        ? tipoProjetoEletrico
-        : tipoSolar;
-    const percLiderEletrica = faturamentoProjetoEletrico >= faturamentoSolar ? percProjetoEletrico : percSolar;
-    
-    const liderGeral = totalAutomacao >= totalEletrica ? 'Automação' : 'Eletrica';
-    const percLiderGeral = totalAutomacao >= totalEletrica ? percAutomacao : percEletrica;
+    const unifiedConfig: ChartConfig = {
+      empty: { label: 'Sem dados', color: 'hsl(var(--muted))' }
+    };
 
-    const charts: PieChartDefinition[] = [
-      {
-        title: 'Automação',
-        caption: totalAutomacao === 0 
-          ? 'Nenhum projeto de automação cadastrado'
-          : `${liderAutomacao} lidera com ${percLiderAutomacao}%`,
-        config: {
-          domotica: { label: 'Domotica', color: sectorTone },
-          industrial: { label: 'Industrial', color: sectorTone },
-          empty: { label: 'Sem dados', color: 'hsl(var(--muted))' }
-        },
-        data: totalAutomacao === 0 
-          ? [{ name: 'empty', value: 1 }]
-          : [
-              { name: 'domotica', value: faturamentoDomotica },
-              { name: 'industrial', value: faturamentoIndustrial }
-            ],
-        centerLabel: totalAutomacao === 0 ? 'R$ 0,00' : formatCurrency(totalAutomacao),
-        totalValue: totalAutomacao
-      },
-      {
-        title: 'Eletrica',
-        caption: totalEletrica === 0
-          ? 'Nenhum projeto elétrico cadastrado'
-          : `${liderEletrica} lidera com ${percLiderEletrica}%`,
-        config: {
-          projetoEletrico: { label: 'Projeto Eletrico', color: sectorTone },
-          solar: { label: 'Solar', color: sectorTone },
-          empty: { label: 'Sem dados', color: 'hsl(var(--muted))' }
-        },
-        data: totalEletrica === 0
-          ? [{ name: 'empty', value: 1 }]
-          : [
-              { name: 'projetoEletrico', value: faturamentoProjetoEletrico },
-              { name: 'solar', value: faturamentoSolar }
-            ],
-        centerLabel: totalEletrica === 0 ? 'R$ 0,00' : formatCurrency(totalEletrica),
-        totalValue: totalEletrica
-      },
-      {
-        title: 'Geral',
-        caption: totalGeral === 0
+    segmentsAutomacao.forEach((segment) => {
+      unifiedConfig[segment.key] = {
+        label: segment.label,
+        color: segment.color
+      };
+    });
+
+    segmentsEletrica.forEach((segment) => {
+      unifiedConfig[segment.key] = {
+        label: segment.label,
+        color: segment.color
+      };
+    });
+
+    const chartData =
+      totalGeral === 0
+        ? [{ name: 'empty', value: 1 }]
+        : [...segmentsAutomacao, ...segmentsEletrica]
+            .filter((segment) => segment.value > 0)
+            .map((segment) => ({ name: segment.key, value: segment.value }));
+
+    setUnifiedPieChart({
+      title: 'Distribuição por área e tipo',
+      caption:
+        totalGeral === 0
           ? 'Nenhum projeto cadastrado'
-          : `${liderGeral} lidera com ${percLiderGeral}%`,
-        config: {
-          automacao: { label: 'Automação', color: sectorTone },
-          eletrica: { label: 'Eletrica', color: sectorTone },
-          empty: { label: 'Sem dados', color: 'hsl(var(--muted))' }
-        },
-        data: totalGeral === 0
-          ? [{ name: 'empty', value: 1 }]
-          : [
-              { name: 'automacao', value: totalAutomacao },
-              { name: 'eletrica', value: totalEletrica }
-            ],
-        centerLabel: totalGeral === 0 ? 'R$ 0,00' : formatCurrency(totalGeral),
-        totalValue: totalGeral
-      }
-    ];
-
-    setPieCharts(charts);
+          : `Automação ${percAutomacao}% • Elétrica ${percEletrica}%`,
+      config: unifiedConfig,
+      data: chartData,
+      centerLabel: formatCurrency(totalGeral),
+      centerValue: totalGeral
+    });
   }, [projects, isLoadingData, metaAnual, testDate]);
 
   const handleSetTestDate = () => {
@@ -448,17 +411,41 @@ export default function EstatisticasPage() {
     <PageContainer scrollable={false}>
       <div className='flex flex-1 flex-col space-y-4'>
         <div className='*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:grid-cols-3'>
-          {pieCharts.map((chart) => (
+          {unifiedPieChart ? (
             <PieGraph
-              key={chart.title}
-              title={chart.title}
-              description={chart.caption}
-              shortDescription={chart.caption}
-              data={chart.data}
-              config={chart.config}
-              centerLabel={chart.centerLabel}
+              key={unifiedPieChart.title}
+              title={unifiedPieChart.title}
+              description={unifiedPieChart.caption}
+              shortDescription={unifiedPieChart.caption}
+              data={unifiedPieChart.data}
+              config={unifiedPieChart.config}
+              centerLabel={unifiedPieChart.centerLabel}
+              centerValue={unifiedPieChart.centerValue}
               className='[&_[data-slot=card-content]]:pt-0 [&_[data-slot=card-content]]:sm:pt-0 [&_[data-slot=chart]]:h-[230px]'
             />
+          ) : (
+            <Card>
+              <CardHeader>
+                <Skeleton className='h-6 w-32' />
+                <Skeleton className='h-4 w-48' />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className='h-[230px] w-full' />
+              </CardContent>
+            </Card>
+          )}
+          {[1, 2].map((cardIndex) => (
+            <Card key={`placeholder-${cardIndex}`}>
+              <CardHeader>
+                <CardTitle>Novos indicadores</CardTitle>
+                <CardDescription>Em breve</CardDescription>
+              </CardHeader>
+              <CardContent className='flex h-[230px] items-center justify-center'>
+                <p className='text-muted-foreground text-center text-sm'>
+                  Futuramente haverá informações aqui.
+                </p>
+              </CardContent>
+            </Card>
           ))}
         </div>
 
