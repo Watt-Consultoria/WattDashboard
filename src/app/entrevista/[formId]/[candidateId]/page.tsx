@@ -62,6 +62,7 @@ export default function InterviewSelectionPage() {
   );
   const [candidateName, setCandidateName] = React.useState('');
   const [errorMessage, setErrorMessage] = React.useState('');
+  const showFinalDayWarning = state !== 'success' && state !== 'already-booked';
 
   React.useEffect(() => {
     if (!formId || !candidateId) return;
@@ -91,7 +92,7 @@ export default function InterviewSelectionPage() {
 
         const filteredSlots = fetchedSlots.filter((slot) => {
           const slotDate = new Date(`${slot.isoDate}T${slot.endTime}:00`);
-          return slotDate > new Date(Date.now() + 24 * 60 * 60 * 1000); // Filtrar slots que terminam em menos de 24h
+          return slotDate > new Date(Date.now() + 60 * 60 * 1000); // Filtrar slots com menos de 1 hora para o início, para evitar agendamento em cima da hora
         });
 
         setSlots(filteredSlots);
@@ -177,6 +178,21 @@ export default function InterviewSelectionPage() {
         </CardHeader>
 
         <CardContent className='px-4 sm:px-6'>
+          {showFinalDayWarning && (
+            <div className='mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300'>
+              <p className='flex items-start gap-2'>
+                <FontAwesomeIcon
+                  icon={faExclamationTriangle}
+                  className='mt-0.5 size-4 shrink-0'
+                />
+                <span>
+                  Atenção: hoje é o último dia de inscrições. Se não houver
+                  entrevistadores disponíveis, o candidato será desclassificado.
+                </span>
+              </p>
+            </div>
+          )}
+
           {/* LOADING */}
           {state === 'loading' && (
             <div className='flex flex-col items-center gap-3 py-8'>
@@ -261,7 +277,7 @@ export default function InterviewSelectionPage() {
                 </p>
               )}
 
-              <div className='-mx-1 max-h-[50vh] space-y-3 overflow-y-auto px-1 sm:max-h-80'>
+              <div className='-mx-1 max-h-[30vh] space-y-3 overflow-y-auto px-1 sm:max-h-50'>
                 {Array.from(groupedSlots.entries()).map(
                   ([isoDate, dateSlots]) => (
                     <div key={isoDate}>
