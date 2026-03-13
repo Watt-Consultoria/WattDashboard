@@ -186,7 +186,7 @@ export default function InterviewSelectionPage() {
                   className='mt-0.5 size-4 shrink-0'
                 />
                 <span>
-                  Atenção: hoje é o último dia de inscrições. Se não houver
+                  Atenção: hoje é o último dia de entrevistas. Se não houver
                   entrevistadores disponíveis, o candidato será desclassificado.
                 </span>
               </p>
