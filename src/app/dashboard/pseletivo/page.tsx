@@ -194,6 +194,8 @@ export default function PSeletivoPage() {
   const [selectedFormId, setSelectedFormId] = React.useState('');
   const [members, setMembers] = React.useState<Candidate[]>([]);
   const [query, setQuery] = React.useState('');
+  const [isPendingFilterActive, setIsPendingFilterActive] =
+    React.useState(false);
   const [isLoadingMembers, setIsLoadingMembers] = React.useState(true);
   const [isLoadingForms, setIsLoadingForms] = React.useState(true);
   const [loadError, setLoadError] = React.useState('');
@@ -289,8 +291,10 @@ export default function PSeletivoPage() {
   ] = React.useState<Set<string>>(new Set());
   const [isSendingInterviewEmail, setIsSendingInterviewEmail] =
     React.useState(false);
-  const [isUpdatingInterviewStateCandidateId, setIsUpdatingInterviewStateCandidateId] =
-    React.useState<string | null>(null);
+  const [
+    isUpdatingInterviewStateCandidateId,
+    setIsUpdatingInterviewStateCandidateId
+  ] = React.useState<string | null>(null);
 
   // Estados para confirmação de entrevista (Google Meet)
   const [isConfirmInterviewDialogOpen, setIsConfirmInterviewDialogOpen] =
@@ -414,13 +418,19 @@ export default function PSeletivoPage() {
   );
 
   // Coletar todas as tags únicas dos candidatos salvos
+  const emailRecipientCandidates = React.useMemo(
+    () =>
+      viewMode === 'desclassificados' ? disqualifiedCandidates : savedCandidates,
+    [disqualifiedCandidates, savedCandidates, viewMode]
+  );
+
   const allCandidateTags = React.useMemo(() => {
     const tagsSet = new Set<string>();
-    savedCandidates.forEach((c) => {
+    emailRecipientCandidates.forEach((c) => {
       c.tags?.forEach((tag) => tagsSet.add(tag));
     });
     return Array.from(tagsSet).sort();
-  }, [savedCandidates]);
+  }, [emailRecipientCandidates]);
 
   // Preview renderizado do email (com placeholders destacados como exemplo)
   const renderedEmailPreview = React.useMemo(() => {
@@ -888,7 +898,14 @@ export default function PSeletivoPage() {
   };
 
   const handleAddTag = async () => {
-    if (!selectedCandidateForTags || viewMode !== 'candidatos') return;
+    if (!selectedCandidateForTags) return;
+    if (viewMode !== 'candidatos' && viewMode !== 'desclassificados') return;
+    if (viewMode === 'desclassificados' && !selectedCandidateForTags.formIdOrigem) {
+      toast.error(
+        'Este desclassificado ainda nao foi salvo como candidato. Nao e possivel editar tags.'
+      );
+      return;
+    }
 
     const trimmedTag = newTag.trim();
     if (!trimmedTag) {
@@ -919,6 +936,13 @@ export default function PSeletivoPage() {
             : m
         )
       );
+      setDisqualifiedCandidates((current) =>
+        current.map((m) =>
+          m.id === selectedCandidateForTags.id
+            ? { ...m, tags: [...(m.tags ?? []), trimmedTag] }
+            : m
+        )
+      );
     } catch (error: any) {
       if (error?.message?.includes('já existe')) {
         toast.error('Esta tag já existe para este candidato.');
@@ -932,7 +956,14 @@ export default function PSeletivoPage() {
   };
 
   const handleRemoveTag = async (tag: string) => {
-    if (!selectedCandidateForTags || viewMode !== 'candidatos') return;
+    if (!selectedCandidateForTags) return;
+    if (viewMode !== 'candidatos' && viewMode !== 'desclassificados') return;
+    if (viewMode === 'desclassificados' && !selectedCandidateForTags.formIdOrigem) {
+      toast.error(
+        'Este desclassificado ainda nao foi salvo como candidato. Nao e possivel editar tags.'
+      );
+      return;
+    }
 
     setIsSavingTag(true);
     try {
@@ -950,6 +981,13 @@ export default function PSeletivoPage() {
       });
       // Atualizar a lista de candidatos
       setSavedCandidates((current) =>
+        current.map((m) =>
+          m.id === selectedCandidateForTags.id
+            ? { ...m, tags: (m.tags ?? []).filter((t) => t !== tag) }
+            : m
+        )
+      );
+      setDisqualifiedCandidates((current) =>
         current.map((m) =>
           m.id === selectedCandidateForTags.id
             ? { ...m, tags: (m.tags ?? []).filter((t) => t !== tag) }
@@ -977,10 +1015,15 @@ export default function PSeletivoPage() {
   };
 
   const toggleAllCandidates = () => {
-    if (selectedCandidateIds.size === filteredMembers.length) {
+    const taggableCandidates =
+      viewMode === 'desclassificados'
+        ? filteredMembers.filter((m) => Boolean(m.formIdOrigem))
+        : filteredMembers;
+
+    if (selectedCandidateIds.size === taggableCandidates.length) {
       setSelectedCandidateIds(new Set());
     } else {
-      setSelectedCandidateIds(new Set(filteredMembers.map((m) => m.id)));
+      setSelectedCandidateIds(new Set(taggableCandidates.map((m) => m.id)));
     }
   };
 
@@ -992,7 +1035,7 @@ export default function PSeletivoPage() {
   };
 
   const handleAddBulkTag = async () => {
-    if (viewMode !== 'candidatos') return;
+    if (viewMode !== 'candidatos' && viewMode !== 'desclassificados') return;
 
     const trimmedTag = bulkTagName.trim();
     if (!trimmedTag) {
@@ -1007,22 +1050,41 @@ export default function PSeletivoPage() {
 
     setIsSavingTag(true);
     try {
+      const candidateIds =
+        viewMode === 'desclassificados'
+          ? Array.from(selectedCandidateIds).filter((id) =>
+              disqualifiedCandidates.some(
+                (candidate) => candidate.id === id && candidate.formIdOrigem
+              )
+            )
+          : Array.from(selectedCandidateIds);
+
       const result = await savedCandidateService.addTagToMultipleCandidates(
-        Array.from(selectedCandidateIds),
+        candidateIds,
         trimmedTag
       );
 
       if (result.success) {
         toast.success(
-          `Tag "${trimmedTag}" adicionada a ${selectedCandidateIds.size} candidato(s).`
+          `Tag "${trimmedTag}" adicionada a ${candidateIds.length} candidato(s).`
         );
         setBulkTagName('');
         setSelectedCandidateIds(new Set());
         setIsBulkTagsDialogOpen(false);
-        // Recarregar candidatos
-        const candidates =
-          await savedCandidateService.listActiveSavedCandidatesAsCandidate();
-        setSavedCandidates(candidates);
+        setSavedCandidates((current) =>
+          current.map((candidate) =>
+            candidateIds.includes(candidate.id)
+              ? { ...candidate, tags: [...(candidate.tags ?? []), trimmedTag] }
+              : candidate
+          )
+        );
+        setDisqualifiedCandidates((current) =>
+          current.map((candidate) =>
+            candidateIds.includes(candidate.id)
+              ? { ...candidate, tags: [...(candidate.tags ?? []), trimmedTag] }
+              : candidate
+          )
+        );
       } else {
         toast.error(result.error ?? 'Erro ao adicionar tag aos candidatos.');
       }
@@ -1035,7 +1097,7 @@ export default function PSeletivoPage() {
   };
 
   const handleRemoveBulkTag = async () => {
-    if (viewMode !== 'candidatos') return;
+    if (viewMode !== 'candidatos' && viewMode !== 'desclassificados') return;
 
     const trimmedTag = bulkTagName.trim();
     if (!trimmedTag) {
@@ -1050,23 +1112,48 @@ export default function PSeletivoPage() {
 
     setIsSavingTag(true);
     try {
+      const candidateIds =
+        viewMode === 'desclassificados'
+          ? Array.from(selectedCandidateIds).filter((id) =>
+              disqualifiedCandidates.some(
+                (candidate) => candidate.id === id && candidate.formIdOrigem
+              )
+            )
+          : Array.from(selectedCandidateIds);
+
       const result =
         await savedCandidateService.removeTagFromMultipleCandidates(
-          Array.from(selectedCandidateIds),
+          candidateIds,
           trimmedTag
         );
 
       if (result.success) {
         toast.success(
-          `Tag "${trimmedTag}" removida de ${selectedCandidateIds.size} candidato(s).`
+          `Tag "${trimmedTag}" removida de ${candidateIds.length} candidato(s).`
         );
         setBulkTagName('');
         setSelectedCandidateIds(new Set());
         setIsBulkTagsDialogOpen(false);
-        // Recarregar candidatos
-        const candidates =
-          await savedCandidateService.listActiveSavedCandidatesAsCandidate();
-        setSavedCandidates(candidates);
+        setSavedCandidates((current) =>
+          current.map((candidate) =>
+            candidateIds.includes(candidate.id)
+              ? {
+                  ...candidate,
+                  tags: (candidate.tags ?? []).filter((tag) => tag !== trimmedTag)
+                }
+              : candidate
+          )
+        );
+        setDisqualifiedCandidates((current) =>
+          current.map((candidate) =>
+            candidateIds.includes(candidate.id)
+              ? {
+                  ...candidate,
+                  tags: (candidate.tags ?? []).filter((tag) => tag !== trimmedTag)
+                }
+              : candidate
+          )
+        );
       } else {
         toast.error(result.error ?? 'Erro ao remover tag dos candidatos.');
       }
@@ -1301,7 +1388,10 @@ export default function PSeletivoPage() {
         setSavedCandidates((prev) =>
           prev.map((c) =>
             c.id === candidate.id
-              ? { ...c, interview: { ...(c.interview ?? {}), state: 'sentEmail' } }
+              ? {
+                  ...c,
+                  interview: { ...(c.interview ?? {}), state: 'sentEmail' }
+                }
               : c
           )
         );
@@ -1508,10 +1598,12 @@ export default function PSeletivoPage() {
   };
 
   const handleToggleAllEmailCandidates = () => {
-    if (emailSelectedCandidateIds.size === savedCandidates.length) {
+    if (emailSelectedCandidateIds.size === emailRecipientCandidates.length) {
       setEmailSelectedCandidateIds(new Set());
     } else {
-      setEmailSelectedCandidateIds(new Set(savedCandidates.map((c) => c.id)));
+      setEmailSelectedCandidateIds(
+        new Set(emailRecipientCandidates.map((c) => c.id))
+      );
     }
   };
 
@@ -1738,16 +1830,50 @@ export default function PSeletivoPage() {
   };
 
   const filteredMembers = React.useMemo(() => {
+    const normalizedTag = (value: string) =>
+      value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+
+    const membersToFilter =
+      viewMode === 'candidatos' && isPendingFilterActive
+        ? currentMembers.filter((member) => {
+            const interviewState = member.interview?.state;
+            if (interviewState === 'scheduled') {
+              return true;
+            }
+
+            if (interviewState === 'finished') {
+              const hasGroupDynamicTag = (member.tags ?? []).some(
+                (tag) => normalizedTag(tag) === 'dinamica de grupo'
+              );
+              return !hasGroupDynamicTag;
+            }
+
+            return false;
+          })
+        : currentMembers;
+
     if (
       viewMode === 'candidatos' ||
       viewMode === 'desclassificados' ||
       viewMode === 'resultados'
     ) {
-      return savedCandidateService.filterCandidates(currentMembers, query);
+      return savedCandidateService.filterCandidates(membersToFilter, query);
     }
 
-    return candidateService.filterCandidates(currentMembers, query);
-  }, [currentMembers, query, viewMode]);
+    return candidateService.filterCandidates(membersToFilter, query);
+  }, [currentMembers, isPendingFilterActive, query, viewMode]);
+
+  const bulkTagCandidates = React.useMemo(
+    () =>
+      viewMode === 'desclassificados'
+        ? filteredMembers.filter((member) => Boolean(member.formIdOrigem))
+        : filteredMembers,
+    [filteredMembers, viewMode]
+  );
 
   return (
     <PageContainer
@@ -1883,14 +2009,18 @@ export default function PSeletivoPage() {
                 {viewMode === 'candidatos' && (
                   <>
                     <DropdownMenuItem
-                      onClick={() => setIsEmailDialogOpen(true)}
-                      disabled={isCurrentlyLoading || isLoadingForms}
+                      onClick={() =>
+                        setIsPendingFilterActive((current) => !current)
+                      }
                     >
                       <FontAwesomeIcon
-                        icon={faEnvelope}
-                        className='mr-2 h-4 w-4'
+                        icon={faCheck}
+                        className={cn(
+                          'mr-2 h-4 w-4',
+                          isPendingFilterActive ? 'opacity-100' : 'opacity-0'
+                        )}
                       />
-                      Notificar
+                      Pendentes
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => {
@@ -1907,6 +2037,16 @@ export default function PSeletivoPage() {
                       Enviar Entrevistas
                     </DropdownMenuItem>
                   </>
+                )}
+                {(viewMode === 'candidatos' ||
+                  viewMode === 'desclassificados') && (
+                  <DropdownMenuItem
+                    onClick={() => setIsEmailDialogOpen(true)}
+                    disabled={isCurrentlyLoading}
+                  >
+                    <FontAwesomeIcon icon={faEnvelope} className='mr-2 h-4 w-4' />
+                    Notificar
+                  </DropdownMenuItem>
                 )}
                 {viewMode === 'pre-candidatos' && (
                   <DropdownMenuItem
@@ -2169,7 +2309,9 @@ export default function PSeletivoPage() {
                                   />
                                 </Button>
                               )}
-                            {viewMode === 'candidatos' && (
+                            {(viewMode === 'candidatos' ||
+                              (viewMode === 'desclassificados' &&
+                                Boolean(member.formIdOrigem))) && (
                               <Button
                                 type='button'
                                 size='icon'
@@ -2178,9 +2320,9 @@ export default function PSeletivoPage() {
                                 onClick={() => openTagsDialog(member)}
                                 aria-label='Gerenciar tags'
                               >
-                                  <FontAwesomeIcon icon={faTags} />
-                                </Button>
-                              )}
+                                <FontAwesomeIcon icon={faTags} />
+                              </Button>
+                            )}
                             {viewMode === 'candidatos' &&
                               member.interview?.state === 'canceled' && (
                                 <Button
@@ -2512,9 +2654,9 @@ export default function PSeletivoPage() {
                           'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 aria-selected:bg-emerald-600 aria-selected:text-white'
                       }}
                       disabled={(date) => {
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        return date < today;
+                        const startDay = new Date('2026-03-03');
+                        const endDay = new Date('2026-03-14');
+                        return date < startDay || date > endDay;
                       }}
                       className='mx-auto'
                     />
@@ -3222,14 +3364,14 @@ export default function PSeletivoPage() {
                   onClick={toggleAllCandidates}
                   disabled={isSavingTag}
                 >
-                  {selectedCandidateIds.size === filteredMembers.length
+                  {selectedCandidateIds.size === bulkTagCandidates.length
                     ? 'Desmarcar todos'
                     : 'Selecionar todos'}
                 </Button>
               </div>
               <ScrollArea className='h-75 rounded-md border p-3'>
                 <div className='space-y-2'>
-                  {filteredMembers
+                  {bulkTagCandidates
                     .sort((a, b) => a.nome.localeCompare(b.nome))
                     .map((candidate) => (
                       <div
@@ -3374,7 +3516,7 @@ export default function PSeletivoPage() {
                     <div className='flex items-center justify-between'>
                       <p className='text-muted-foreground text-xs'>
                         {emailSelectedCandidateIds.size} de{' '}
-                        {savedCandidates.length} selecionado(s)
+                        {emailRecipientCandidates.length} selecionado(s)
                       </p>
                       <Button
                         type='button'
@@ -3384,14 +3526,14 @@ export default function PSeletivoPage() {
                         className='h-7 text-xs'
                       >
                         {emailSelectedCandidateIds.size ===
-                        savedCandidates.length
+                        emailRecipientCandidates.length
                           ? 'Desmarcar todos'
                           : 'Selecionar todos'}
                       </Button>
                     </div>
                     <ScrollArea className='h-44 rounded-md border p-2'>
                       <div className='flex flex-col gap-1'>
-                        {savedCandidates
+                        {[...emailRecipientCandidates]
                           .sort((a, b) => a.nome.localeCompare(b.nome))
                           .map((candidate) => (
                             <div
@@ -3421,7 +3563,7 @@ export default function PSeletivoPage() {
                               </label>
                             </div>
                           ))}
-                        {savedCandidates.length === 0 && (
+                        {emailRecipientCandidates.length === 0 && (
                           <p className='text-muted-foreground py-4 text-center text-xs'>
                             Nenhum candidato salvo.
                           </p>
