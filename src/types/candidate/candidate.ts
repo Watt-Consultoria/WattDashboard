@@ -1,5 +1,6 @@
 import type { InterviewResult } from '@/types/interview/interview';
 import type { InterviewAnswersMap } from '@/types/interview/interview-script';
+import type { CandidateAvaliacoesEtapas } from './stage-evaluation';
 
 export type CandidateTaskStatus = 'PENDENTE' | 'EM_ANDAMENTO' | 'CONCLUIDA';
 
@@ -77,6 +78,8 @@ export type Candidate = {
   desclassificado?: boolean;
   /** Dados de entrevista do candidato */
   interview?: CandidateInterview;
+  /** Avaliacoes por etapa do PSEL */
+  avaliacaoEtapas?: CandidateAvaliacoesEtapas;
 };
 
 export type CandidateForm = {

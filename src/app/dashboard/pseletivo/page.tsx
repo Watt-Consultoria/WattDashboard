@@ -84,6 +84,9 @@ import {
 import { InterviewEvaluationDialog } from '@/components/interview-evaluation-dialog';
 import { InterviewResultsTab } from '@/components/interview-results-tab';
 import { InterviewScriptSliderDialog } from '@/components/interview-script-slider';
+import { PselStageSwipeEvaluation } from '@/components/psel-stage-swipe-evaluation';
+import { PselStageAbsenceManager } from '@/components/psel-stage-absence-manager';
+import { PselStageResultsTab } from '@/components/psel-stage-results-tab';
 import { faStar, faChartBar } from '@fortawesome/free-solid-svg-icons';
 
 type ViewMode =
@@ -337,6 +340,10 @@ export default function PSeletivoPage() {
   // Candidato selecionado para o roteiro de entrevista (com persistência de respostas)
   const [interviewScriptCandidate, setInterviewScriptCandidate] =
     React.useState<Candidate | null>(null);
+  const [isStageEvaluationDialogOpen, setIsStageEvaluationDialogOpen] =
+    React.useState(false);
+  const [stageEvaluationDialogTab, setStageEvaluationDialogTab] =
+    React.useState<'avaliacao' | 'faltas'>('avaliacao');
 
   // Membros da empresa com tag "Psel" para a planilha de entrevistas
   const pselMembers: ResponsibleMember[] = React.useMemo(
@@ -345,6 +352,19 @@ export default function PSeletivoPage() {
         .filter((m) => m.tags?.some((t) => t.toLowerCase() === 'psel'))
         .map((m) => ({ id: m.id, name: m.name })),
     [companyMembers]
+  );
+
+  const currentStageEvaluationActor = React.useMemo(
+    () =>
+      currentMember
+        ? {
+            id: currentMember.id,
+            name: currentMember.name,
+            role: currentMember.role ?? null,
+            tags: currentMember.tags ?? []
+          }
+        : null,
+    [currentMember]
   );
 
   // Callback para adicionar slot de entrevista via planilha
@@ -1901,6 +1921,21 @@ export default function PSeletivoPage() {
               <FontAwesomeIcon icon={faTags} className='h-3 w-3' />
               <span className='hidden text-xs sm:inline'>Tags</span>
             </Button>
+            {viewMode === 'candidatos' && (
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={() => {
+                  setStageEvaluationDialogTab('avaliacao');
+                  setIsStageEvaluationDialogOpen(true);
+                }}
+                className='gap-2 px-2 sm:px-3'
+              >
+                <FontAwesomeIcon icon={faChartBar} className='h-3 w-3' />
+                <span className='hidden text-xs sm:inline'>Avaliacao</span>
+              </Button>
+            )}
 
             {/* Interview slots button - visible on sm+ */}
             <Button
@@ -2009,6 +2044,27 @@ export default function PSeletivoPage() {
                 {viewMode === 'candidatos' && (
                   <>
                     <DropdownMenuItem
+                      onClick={() => {
+                        setStageEvaluationDialogTab('avaliacao');
+                        setIsStageEvaluationDialogOpen(true);
+                      }}
+                    >
+                      <FontAwesomeIcon
+                        icon={faChartBar}
+                        className='mr-2 h-4 w-4'
+                      />
+                      Avaliar por etapa
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setStageEvaluationDialogTab('faltas');
+                        setIsStageEvaluationDialogOpen(true);
+                      }}
+                    >
+                      <FontAwesomeIcon icon={faXmark} className='mr-2 h-4 w-4' />
+                      Registrar faltas
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                       onClick={() =>
                         setIsPendingFilterActive((current) => !current)
                       }
@@ -2115,7 +2171,20 @@ export default function PSeletivoPage() {
         {viewMode === 'resultados' ? (
           <div className='flex min-h-0 w-full max-w-full flex-1 overflow-hidden rounded-md'>
             <div className='h-full w-full max-w-full overflow-y-auto p-3'>
-              <InterviewResultsTab candidates={savedCandidates} />
+              <Tabs defaultValue='entrevistas' className='w-full'>
+                <TabsList className='mb-4 grid w-full grid-cols-2'>
+                  <TabsTrigger value='entrevistas'>Entrevistas</TabsTrigger>
+                  <TabsTrigger value='avaliacao-etapas'>
+                    Avaliacao por etapa
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value='entrevistas' className='mt-0'>
+                  <InterviewResultsTab candidates={savedCandidates} />
+                </TabsContent>
+                <TabsContent value='avaliacao-etapas' className='mt-0'>
+                  <PselStageResultsTab />
+                </TabsContent>
+              </Tabs>
             </div>
           </div>
         ) : (
@@ -3978,6 +4047,56 @@ export default function PSeletivoPage() {
               {isSendingConfirmation ? 'Enviando...' : 'Enviar Confirmação'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Dialog: Avaliacoes por etapa PSEL ─── */}
+      <Dialog
+        open={isStageEvaluationDialogOpen}
+        onOpenChange={(open) => {
+          setIsStageEvaluationDialogOpen(open);
+          if (!open) {
+            setStageEvaluationDialogTab('avaliacao');
+          }
+        }}
+      >
+        <DialogContent className='flex h-dvh max-h-dvh w-screen max-w-screen flex-col overflow-hidden rounded-none border-0 p-0 sm:h-[95dvh] sm:max-h-[95dvh] sm:w-[95vw] sm:max-w-[95vw] sm:rounded-lg sm:border'>
+          <DialogHeader className='shrink-0 px-4 pt-4 pb-2 sm:px-6 sm:pt-6'>
+            <DialogTitle className='text-base sm:text-lg'>
+              Avaliacoes por etapa do PSEL
+            </DialogTitle>
+            <DialogDescription className='text-xs sm:text-sm'>
+              Vote por swipe e registre faltas por etapa dentro do prazo
+              configurado.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='min-h-0 flex-1 px-3 pb-3 sm:px-6 sm:pb-6'>
+            <Tabs
+              value={stageEvaluationDialogTab}
+              onValueChange={(value) =>
+                setStageEvaluationDialogTab(value as 'avaliacao' | 'faltas')
+              }
+              className='flex h-full min-h-0 flex-col'
+            >
+              <TabsList className='mb-3 grid w-full grid-cols-2'>
+                <TabsTrigger value='avaliacao'>Avaliacao</TabsTrigger>
+                <TabsTrigger value='faltas'>Faltas</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value='avaliacao' className='mt-0 min-h-0 flex-1'>
+                <div className='h-full overflow-y-auto pr-1'>
+                  <PselStageSwipeEvaluation actor={currentStageEvaluationActor} />
+                </div>
+              </TabsContent>
+
+              <TabsContent value='faltas' className='mt-0 min-h-0 flex-1'>
+                <div className='h-full overflow-y-auto pr-1'>
+                  <PselStageAbsenceManager actor={currentStageEvaluationActor} />
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
         </DialogContent>
       </Dialog>
 
