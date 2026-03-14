@@ -3,6 +3,7 @@ import type {
   CandidateAdditionalInfo,
   CandidateInterview
 } from './candidate';
+import type { CandidateAvaliacoesEtapas } from './stage-evaluation';
 
 /**
  * Candidato salvo na coleção `candidates` do Firestore.
@@ -37,6 +38,8 @@ export type SavedCandidate = {
   desclassificado?: boolean;
   /** Dados de entrevista do candidato */
   interview?: CandidateInterview;
+  /** Avaliacoes por etapa do PSEL */
+  avaliacaoEtapas?: CandidateAvaliacoesEtapas;
   createdAt?: unknown;
   updatedAt?: unknown;
 };

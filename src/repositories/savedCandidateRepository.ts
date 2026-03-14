@@ -7,6 +7,7 @@ import type {
   CandidateInterview,
   InterviewState
 } from '@/types/candidate/candidate';
+import type { CandidateAvaliacoesEtapas } from '@/types/candidate/stage-evaluation';
 import type { InterviewResult } from '@/types/interview/interview';
 import type { InterviewAnswersMap } from '@/types/interview/interview-script';
 import { firebaseDb } from '@/lib/firebase/client';
@@ -70,6 +71,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
       respostaIdOrigem: data.respostaIdOrigem,
       desclassificado: data.desclassificado ?? false,
       interview: data.interview ?? { state: 'notSentEmail' },
+      avaliacaoEtapas: data.avaliacaoEtapas ?? {},
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
@@ -114,6 +116,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
         respostaIdOrigem: data.respostaIdOrigem ?? '',
         desclassificado: data.desclassificado ?? false,
         interview: this.normalizeInterview(data.interview),
+        avaliacaoEtapas: this.normalizeStageEvaluations(data.avaliacaoEtapas),
         createdAt: data.createdAt ?? null,
         updatedAt: data.updatedAt ?? null
       };
@@ -153,6 +156,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
       respostaIdOrigem: data.respostaIdOrigem ?? '',
       desclassificado: data.desclassificado ?? false,
       interview: this.normalizeInterview(data.interview),
+      avaliacaoEtapas: this.normalizeStageEvaluations(data.avaliacaoEtapas),
       createdAt: data.createdAt ?? null,
       updatedAt: data.updatedAt ?? null
     };
@@ -191,6 +195,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
         respostaIdOrigem: data.respostaIdOrigem ?? '',
         desclassificado: data.desclassificado ?? false,
         interview: this.normalizeInterview(data.interview),
+        avaliacaoEtapas: this.normalizeStageEvaluations(data.avaliacaoEtapas),
         createdAt: data.createdAt ?? null,
         updatedAt: data.updatedAt ?? null
       };
@@ -246,6 +251,7 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
           respostaIdOrigem: data.respostaIdOrigem ?? '',
           desclassificado: data.desclassificado ?? false,
           interview: this.normalizeInterview(data.interview),
+          avaliacaoEtapas: this.normalizeStageEvaluations(data.avaliacaoEtapas),
           createdAt: data.createdAt ?? null,
           updatedAt: data.updatedAt ?? null
         });
@@ -592,6 +598,14 @@ class SavedCandidateRepository implements ISavedCandidateRepository {
     }
 
     return interview;
+  }
+
+  private normalizeStageEvaluations(raw: unknown): CandidateAvaliacoesEtapas {
+    if (!raw || typeof raw !== 'object') {
+      return {};
+    }
+
+    return raw as CandidateAvaliacoesEtapas;
   }
 }
 

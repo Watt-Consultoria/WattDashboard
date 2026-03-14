@@ -125,13 +125,6 @@ export const navItems: NavItem[] = [
     items: []
   },
   {
-    title: 'Membro PSeletivo',
-    url: '/dashboard/pseletivo/membro',
-    icon: 'user',
-    isActive: false,
-    items: []
-  },
-  {
     title: 'Visão do time',
     url: '/dashboard/teamview',
     icon: 'dashboard',

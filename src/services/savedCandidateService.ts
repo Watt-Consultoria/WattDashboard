@@ -91,7 +91,8 @@ class SavedCandidateService {
       tags: saved.tags ?? [],
       formIdOrigem: saved.formIdOrigem,
       desclassificado: saved.desclassificado ?? false,
-      interview: saved.interview ?? { state: 'notSentEmail' }
+      interview: saved.interview ?? { state: 'notSentEmail' },
+      avaliacaoEtapas: saved.avaliacaoEtapas ?? {}
     };
   }
 
