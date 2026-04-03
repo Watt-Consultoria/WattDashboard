@@ -83,7 +83,7 @@ type MemberWithStats = Member & {
 
 export default function FaltasPage() {
   const { user } = useAuth();
-  const { currentMember, members } = useFirebaseData();
+  const { currentMember } = useFirebaseData();
   const router = useRouter();
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [memberFaltas, setMemberFaltas] = useState<
@@ -100,12 +100,13 @@ export default function FaltasPage() {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [faltaTypeFilter, setFaltaTypeFilter] = useState<string>('all');
   const [showOnlyWithFaltas, setShowOnlyWithFaltas] = useState(false);
+  const isManager = (currentMember?.role || '').trim().toLowerCase() === 'gerente';
 
   useMetadata({ title: 'Faltas' });
 
   useEffect(() => {
     if (!isLoading && currentMember) {
-      const allowedRoles = ['Diretor', 'Presidente', 'Assessor'];
+      const allowedRoles = ['Diretor', 'Presidente', 'Assessor', 'Gerente'];
       if (!allowedRoles.includes(currentMember.role || '')) {
         toast.error('Acesso não autorizado', {
           description: 'Você não tem permissão para acessar esta página.'
@@ -120,20 +121,41 @@ export default function FaltasPage() {
 
     setIsLoading(true);
     try {
-      const members = await memberService.getAllMembers();
-
-      members.sort((a, b) => a.name.localeCompare(b.name));
-
-      setAllMembers(members);
-
-      // Carregar faltas de todos os membros
-      const allFaltas = await faltaService.getAllFaltasWithDetails();
       const faltasMap: Record<string, FaltaWithDetails[]> = {};
-      for (const member of members) {
-        const faltas = allFaltas.filter(
-          (falta) => falta.memberId === member.id
+
+      const members = await memberService.getAllMembers();
+      const visibleMembers = members
+        .filter((member) => {
+          if (!isManager) return true;
+          if (!currentMember?.sector) return false;
+
+          return (
+            member.sector === currentMember.sector &&
+            member.id !== currentMember.id
+          );
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      setAllMembers(visibleMembers);
+
+      if (isManager) {
+        const faltasByMember = await Promise.all(
+          visibleMembers.map(async (member) => [
+            member.id,
+            await faltaService.getFaltasWithDetails(member.id)
+          ] as const)
         );
-        faltasMap[member.id] = faltas;
+        faltasByMember.forEach(([memberId, faltas]) => {
+          faltasMap[memberId] = faltas;
+        });
+      } else {
+        const allFaltas = await faltaService.getAllFaltasWithDetails();
+        for (const member of visibleMembers) {
+          const faltas = allFaltas.filter(
+            (falta) => falta.memberId === member.id
+          );
+          faltasMap[member.id] = faltas;
+        }
       }
 
       setMemberFaltas(faltasMap);
@@ -255,7 +277,25 @@ export default function FaltasPage() {
     setExpandedMemberId((prev) => (prev === memberId ? null : memberId));
   };
 
+  const canCancelFalta = (falta: FaltaWithDetails) => {
+    if (!isManager) return true;
+    return falta.addedBy === user?.uid;
+  };
+
   const handleCancelFalta = async (memberId: string, faltaId: string) => {
+    const falta = (memberFaltas[memberId] || []).find((item) => item.id === faltaId);
+    if (!falta) {
+      toast.error('Falta não encontrada para cancelamento');
+      return;
+    }
+
+    if (isManager && falta.addedBy !== user?.uid) {
+      toast.error(
+        'Gerentes só podem cancelar faltas que eles mesmos registraram'
+      );
+      return;
+    }
+
     setCancelingFaltaId(faltaId);
     try {
       await faltaService.cancelFalta(memberId, faltaId);
@@ -619,7 +659,8 @@ export default function FaltasPage() {
                                               </TableCell>
                                               <TableCell className='text-center'>
                                                 {falta.status === 'ativa' &&
-                                                falta.daysUntilExpiry > 0 ? (
+                                                falta.daysUntilExpiry > 0 &&
+                                                canCancelFalta(falta) ? (
                                                   <Button
                                                     variant='ghost'
                                                     size='sm'
@@ -788,7 +829,8 @@ export default function FaltasPage() {
                                   </p>
                                 </div>
                                 {falta.status === 'ativa' &&
-                                falta.daysUntilExpiry > 0 ? (
+                                falta.daysUntilExpiry > 0 &&
+                                canCancelFalta(falta) ? (
                                   <Button
                                     variant='ghost'
                                     size='sm'
