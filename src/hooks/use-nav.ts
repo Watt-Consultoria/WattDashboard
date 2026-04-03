@@ -96,7 +96,12 @@ export function useFilteredNavItems(items: NavItem[]) {
       allowedUrls.add('/dashboard/formularios');
     }
 
-    const allowFaltas = ['diretor', 'presidente', 'assessor'].includes(role);
+    const allowFaltas = [
+      'diretor',
+      'presidente',
+      'assessor',
+      'gerente'
+    ].includes(role);
     if (allowFaltas) {
       allowedUrls.add('/dashboard/faltas');
     }
