@@ -37,6 +37,7 @@ class MemberRepository implements IMemberRepository {
 
     return {
       id: memberSnap.id,
+      cardId: memberData.cardId ?? undefined,
       cpf: memberData.cpf ?? '',
       createdAt: memberData.createdAt ?? Timestamp.now(),
       email: memberData.email ?? '',
@@ -84,6 +85,7 @@ class MemberRepository implements IMemberRepository {
       const memberData = docSnap.data();
       return {
         id: docSnap.id,
+        cardId: memberData.cardId ?? undefined,
         cpf: memberData.cpf ?? '',
         createdAt: memberData.createdAt ?? Timestamp.now(),
         email: memberData.email ?? '',
