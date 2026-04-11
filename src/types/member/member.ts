@@ -3,6 +3,7 @@ import { Activity } from '../activity/activity';
 
 export type Member = {
   id: string;
+  cardId?: string;
   cpf: string;
   createdAt: Timestamp;
   email: string;
@@ -41,7 +42,7 @@ export type MemberStatusEnum = 'Ativo' | 'Inativo';
 export type TimeRecord = {
   id: string;
   timestamp: Timestamp;
-  type: 'entrada' | 'saída';
+  type: 'entrada' | 'saída' | 'Entrada' | 'Saída';
 };
 
 export type Alert = {
