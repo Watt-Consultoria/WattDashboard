@@ -18,15 +18,26 @@ class PontoService {
     if (!cacheEntry) {
       await pontoRepository.createCacheEntry(normalizedCardId, now);
 
+      const member = await pontoRepository.getMemberByCardId(normalizedCardId);
+
       return {
         success: true,
         action: 'started',
-        message: 'Ponto iniciado no cache com sucesso.',
-        cardId: normalizedCardId
+        message: 'Entrada registrada com sucesso.',
+        label:
+          'Bem vindo ' +
+          (member ? member.name.split(' ')[0] : 'colaborador') +
+          '!',
+        cardId: normalizedCardId,
+        memberId: member?.id
       };
     }
 
     const totalTime = now.toMillis() - cacheEntry.startTime.toMillis();
+    const member = await pontoRepository.getMemberByCardId(normalizedCardId);
+    if (!member) {
+      throw new ValidationError('Nenhum membro encontrado para este cardId.');
+    }
 
     if (totalTime > 12 * 60 * 60 * 1000) {
       await pontoRepository.deleteCacheEntry(normalizedCardId);
@@ -34,14 +45,11 @@ class PontoService {
       return {
         success: false,
         action: 'finished',
+        label: 'Registro inválido você excedeu o tempo máximo',
         message: 'Tempo máximo de trabalho excedido.',
-        cardId: normalizedCardId
+        cardId: normalizedCardId,
+        memberId: member?.id
       };
-    }
-
-    const member = await pontoRepository.getMemberByCardId(normalizedCardId);
-    if (!member) {
-      throw new ValidationError('Nenhum membro encontrado para este cardId.');
     }
 
     const saidaRecord: TimeRecord = {
@@ -57,8 +65,8 @@ class PontoService {
     };
 
     await pontoRepository.appendMemberTimeRecords(member.id, [
-      saidaRecord,
-      entradaRecord
+      entradaRecord,
+      saidaRecord
     ]);
 
     await pontoRepository.deleteCacheEntry(normalizedCardId);
@@ -69,7 +77,9 @@ class PontoService {
       totalTime: this.formatTime(totalTime),
       message: 'Ponto finalizado e registros adicionados ao membro.',
       cardId: normalizedCardId,
-      memberId: member.id
+      memberId: member.id,
+      label:
+        'Até logo ' + (member ? member.name.split(' ')[0] : 'colaborador') + '!'
     };
   }
 

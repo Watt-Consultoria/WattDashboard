@@ -1701,6 +1701,16 @@ export default function IndividualPage() {
                 <CardContent>
                   <div className='flex flex-col gap-4'>
                     {(() => {
+                      timeRecords.sort((a, b) => {
+                        const aTime = a.timestamp?.toDate
+                          ? a.timestamp.toDate().getTime()
+                          : 0;
+                        const bTime = b.timestamp?.toDate
+                          ? b.timestamp.toDate().getTime()
+                          : 0;
+                        return -(bTime - aTime);
+                      });
+
                       const baseWorkedHours =
                         calculateWorkedHours(weekTimeRecords);
                       const runningHours = currentRunningTime / 3600;
