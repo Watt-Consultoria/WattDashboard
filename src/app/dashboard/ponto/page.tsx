@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { firebaseDb } from '@/lib/firebase/client';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { format, subWeeks, startOfWeek, endOfWeek } from 'date-fns';
 import {
@@ -41,6 +41,7 @@ import useMetadata from '@/hooks/use-metadata';
 
 type Member = {
   id: string;
+  cardId?: string;
   name: string;
   email: string;
   sector: string;
@@ -76,6 +77,9 @@ export default function PontoPage() {
   const [minWeeklyHours, setMinWeeklyHours] = React.useState<number>(0);
   const [newMinHours, setNewMinHours] = React.useState<string>('');
   const [isSavingHours, setIsSavingHours] = React.useState(false);
+  const [openPontoCardIds, setOpenPontoCardIds] = React.useState<Set<string>>(
+    () => new Set()
+  );
 
   useMetadata({ title: 'Ponto Digital' });
 
@@ -128,6 +132,26 @@ export default function PontoPage() {
         setLoading(false);
       }
     );
+
+    return () => unsubscribe();
+  }, []);
+
+  React.useEffect(() => {
+    if (!firebaseDb) return;
+
+    const pontoCacheRef = collection(firebaseDb, 'pontoCache');
+    const unsubscribe = onSnapshot(pontoCacheRef, (snapshot) => {
+      const activeCards = new Set<string>();
+
+      snapshot.forEach((docSnapshot) => {
+        const data = docSnapshot.data();
+        if (data?.cardId) {
+          activeCards.add(String(data.cardId));
+        }
+      });
+
+      setOpenPontoCardIds(activeCards);
+    });
 
     return () => unsubscribe();
   }, []);
@@ -278,6 +302,13 @@ export default function PontoPage() {
     return { working, total: members.length };
   }, [members]);
 
+  const hasOpenPontoCache = React.useCallback(
+    (member: Member) => {
+      return Boolean(member.cardId && openPontoCardIds.has(member.cardId));
+    },
+    [openPontoCardIds]
+  );
+
   // Force re-render periodically
   const [tick, setTick] = React.useState(0);
   React.useEffect(() => {
@@ -413,7 +444,7 @@ export default function PontoPage() {
             ) : (
               <>
                 {/* Desktop Table */}
-                <div className='relative hidden h-[400px] overflow-y-auto rounded-md border md:block'>
+                <div className='relative hidden h-100 overflow-y-auto rounded-md border md:block'>
                   <Table>
                     <TableHeader className='bg-background sticky top-0 z-10 shadow-sm'>
                       <TableRow>
@@ -528,7 +559,12 @@ export default function PontoPage() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              {status.isWorking ? (
+                              {hasOpenPontoCache(member) ? (
+                                <Badge className='border-blue-200 bg-blue-100 text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400'>
+                                  <div className='mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500' />
+                                  Ponto aberto
+                                </Badge>
+                              ) : status.isWorking ? (
                                 <Badge className='border-green-200 bg-green-100 text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/30 dark:text-green-400'>
                                   <div className='mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-green-500' />
                                   Trabalhando
@@ -653,7 +689,11 @@ export default function PontoPage() {
                               </div>
                             </div>
                           </div>
-                          {status.isWorking ? (
+                          {hasOpenPontoCache(member) ? (
+                            <Badge className='border-blue-200 bg-blue-100 px-1.5 text-[10px] text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400'>
+                              Ponto
+                            </Badge>
+                          ) : status.isWorking ? (
                             <Badge className='border-green-200 bg-green-100 px-1.5 text-[10px] text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/30 dark:text-green-400'>
                               On
                             </Badge>

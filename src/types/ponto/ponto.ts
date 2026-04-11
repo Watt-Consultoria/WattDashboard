@@ -11,9 +11,10 @@ export type PontoCacheEntry = {
 export type PontoOperationResult = {
   success: boolean;
   action: 'started' | 'finished';
-  totalTime?: string;
+  label: string;
   message: string;
   cardId: string;
+  totalTime?: string;
   memberId?: string;
 };
 
