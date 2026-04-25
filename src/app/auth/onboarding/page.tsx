@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/features/auth/components/auth-provider';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -35,14 +35,43 @@ const sectors = [
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
-    email: user?.email || '',
+    email: '',
     sector: '',
     cpf: ''
   });
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/auth/sign-in');
+    }
+  }, [loading, user, router]);
+
+  useEffect(() => {
+    if (!user?.email) {
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      email: user.email ?? ''
+    }));
+  }, [user?.email]);
+
+  if (loading) {
+    return (
+      <div className='flex min-h-screen items-center justify-center'>
+        <p className='text-xs text-muted-foreground'>Carregando...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,7 +150,7 @@ export default function OnboardingPage() {
 
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatCPF(e.target.value);
-    setFormData({ ...formData, cpf: formatted });
+    setFormData((prev) => ({ ...prev, cpf: formatted }));
   };
 
   return (
@@ -143,7 +172,7 @@ export default function OnboardingPage() {
                 placeholder='João da Silva'
                 value={formData.name}
                 onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
+                  setFormData((prev) => ({ ...prev, name: e.target.value }))
                 }
                 disabled={isSubmitting}
                 required
@@ -167,19 +196,23 @@ export default function OnboardingPage() {
             <div className='space-y-2'>
               <Label htmlFor='sector'>Setor *</Label>
               <Select
-                value={formData.sector}
+                value={formData.sector || undefined}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, sector: value })
+                  setFormData((prev) => ({ ...prev, sector: value }))
                 }
                 disabled={isSubmitting}
-                required
               >
-                <SelectTrigger id='sector'>
+                <SelectTrigger id='sector' className='notranslate' translate='no'>
                   <SelectValue placeholder='Selecione seu setor' />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className='notranslate' translate='no'>
                   {sectors.map((sector) => (
-                    <SelectItem key={sector} value={sector}>
+                    <SelectItem
+                      key={sector}
+                      value={sector}
+                      className='notranslate'
+                      translate='no'
+                    >
                       {sector}
                     </SelectItem>
                   ))}
