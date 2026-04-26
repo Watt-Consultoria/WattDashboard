@@ -1,7 +1,10 @@
-import { type FormEvent, useState } from 'react';
+import { type ChangeEvent, type FormEvent, useState } from 'react';
 import { toast } from 'sonner';
 import reinbursementService from '@/services/reinbursementService';
-import type { ReinbursementCategory } from '@/types/reinbursement/reinbursement';
+import {
+  REINBURSEMENT_CATEGORIES,
+  type ReinbursementCategory
+} from '@/types/reinbursement/reinbursement';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -29,14 +32,7 @@ import {
 } from '@/components/ui/select';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-const categories: ReinbursementCategory[] = [
-  'Transporte',
-  'Alimentação',
-  'Materiais',
-  'Compra de ingressos',
-  'Eventos',
-  'Outros'
-];
+const categories: ReinbursementCategory[] = REINBURSEMENT_CATEGORIES;
 
 type ReinbursementFormState = {
   title: string;
@@ -44,7 +40,7 @@ type ReinbursementFormState = {
   category: ReinbursementCategory | '';
   amount: string;
   pixKey: string;
-  receiptFile: File | null;
+  receiptFiles: File[];
 };
 
 const initialFormState: ReinbursementFormState = {
@@ -53,7 +49,7 @@ const initialFormState: ReinbursementFormState = {
   category: '',
   amount: '',
   pixKey: '',
-  receiptFile: null
+  receiptFiles: []
 };
 
 const sanitizeAmountInput = (value: string) => value.replace(/[^\d.,]/g, '');
@@ -79,7 +75,7 @@ export function ReinbursementFormDialog({
     event.preventDefault();
 
     if (!memberId) {
-      toast.error('Você precisa estar logado para solicitar reembolso.');
+      toast.error('Voce precisa estar logado para solicitar reembolso.');
       return;
     }
 
@@ -92,10 +88,10 @@ export function ReinbursementFormDialog({
         category: form.category as ReinbursementCategory,
         amount: form.amount,
         pixKey: form.pixKey,
-        receiptFile: form.receiptFile as File
+        receiptFiles: form.receiptFiles
       });
 
-      toast.success('Solicitação de reembolso enviada com sucesso.');
+      toast.success('Solicitacao de reembolso enviada com sucesso.');
       setForm(initialFormState);
       onOpenChange(false);
       onSuccess?.();
@@ -103,11 +99,35 @@ export function ReinbursementFormDialog({
       const message =
         error instanceof Error
           ? error.message
-          : 'Não foi possível enviar a solicitação.';
+          : 'Nao foi possivel enviar a solicitacao.';
       toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleReceiptsChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+
+    if (!selectedFiles.length) {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      receiptFiles: [...current.receiptFiles, ...selectedFiles]
+    }));
+
+    event.target.value = '';
+  };
+
+  const handleRemoveReceipt = (indexToRemove: number) => {
+    setForm((current) => ({
+      ...current,
+      receiptFiles: current.receiptFiles.filter(
+        (_, index) => index !== indexToRemove
+      )
+    }));
   };
 
   const handleOpenChange = (newOpen: boolean) => {
@@ -125,7 +145,7 @@ export function ReinbursementFormDialog({
     <form onSubmit={handleSubmit} className='space-y-4 sm:space-y-5'>
       <div className='space-y-1.5 sm:space-y-2'>
         <Label htmlFor='title' className='text-xs sm:text-sm'>
-          Título *
+          Titulo *
         </Label>
         <Input
           id='title'
@@ -142,9 +162,10 @@ export function ReinbursementFormDialog({
           required
         />
       </div>
+
       <div className='space-y-1.5 sm:space-y-2'>
         <Label htmlFor='description' className='text-xs sm:text-sm'>
-          Descrição detalhada *
+          Descricao detalhada *
         </Label>
         <Textarea
           id='description'
@@ -165,7 +186,7 @@ export function ReinbursementFormDialog({
 
       <div className='space-y-1.5 sm:space-y-2'>
         <Label htmlFor='category' className='text-xs sm:text-sm'>
-          Categoria da solicitação *
+          Categoria da solicitacao *
         </Label>
         <Select
           value={form.category}
@@ -219,7 +240,7 @@ export function ReinbursementFormDialog({
           <Input
             id='pixKey'
             className='h-10 text-sm sm:h-9'
-            placeholder='CPF, e-mail, telefone ou chave aleatória'
+            placeholder='CPF, e-mail, telefone ou chave aleatoria'
             value={form.pixKey}
             onChange={(event) =>
               setForm((current) => ({
@@ -235,43 +256,68 @@ export function ReinbursementFormDialog({
 
       <div className='space-y-1.5 sm:space-y-2'>
         <Label htmlFor='receipt' className='text-xs sm:text-sm'>
-          Comprovante (PDF, JPEG ou PNG) *
+          Comprovantes (PDF, JPEG ou PNG) *
         </Label>
-        <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+        <div className='flex flex-col gap-2'>
           <Input
             id='receipt'
             type='file'
             accept='application/pdf,image/jpeg,image/png'
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                receiptFile: event.target.files?.[0] ?? null
-              }))
-            }
+            multiple
+            onChange={handleReceiptsChange}
             disabled={isFormDisabled}
-            required
             className='sr-only'
           />
-          <Button
-            asChild
-            variant='outline'
-            size='sm'
-            className={
-              isFormDisabled
-                ? 'pointer-events-none h-10 w-full opacity-50 sm:h-9 sm:w-auto'
-                : 'h-10 w-full sm:h-9 sm:w-auto'
-            }
-            aria-disabled={isFormDisabled}
-            tabIndex={isFormDisabled ? -1 : 0}
-          >
-            <label htmlFor='receipt'>Escolher arquivo</label>
-          </Button>
-          <span className='text-muted-foreground text-xs break-all'>
-            {form.receiptFile ? form.receiptFile.name : 'Nenhum arquivo'}
-          </span>
+
+          <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+            <Button
+              asChild
+              variant='outline'
+              size='sm'
+              className={
+                isFormDisabled
+                  ? 'pointer-events-none h-10 w-full opacity-50 sm:h-9 sm:w-auto'
+                  : 'h-10 w-full sm:h-9 sm:w-auto'
+              }
+              aria-disabled={isFormDisabled}
+              tabIndex={isFormDisabled ? -1 : 0}
+            >
+              <label htmlFor='receipt'>Escolher arquivos</label>
+            </Button>
+            <span className='text-muted-foreground text-xs'>
+              {form.receiptFiles.length
+                ? `${form.receiptFiles.length} arquivo(s) selecionado(s)`
+                : 'Nenhum arquivo'}
+            </span>
+          </div>
+
+          {form.receiptFiles.length > 0 && (
+            <div className='space-y-1 rounded-md border p-2'>
+              {form.receiptFiles.map((file, index) => (
+                <div
+                  key={`${file.name}-${file.size}-${index}`}
+                  className='flex items-center justify-between gap-2'
+                >
+                  <span className='text-muted-foreground text-xs break-all'>
+                    {file.name}
+                  </span>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='sm'
+                    onClick={() => handleRemoveReceipt(index)}
+                    disabled={isFormDisabled}
+                    className='h-7 px-2 text-xs'
+                  >
+                    Remover
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <p className='text-muted-foreground text-[10px] sm:text-xs'>
-          Tamanho máximo: 10 MB.
+          Tamanho maximo por arquivo: 10 MB.
         </p>
       </div>
 
@@ -290,7 +336,7 @@ export function ReinbursementFormDialog({
           disabled={isFormDisabled}
           className='h-11 flex-1 sm:h-9'
         >
-          {isSubmitting ? 'Enviando...' : 'Enviar solicitação'}
+          {isSubmitting ? 'Enviando...' : 'Enviar solicitacao'}
         </Button>
       </div>
     </form>
@@ -302,7 +348,7 @@ export function ReinbursementFormDialog({
         <DrawerContent className='max-h-[90dvh]'>
           <DrawerHeader className='px-4 pt-4 pb-2'>
             <DrawerTitle className='text-base'>
-              Nova solicitação de reembolso
+              Nova solicitacao de reembolso
             </DrawerTitle>
             <DrawerDescription className='text-xs'>
               Preencha os detalhes para enviarmos ao financeiro.
@@ -318,9 +364,9 @@ export function ReinbursementFormDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className='max-h-[90vh] overflow-y-auto'>
         <DialogHeader>
-          <DialogTitle>Nova solicitação de reembolso</DialogTitle>
+          <DialogTitle>Nova solicitacao de reembolso</DialogTitle>
           <DialogDescription>
-            Preencha os detalhes da sua solicitação para enviarmos ao
+            Preencha os detalhes da sua solicitacao para enviarmos ao
             financeiro.
           </DialogDescription>
         </DialogHeader>

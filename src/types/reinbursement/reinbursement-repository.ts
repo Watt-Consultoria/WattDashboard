@@ -8,7 +8,10 @@ import type {
 
 export default interface IReinbursementRepository {
   createReinbursement(reinbursement: CreateReinbursementInput): Promise<void>;
-  uploadReceipt(memberId: string, file: File): Promise<ReinbursementReceipt>;
+  uploadReceipts(
+    memberId: string,
+    files: File[]
+  ): Promise<ReinbursementReceipt[]>;
   getMemberReinbursements(memberId: string): Promise<Reinbursement[]>;
   getReinbursements(filters?: ReinbursementQuery): Promise<Reinbursement[]>;
   updateReinbursementStatus(

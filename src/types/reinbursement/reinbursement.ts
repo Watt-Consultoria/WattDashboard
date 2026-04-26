@@ -43,7 +43,7 @@ export type Reinbursement = {
   category: ReinbursementCategory;
   amountCents: number;
   pixKey: string;
-  receipt?: ReinbursementReceipt;
+  receipts: ReinbursementReceipt[];
   status: ReinbursementStatus;
   createdAt: Timestamp;
   updatedAt: Timestamp;
