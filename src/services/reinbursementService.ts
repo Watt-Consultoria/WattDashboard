@@ -38,7 +38,7 @@ class ReinbursementService {
     category: ReinbursementCategory;
     amount: string;
     pixKey: string;
-    receiptFile: File;
+    receiptFiles: File[];
   }): Promise<void> {
     const memberId = input.memberId?.trim();
     if (!memberId) throw new ValidationError('Usuário inválido');
@@ -61,22 +61,32 @@ class ReinbursementService {
     const pixKey = input.pixKey?.trim();
     if (!pixKey) throw new ValidationError('Informe a chave PIX');
 
-    const receipt = input.receiptFile;
-    if (!receipt) throw new ValidationError('Anexe o comprovante');
+    const receiptFiles = (input.receiptFiles ?? []).filter(Boolean);
+    if (!receiptFiles.length)
+      throw new ValidationError('Anexe pelo menos um comprovante');
 
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
-    if (!allowedTypes.includes(receipt.type))
-      throw new ValidationError('Comprovante deve ser PDF, JPEG ou PNG');
-
     const maxSizeBytes = 10 * 1024 * 1024;
-    if (receipt.size > maxSizeBytes)
-      throw new ValidationError('Comprovante deve ter no máximo 10 MB');
+
+    for (const receipt of receiptFiles) {
+      if (!allowedTypes.includes(receipt.type)) {
+        throw new ValidationError(
+          `Arquivo "${receipt.name}" deve ser PDF, JPEG ou PNG`
+        );
+      }
+
+      if (receipt.size > maxSizeBytes) {
+        throw new ValidationError(
+          `Arquivo "${receipt.name}" deve ter no máximo 10 MB`
+        );
+      }
+    }
 
     const member = await memberRepository.getMemberById(memberId);
     if (!member) throw new ValidationError('Membro não encontrado no sistema');
 
-    const receiptInfo: ReinbursementReceipt =
-      await reinbursementRepository.uploadReceipt(memberId, receipt);
+    const receiptInfos: ReinbursementReceipt[] =
+      await reinbursementRepository.uploadReceipts(memberId, receiptFiles);
 
     const payload: CreateReinbursementInput = {
       memberId,
@@ -87,7 +97,7 @@ class ReinbursementService {
       category: input.category,
       amountCents,
       pixKey,
-      receipt: receiptInfo,
+      receipts: receiptInfos,
       status: 'Pendente'
     };
 

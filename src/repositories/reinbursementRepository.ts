@@ -27,10 +27,25 @@ import type {
 } from '@/types/reinbursement/reinbursement';
 import type IReinbursementRepository from '@/types/reinbursement/reinbursement-repository';
 
+const getReceiptsFromDocument = (
+  data: DocumentData
+): ReinbursementReceipt[] => {
+  if (Array.isArray(data.receipts)) {
+    return data.receipts as ReinbursementReceipt[];
+  }
+
+  if (data.receipt) {
+    return [data.receipt as ReinbursementReceipt];
+  }
+
+  return [];
+};
+
 const mapReinbursement = (
   docSnap: QueryDocumentSnapshot<DocumentData>
 ): Reinbursement => {
   const data = docSnap.data();
+  const receipts = getReceiptsFromDocument(data);
   return {
     id: docSnap.id,
     memberId: data.memberId ?? '',
@@ -41,7 +56,7 @@ const mapReinbursement = (
     category: data.category ?? 'Outros',
     amountCents: data.amountCents ?? 0,
     pixKey: data.pixKey ?? '',
-    receipt: data.receipt,
+    receipts,
     status: data.status ?? 'Pendente',
     createdAt: data.createdAt ?? Timestamp.now(),
     updatedAt: data.updatedAt ?? Timestamp.now()
@@ -63,32 +78,37 @@ class ReinbursementRepository implements IReinbursementRepository {
     });
   }
 
-  async uploadReceipt(
+  async uploadReceipts(
     memberId: string,
-    file: File
-  ): Promise<ReinbursementReceipt> {
-    if (!firebaseStorage)
+    files: File[]
+  ): Promise<ReinbursementReceipt[]> {
+    const storage = firebaseStorage;
+    if (!storage)
       throw new FirebaseError('Firebase Storage não está configurado');
-    if (!memberId || !file)
-      throw new MissingParameterError(['memberId', 'file']);
+    if (!memberId || !files?.length)
+      throw new MissingParameterError(['memberId', 'files']);
 
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const path = `reinbursements/${memberId}/${Date.now()}-${sanitizedName}`;
-    const fileRef = ref(firebaseStorage, path);
+    const uploadTasks = files.map(async (file, index) => {
+      const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `reinbursements/${memberId}/${Date.now()}-${index}-${sanitizedName}`;
+      const fileRef = ref(storage, path);
 
-    await uploadBytes(fileRef, file, {
-      contentType: file.type || 'application/octet-stream'
+      await uploadBytes(fileRef, file, {
+        contentType: file.type || 'application/octet-stream'
+      });
+
+      const url = await getDownloadURL(fileRef);
+
+      return {
+        url,
+        path,
+        name: file.name,
+        contentType: file.type || 'application/octet-stream',
+        size: file.size
+      } satisfies ReinbursementReceipt;
     });
 
-    const url = await getDownloadURL(fileRef);
-
-    return {
-      url,
-      path,
-      name: file.name,
-      contentType: file.type || 'application/octet-stream',
-      size: file.size
-    };
+    return await Promise.all(uploadTasks);
   }
 
   async getMemberReinbursements(memberId: string): Promise<Reinbursement[]> {

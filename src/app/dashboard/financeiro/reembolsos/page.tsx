@@ -903,17 +903,26 @@ export default function ReembolsosGestaoPage() {
                   </p>
                 </div>
 
-                {selectedReinbursement.receipt?.url ? (
-                  <Button asChild size='sm' className='h-10 w-full'>
-                    <a
-                      href={selectedReinbursement.receipt.url}
-                      target='_blank'
-                      rel='noreferrer'
-                      download
-                    >
-                      Download comprovante
-                    </a>
-                  </Button>
+                {selectedReinbursement.receipts.length > 0 ? (
+                  <div className='space-y-2'>
+                    {selectedReinbursement.receipts.map((receipt, index) => (
+                      <Button
+                        key={`${receipt.path}-${index}`}
+                        asChild
+                        size='sm'
+                        className='h-10 w-full'
+                      >
+                        <a
+                          href={receipt.url}
+                          target='_blank'
+                          rel='noreferrer'
+                          download
+                        >
+                          {`Download comprovante ${index + 1}`}
+                        </a>
+                      </Button>
+                    ))}
+                  </div>
                 ) : (
                   <p className='text-muted-foreground text-center text-xs'>
                     Nenhum comprovante anexado.
@@ -1047,17 +1056,24 @@ export default function ReembolsosGestaoPage() {
                 </div>
 
                 <div className='flex flex-wrap items-center gap-2 md:gap-3'>
-                  {selectedReinbursement.receipt?.url ? (
-                    <Button asChild size='sm' className='w-full sm:w-auto'>
-                      <a
-                        href={selectedReinbursement.receipt.url}
-                        target='_blank'
-                        rel='noreferrer'
-                        download
+                  {selectedReinbursement.receipts.length > 0 ? (
+                    selectedReinbursement.receipts.map((receipt, index) => (
+                      <Button
+                        key={`${receipt.path}-${index}`}
+                        asChild
+                        size='sm'
+                        className='w-full sm:w-auto'
                       >
-                        Download comprovante
-                      </a>
-                    </Button>
+                        <a
+                          href={receipt.url}
+                          target='_blank'
+                          rel='noreferrer'
+                          download
+                        >
+                          {`Download comprovante ${index + 1}`}
+                        </a>
+                      </Button>
+                    ))
                   ) : (
                     <p className='text-muted-foreground text-xs md:text-sm'>
                       Nenhum comprovante anexado.
