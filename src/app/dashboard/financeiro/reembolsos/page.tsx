@@ -18,12 +18,23 @@ import {
   Calendar,
   Tag,
   User,
-  DollarSign
+  DollarSign,
+  Trash2
 } from 'lucide-react';
 
 import PageContainer from '@/components/layout/page-container';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog';
 import {
   Card,
   CardContent,
@@ -111,7 +122,8 @@ const statusColors: Record<
 > = {
   Pendente: 'default',
   Aprovado: 'secondary',
-  Recusado: 'destructive'
+  Recusado: 'destructive',
+  Excluída: 'outline'
 };
 
 const chartPalette = [
@@ -174,7 +186,11 @@ export default function ReembolsosGestaoPage() {
   const hasLoadedRef = React.useRef(false);
   const [selectedReinbursement, setSelectedReinbursement] =
     React.useState<Reinbursement | null>(null);
+  const [reinbursementToRemove, setReinbursementToRemove] =
+    React.useState<Reinbursement | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false);
+  const [isRemovingReinbursement, setIsRemovingReinbursement] =
+    React.useState(false);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
 
   useMetadata({ title: 'Gestão de Reembolsos' });
@@ -293,6 +309,10 @@ export default function ReembolsosGestaoPage() {
     setSelectedReinbursement(null);
   };
 
+  const openRemoveConfirmation = (reinbursement: Reinbursement) => {
+    setReinbursementToRemove(reinbursement);
+  };
+
   const handleStatusChange = async (nextStatus: ReinbursementStatus) => {
     if (!selectedReinbursement) return;
 
@@ -316,6 +336,31 @@ export default function ReembolsosGestaoPage() {
       toast.error(message);
     } finally {
       setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleRemoveReinbursement = async () => {
+    if (!reinbursementToRemove) return;
+
+    setIsRemovingReinbursement(true);
+    try {
+      await reinbursementService.excludeReinbursementFromManagement(
+        reinbursementToRemove.id
+      );
+      setSelectedReinbursement((current) =>
+        current?.id === reinbursementToRemove.id ? null : current
+      );
+      setReinbursementToRemove(null);
+      await loadDashboard();
+      toast.success('Solicitação removida do controle financeiro.');
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Nao foi possivel remover a solicitação.';
+      toast.error(message);
+    } finally {
+      setIsRemovingReinbursement(false);
     }
   };
 
@@ -957,6 +1002,18 @@ export default function ReembolsosGestaoPage() {
                       {')'}.
                     </p>
                   )}
+                  <Button
+                    variant='destructive'
+                    size='sm'
+                    onClick={() =>
+                      openRemoveConfirmation(selectedReinbursement)
+                    }
+                    disabled={isRemovingReinbursement}
+                    className='h-11 w-full'
+                  >
+                    <Trash2 className='h-4 w-4' />
+                    Remover do controle
+                  </Button>
                 </div>
               </div>
             )}
@@ -1109,12 +1166,57 @@ export default function ReembolsosGestaoPage() {
                       {')'}.
                     </p>
                   )}
+                  <Button
+                    variant='destructive'
+                    size='sm'
+                    onClick={() =>
+                      openRemoveConfirmation(selectedReinbursement)
+                    }
+                    disabled={isRemovingReinbursement}
+                    className='w-full sm:w-auto'
+                  >
+                    <Trash2 className='h-4 w-4' />
+                    Remover do controle
+                  </Button>
                 </div>
               </div>
             )}
           </DialogContent>
         </Dialog>
       )}
+      <AlertDialog
+        open={!!reinbursementToRemove}
+        onOpenChange={(open) => {
+          if (!open && !isRemovingReinbursement) {
+            setReinbursementToRemove(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover do controle?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A solicitação não será mais exibida no controle financeiro. Ela
+              continuará registrada para o membro com status Excluída.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRemovingReinbursement}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className='bg-destructive text-white hover:bg-destructive/90'
+              disabled={isRemovingReinbursement}
+              onClick={(event) => {
+                event.preventDefault();
+                handleRemoveReinbursement();
+              }}
+            >
+              {isRemovingReinbursement ? 'Removendo...' : 'Remover'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageContainer>
   );
 }

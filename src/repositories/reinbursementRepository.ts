@@ -173,6 +173,18 @@ class ReinbursementRepository implements IReinbursementRepository {
       updatedAt: serverTimestamp()
     });
   }
+
+  async excludeReinbursementFromManagement(id: string): Promise<void> {
+    if (!firebaseDb) throw new FirebaseError('Firebase não está configurado');
+    if (!id) throw new MissingParameterError(['id']);
+
+    const reinbursementRef = doc(firebaseDb, 'reinbursements', id);
+    await updateDoc(reinbursementRef, {
+      status: 'Excluída',
+      excludedFromManagementAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+  }
 }
 
 const reinbursementRepository = new ReinbursementRepository();

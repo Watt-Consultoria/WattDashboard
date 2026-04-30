@@ -132,13 +132,17 @@ class ReinbursementService {
     const reinbursements =
       await reinbursementRepository.getReinbursements(repoFilters);
 
+    const visibleReinbursements = reinbursements.filter(
+      (item) => item.status !== 'Excluída'
+    );
+
     const filteredReinbursements = searchText
-      ? reinbursements.filter((item) => {
+      ? visibleReinbursements.filter((item) => {
           const title = item.title?.toLowerCase() ?? '';
           const description = item.description?.toLowerCase() ?? '';
           return title.includes(searchText) || description.includes(searchText);
         })
-      : reinbursements;
+      : visibleReinbursements;
 
     const sortedReinbursements = [...filteredReinbursements].sort((a, b) => {
       const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
@@ -236,6 +240,11 @@ class ReinbursementService {
     if (currentStatus === nextStatus) return;
 
     await reinbursementRepository.updateReinbursementStatus(id, nextStatus);
+  }
+
+  async excludeReinbursementFromManagement(id: string): Promise<void> {
+    if (!id) throw new ValidationError('Solicitação inválida');
+    await reinbursementRepository.excludeReinbursementFromManagement(id);
   }
 }
 
