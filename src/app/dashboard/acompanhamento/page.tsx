@@ -19,8 +19,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger
+  DialogTitle
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
@@ -40,65 +39,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PieGraph } from '@/features/overview/components/pie-graph';
-import { firebaseDb } from '@/lib/firebase/client';
 import { useFirebaseData } from '@/contexts/firebase-data-context';
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  Timestamp,
-  updateDoc
-} from 'firebase/firestore';
-import { FirebaseError } from 'firebase/app';
 import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import type {
-  Project as FirebaseProject,
-  Member as FirebaseMember
-} from '@/contexts/firebase-data-context';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPenToSquare } from '@fortawesome/free-regular-svg-icons';
 import { faXmark, faTags } from '@fortawesome/free-solid-svg-icons';
 import { useRouter } from 'next/navigation';
 import useMetadata from '@/hooks/use-metadata';
-import memberService from '@/services/memberService';
+import acompanhamentoService from '@/services/acompanhamentoService';
+import type {
+  AcompanhamentoMemberCard as Member,
+  AcompanhamentoProjectCard as Project,
+  AcompanhamentoProjectFormState as ProjectFormState
+} from '@/types/acompanhamento/acompanhamento';
 import { tiposAutomacao, tiposEletrica } from '@/constants/project-types';
-
-type Project = {
-  id: string;
-  name: string;
-  status: string;
-  updated: string;
-  health: string;
-  area?: string;
-  tipo?: string;
-  client?: string;
-  manager?: string;
-  managerId?: string;
-  start?: string;
-  next?: string;
-  value?: string;
-};
-
-type Member = {
-  id: string;
-  name: string;
-  email?: string;
-  sector?: string;
-  cpf?: string;
-  role: string;
-  activity: string;
-  status: string;
-  isLeadership?: boolean;
-  tags?: string[];
-};
 
 const alerts = [
   {
@@ -145,55 +101,10 @@ const areaOptions = [
   'Marketing',
   'Executivo'
 ];
-const defaultMemberStatus = 'online';
-const roleOptions = [
-  'Consultor',
-  'Gerente',
-  'Diretor',
-  'Assessor',
-  'Presidente'
-];
-const sectorOptions = [
-  'Automação',
-  'Elétrica',
-  'Comercial',
-  'Institucional',
-  'Marketing',
-  'Executivo'
-];
-
-const memberStatusStyles: Record<string, string> = {
-  online: 'bg-emerald-500/10 text-emerald-700',
-  away: 'bg-amber-500/10 text-amber-700',
-  offline: 'bg-muted text-muted-foreground'
-};
-
 const alertLevelStyles: Record<string, string> = {
   alto: 'bg-red-500/10 text-red-700',
   medio: 'bg-amber-500/10 text-amber-700',
   baixo: 'bg-emerald-500/10 text-emerald-700'
-};
-
-type ProjectFormState = {
-  name: string;
-  status: string;
-  health: string;
-  area: string;
-  tipo: string;
-  client: string;
-  manager: string;
-  managerId: string;
-  start: string;
-  next: string;
-  value: string;
-};
-
-type MemberFormState = {
-  name: string;
-  email: string;
-  sector: string;
-  cpf: string;
-  role: string;
 };
 
 export default function AcompanhamentoPage() {
@@ -203,7 +114,8 @@ export default function AcompanhamentoPage() {
   const {
     projects: contextProjects,
     members: contextMembers,
-    isLoading: isDataLoading
+    isLoading: isDataLoading,
+    currentMember
   } = useFirebaseData();
   const [areaFilter, setAreaFilter] = React.useState('Geral');
   const [statusFilter, setStatusFilter] = React.useState('Todos');
@@ -220,8 +132,6 @@ export default function AcompanhamentoPage() {
   const [leadershipMembers, setLeadershipMembers] = React.useState<Member[]>(
     []
   );
-  const [isMemberDialogOpen, setIsMemberDialogOpen] = React.useState(false);
-  const [isSavingMember, setIsSavingMember] = React.useState(false);
   const [startDate, setStartDate] = React.useState<Date | undefined>(undefined);
   const [isTagsDialogOpen, setIsTagsDialogOpen] = React.useState(false);
   const [selectedMemberForTags, setSelectedMemberForTags] =
@@ -237,6 +147,13 @@ export default function AcompanhamentoPage() {
     new Set()
   );
   const [isSavingBulkTag, setIsSavingBulkTag] = React.useState(false);
+  const canManageOtherMembers =
+    acompanhamentoService.canManageOtherMembers(currentMember);
+  const canManageMemberInfo = React.useCallback(
+    (memberId: string) =>
+      acompanhamentoService.canManageMemberInformation(currentMember, memberId),
+    [currentMember]
+  );
 
   const resetProjectForm = React.useCallback(() => {
     setNewProject({
@@ -268,84 +185,15 @@ export default function AcompanhamentoPage() {
     next: '',
     value: ''
   });
-  const [newMember, setNewMember] = React.useState<MemberFormState>({
-    name: '',
-    email: '',
-    sector: sectorOptions[0],
-    cpf: '',
-    role: roleOptions[0]
-  });
-  const [emailHint, setEmailHint] = React.useState('@wattconsultoria.com.br');
-
-  const handleEmailBlur = () => {
-    const email = newMember.email.trim();
-    if (!email) {
-      setEmailHint('@wattconsultoria.com.br');
-      return;
-    }
-
-    if (!email.includes('@')) {
-      setNewMember((current) => ({
-        ...current,
-        email: `${email}@wattconsultoria.com.br`
-      }));
-    }
-  };
-
-  // Mapear projects do contexto para o formato da UI
   const projectList = React.useMemo(() => {
-    return contextProjects.map((project) => {
-      const updatedLabel = project.updatedAt
-        ? format(
-            project.updatedAt.toDate?.() || project.updatedAt,
-            'dd/MM/yyyy'
-          )
-        : '---';
-      const startLabel = project.start
-        ? format(project.start.toDate?.() || project.start, 'dd/MM/yyyy')
-        : '';
-
-      return {
-        id: project.id,
-        name: project.name ?? 'Projeto sem nome',
-        status: project.status ?? 'Planejamento',
-        updated: updatedLabel,
-        health: project.health ?? 'Ok',
-        area: project.area,
-        tipo: project.tipo,
-        client: project.client,
-        manager: project.manager,
-        managerId: project.managerId,
-        start: startLabel,
-        next: project.next,
-        value: project.value?.toString()
-      };
-    });
+    return contextProjects.map((project) =>
+      acompanhamentoService.mapProjectCard(project)
+    );
   }, [contextProjects]);
 
-  // Mapear members do contexto
-  const normalizeValue = React.useCallback(
-    (value?: string) =>
-      value
-        ?.toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') ?? '',
-    []
-  );
-
   const toMemberCard = React.useCallback(
-    (member: FirebaseMember) => ({
-      id: member.id,
-      name: member.name ?? 'Sem nome',
-      email: member.email,
-      sector: member.sector,
-      cpf: member.cpf,
-      role: member.role ?? 'Sem cargo',
-      activity: member.activity ?? 'Sem atividade',
-      status: member.status ?? 'offline',
-      isLeadership: member.isLeadership,
-      tags: member.tags ?? []
-    }),
+    (member: (typeof contextMembers)[number]) =>
+      acompanhamentoService.mapMemberCard(member),
     []
   );
 
@@ -355,133 +203,20 @@ export default function AcompanhamentoPage() {
   );
 
   const scopedMembers = React.useMemo(() => {
-    if (areaFilter === 'Geral') {
-      return contextMembers;
-    }
-    const selectedSector = normalizeValue(areaFilter);
-    return contextMembers.filter(
-      (member) => normalizeValue(member.sector) === selectedSector
-    );
-  }, [areaFilter, contextMembers, normalizeValue]);
+    return acompanhamentoService.getScopedMembers(contextMembers, areaFilter);
+  }, [areaFilter, contextMembers]);
 
   const filteredMembers = React.useMemo(() => {
     return scopedMembers.map(toMemberCard);
   }, [scopedMembers, toMemberCard]);
 
-  const parseAgendaDueDate = React.useCallback((value?: string) => {
-    if (!value) {
-      return null;
-    }
-    if (value.includes('/')) {
-      const parts = value.split('/');
-      if (parts.length !== 3) {
-        return null;
-      }
-      const [day, month, year] = parts;
-      const parsed = new Date(
-        Number.parseInt(year, 10),
-        Number.parseInt(month, 10) - 1,
-        Number.parseInt(day, 10)
-      );
-      return Number.isNaN(parsed.getTime()) ? null : parsed;
-    }
-    const parsed = value.includes('T')
-      ? new Date(value)
-      : new Date(`${value}T00:00:00`);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }, []);
-
   const occupancyMetrics = React.useMemo(() => {
-    const isGeneral = areaFilter === 'Geral';
-    const selectedSector = normalizeValue(areaFilter);
-    const scopedMembers = isGeneral
-      ? contextMembers
-      : contextMembers.filter(
-          (member) => normalizeValue(member.sector) === selectedSector
-        );
-
-    const memberIds = new Set(scopedMembers.map((member) => member.id));
-    const occupiedIds = new Set<string>();
-    const today = new Date();
-    const startOfToday = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate()
-    );
-    const endDate = new Date(startOfToday);
-    endDate.setDate(endDate.getDate() + 7);
-
-    contextProjects.forEach((project) => {
-      const activities = (project as any)?.Activities as
-        | Array<{
-            ownerId?: string;
-            status?: string;
-          }>
-        | undefined;
-      if (!Array.isArray(activities)) return;
-
-      activities.forEach((activity) => {
-        const status = normalizeValue(activity?.status ?? '');
-        if (
-          activity?.ownerId &&
-          memberIds.has(activity.ownerId) &&
-          status !== 'bloqueado' &&
-          status !== 'concluido'
-        ) {
-          occupiedIds.add(activity.ownerId);
-        }
-      });
+    return acompanhamentoService.calculateOccupancyMetrics({
+      areaFilter,
+      members: contextMembers,
+      projects: contextProjects
     });
-
-    scopedMembers.forEach((member) => {
-      const agendaTasks = (member as any)?.agendaTasks as
-        | Array<{
-            priority?: string;
-            status?: string;
-            due?: string;
-          }>
-        | undefined;
-      if (
-        Array.isArray(agendaTasks) &&
-        agendaTasks.some((task) => {
-          const priority = normalizeValue(task?.priority ?? '');
-          if (priority !== 'alta') {
-            return false;
-          }
-          const status = normalizeValue(task?.status ?? '');
-          if (status === 'bloqueado' || status === 'concluido') {
-            return false;
-          }
-          const dueDate = parseAgendaDueDate(task?.due);
-          if (!dueDate) {
-            return false;
-          }
-          return dueDate >= startOfToday && dueDate <= endDate;
-        })
-      ) {
-        occupiedIds.add(member.id);
-      }
-    });
-
-    const totalMembers = scopedMembers.length;
-    const occupiedCount = occupiedIds.size;
-    const availableCount = Math.max(totalMembers - occupiedCount, 0);
-    const occupiedPercent =
-      totalMembers === 0 ? 0 : Math.round((occupiedCount / totalMembers) * 100);
-
-    return {
-      totalMembers,
-      occupiedCount,
-      availableCount,
-      occupiedPercent
-    };
-  }, [
-    areaFilter,
-    contextMembers,
-    contextProjects,
-    normalizeValue,
-    parseAgendaDueDate
-  ]);
+  }, [areaFilter, contextMembers, contextProjects]);
 
   const occupancyChartData = React.useMemo(
     () => [
@@ -494,7 +229,9 @@ export default function AcompanhamentoPage() {
   // Atualizar leadership members quando memberList mudar
   React.useEffect(() => {
     setLeadershipMembers(
-      memberList.filter((member) => member.role.toLowerCase() != 'consultor')
+      memberList.filter((member) =>
+        acompanhamentoService.isLeadershipMember(member)
+      )
     );
   }, [memberList]);
 
@@ -522,7 +259,8 @@ export default function AcompanhamentoPage() {
       statusFilter === 'Todos' || project.status === statusFilter;
     const areaMatches =
       areaFilter === 'Geral' ||
-      normalizeValue(project.area) === normalizeValue(areaFilter);
+      acompanhamentoService.normalizeValue(project.area) ===
+        acompanhamentoService.normalizeValue(areaFilter);
 
     return statusMatches && areaMatches;
   });
@@ -563,98 +301,43 @@ export default function AcompanhamentoPage() {
   ) => {
     event.preventDefault();
 
-    if (!newProject.name.trim()) {
-      toast.error('Informe o nome do projeto.');
-      return;
-    }
-
-    if (!newProject.managerId) {
-      toast.error('Selecione um responsável.');
-      return;
-    }
-
-    if (!firebaseDb) {
-      toast.error('Firebase nao configurado.');
-      return;
-    }
-
-    const selectedManager = leadershipMembers.find(
-      (member) => member.id === newProject.managerId
-    );
-    if (!selectedManager) {
-      toast.error('Selecione um responsável válido.');
-      return;
-    }
-    const managerName = selectedManager.name;
-
-    const parseValueToNumber = (value: string): number => {
-      if (!value) return 0;
-      const cleanValue = value
-        .replace(/R\$/g, '')
-        .replace(/\s/g, '')
-        .replace(/\./g, '')
-        .replace(',', '.');
-      const parsed = parseFloat(cleanValue);
-      return isNaN(parsed) ? 0 : parsed;
-    };
-
-    const projectPayload = {
-      name: newProject.name.trim(),
-      status: newProject.status,
-      health: newProject.health,
-      area: newProject.area,
-      tipo: newProject.tipo,
-      client: newProject.client.trim(),
-      manager: managerName,
-      managerId: newProject.managerId,
-      start: startDate ? Timestamp.fromDate(startDate) : null,
-      next: newProject.next.trim(),
-      value: parseValueToNumber(newProject.value.trim()),
-      updatedLabel: 'agora',
-      updatedAt: serverTimestamp()
-    };
-
     setIsSaving(true);
     try {
-      if (editingProjectId) {
-        const projectRef = doc(firebaseDb, 'projects', editingProjectId);
-        await updateDoc(projectRef, projectPayload);
-        toast.success('Projeto atualizado com sucesso.');
-      } else {
-        await addDoc(collection(firebaseDb, 'projects'), {
-          ...projectPayload,
-          createdAt: serverTimestamp()
-        });
-        toast.success('Projeto criado com sucesso.');
-      }
+      await acompanhamentoService.saveProject({
+        projectId: editingProjectId,
+        form: newProject,
+        startDate,
+        managers: leadershipMembers
+      });
+      toast.success(
+        editingProjectId
+          ? 'Projeto atualizado com sucesso.'
+          : 'Projeto criado com sucesso.'
+      );
       resetProjectForm();
       setIsDialogOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Falha ao salvar projeto:', error);
-      if (error instanceof FirebaseError) {
-        toast.error(`Não foi possível salvar o projeto: ${error.code}`);
-      } else {
-        toast.error('Não foi possível salvar o projeto.');
-      }
+      toast.error(error?.message ?? 'Nao foi possivel salvar o projeto.');
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDeleteProject = async () => {
-    if (!firebaseDb || !projectToDelete) {
+    if (!projectToDelete) {
       return;
     }
 
     setIsDeletingProject(true);
     try {
-      await deleteDoc(doc(firebaseDb, 'projects', projectToDelete.id));
+      await acompanhamentoService.deleteProject(projectToDelete.id);
       toast.success('Projeto removido.');
       setIsDeleteProjectOpen(false);
       setProjectToDelete(null);
     } catch (error) {
       console.error('Falha ao remover projeto:', error);
-      toast.error('Não foi possível remover o projeto.');
+      toast.error('Nao foi possivel remover o projeto.');
     } finally {
       setIsDeletingProject(false);
     }
@@ -871,6 +554,12 @@ export default function AcompanhamentoPage() {
   );
 
   const openBulkTagsDialog = () => {
+    if (!canManageOtherMembers) {
+      toast.error(
+        'Apenas Assessor ou Presidente do setor Executivo podem alterar informacoes de outros membros.'
+      );
+      return;
+    }
     setSelectedMemberIds(new Set());
     setBulkTagName('');
     setBulkTagAction('add');
@@ -886,15 +575,17 @@ export default function AcompanhamentoPage() {
             <CardDescription>Última atividade registrada</CardDescription>
           </div>
           <div className='flex items-center gap-2'>
-            <Button
-              size='sm'
-              variant='outline'
-              onClick={openBulkTagsDialog}
-              className='gap-2'
-            >
-              <FontAwesomeIcon icon={faTags} className='h-3 w-3' />
-              Tags
-            </Button>
+            {canManageOtherMembers ? (
+              <Button
+                size='sm'
+                variant='outline'
+                onClick={openBulkTagsDialog}
+                className='gap-2'
+              >
+                <FontAwesomeIcon icon={faTags} className='h-3 w-3' />
+                Tags
+              </Button>
+            ) : null}
             <Badge variant='secondary'>Total: {contextMembers.length}</Badge>
           </div>
         </div>
@@ -947,16 +638,18 @@ export default function AcompanhamentoPage() {
                     )}
                   </Link>
                   <div className='flex items-center gap-1'>
-                    <Button
-                      type='button'
-                      size='icon'
-                      variant='ghost'
-                      className='h-8 w-8 shrink-0 cursor-pointer rounded-md border hover:bg-white/10 [&_svg]:!h-[0.875em] [&_svg]:!w-[0.875em]'
-                      onClick={() => openTagsDialog(member)}
-                      aria-label='Gerenciar tags'
-                    >
-                      <FontAwesomeIcon icon={faTags} />
-                    </Button>
+                    {canManageMemberInfo(member.id) ? (
+                      <Button
+                        type='button'
+                        size='icon'
+                        variant='ghost'
+                        className='h-8 w-8 shrink-0 cursor-pointer rounded-md border hover:bg-white/10 [&_svg]:!h-[0.875em] [&_svg]:!w-[0.875em]'
+                        onClick={() => openTagsDialog(member)}
+                        aria-label='Gerenciar tags'
+                      >
+                        <FontAwesomeIcon icon={faTags} />
+                      </Button>
+                    ) : null}
                     <Badge variant='outline' className='shrink-0'>
                       {member.sector || '--'}
                     </Badge>
@@ -1002,69 +695,13 @@ export default function AcompanhamentoPage() {
     </Card>
   );
 
-  const handleCreateMember = async (
-    event: React.FormEvent<HTMLFormElement>
-  ) => {
-    event.preventDefault();
-
-    if (!newMember.name.trim()) {
-      toast.error('Informe o nome do membro.');
-      return;
-    }
-
-    if (
-      !newMember.email.trim() ||
-      !newMember.sector.trim() ||
-      !newMember.cpf.trim() ||
-      !newMember.role.trim()
-    ) {
-      toast.error('Preencha nome, email, setor, CPF e cargo.');
-      return;
-    }
-
-    if (!firebaseDb) {
-      toast.error('Firebase nao configurado.');
-      return;
-    }
-
-    const roleValue = newMember.role.trim() || 'Sem cargo';
-    const memberDoc = doc(collection(firebaseDb, 'members'));
-    const isLeadership = newMember.role !== 'Consultor';
-    const memberPayload = {
-      id: memberDoc.id,
-      name: newMember.name.trim(),
-      email: newMember.email.trim(),
-      sector: newMember.sector.trim(),
-      cpf: newMember.cpf.trim(),
-      role: roleValue,
-      activity: 'Novo cadastro',
-      status: defaultMemberStatus,
-      isLeadership,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    };
-
-    setIsSavingMember(true);
-    try {
-      await setDoc(memberDoc, memberPayload);
-      // O contexto atualiza automaticamente via onSnapshot
-      toast.success('Membro criado com sucesso.');
-      setNewMember({
-        name: '',
-        email: '',
-        sector: '',
-        cpf: '',
-        role: roleOptions[0]
-      });
-      setIsMemberDialogOpen(false);
-    } catch (error) {
-      toast.error('Não foi possível salvar o membro.');
-    } finally {
-      setIsSavingMember(false);
-    }
-  };
-
   const openTagsDialog = (member: Member) => {
+    if (!canManageMemberInfo(member.id)) {
+      toast.error(
+        'Apenas Assessor ou Presidente do setor Executivo podem alterar informacoes de outros membros.'
+      );
+      return;
+    }
     setSelectedMemberForTags(member);
     setIsTagsDialogOpen(true);
   };
@@ -1080,22 +717,21 @@ export default function AcompanhamentoPage() {
 
     setIsSavingTag(true);
     try {
-      await memberService.addTagToMember(selectedMemberForTags.id, trimmedTag);
+      await acompanhamentoService.addTagToMember(
+        currentMember,
+        selectedMemberForTags.id,
+        trimmedTag
+      );
       toast.success('Tag adicionada com sucesso.');
       setNewTag('');
-      // Atualizar o membro localmente
       setSelectedMemberForTags((current) => {
         if (!current) return current;
         const updatedTags = [...(current.tags ?? []), trimmedTag];
         return { ...current, tags: updatedTags };
       });
     } catch (error: any) {
-      if (error?.message?.includes('já existe')) {
-        toast.error('Esta tag já existe para este membro.');
-      } else {
-        console.error('Erro ao adicionar tag:', error);
-        toast.error('Não foi possível adicionar a tag.');
-      }
+      console.error('Erro ao adicionar tag:', error);
+      toast.error(error?.message ?? 'Nao foi possivel adicionar a tag.');
     } finally {
       setIsSavingTag(false);
     }
@@ -1106,17 +742,20 @@ export default function AcompanhamentoPage() {
 
     setIsSavingTag(true);
     try {
-      await memberService.removeTagFromMember(selectedMemberForTags.id, tag);
+      await acompanhamentoService.removeTagFromMember(
+        currentMember,
+        selectedMemberForTags.id,
+        tag
+      );
       toast.success('Tag removida com sucesso.');
-      // Atualizar o membro localmente
       setSelectedMemberForTags((current) => {
         if (!current) return current;
         const updatedTags = (current.tags ?? []).filter((t) => t !== tag);
         return { ...current, tags: updatedTags };
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao remover tag:', error);
-      toast.error('Não foi possível remover a tag.');
+      toast.error(error?.message ?? 'Nao foi possivel remover a tag.');
     } finally {
       setIsSavingTag(false);
     }
@@ -1135,6 +774,7 @@ export default function AcompanhamentoPage() {
   };
 
   const toggleAllMembers = () => {
+    if (!canManageOtherMembers) return;
     if (selectedMemberIds.size === filteredMembers.length) {
       setSelectedMemberIds(new Set());
     } else {
@@ -1156,14 +796,19 @@ export default function AcompanhamentoPage() {
 
     setIsSavingBulkTag(true);
     try {
-      const result = await memberService.addTagToMultipleMembers(
+      const result = await acompanhamentoService.addTagToMultipleMembers(
+        currentMember,
         Array.from(selectedMemberIds),
         trimmedTag
       );
 
       if (result.success) {
         toast.success(
-          `Tag "${trimmedTag}" adicionada a ${selectedMemberIds.size} membro(s).`
+          'Tag "' +
+            trimmedTag +
+            '" adicionada a ' +
+            selectedMemberIds.size +
+            ' membro(s).'
         );
         setBulkTagName('');
         setSelectedMemberIds(new Set());
@@ -1173,7 +818,7 @@ export default function AcompanhamentoPage() {
       }
     } catch (error: any) {
       console.error('Erro ao adicionar tag em lote:', error);
-      toast.error('Não foi possível adicionar a tag.');
+      toast.error(error?.message ?? 'Nao foi possivel adicionar a tag.');
     } finally {
       setIsSavingBulkTag(false);
     }
@@ -1193,14 +838,19 @@ export default function AcompanhamentoPage() {
 
     setIsSavingBulkTag(true);
     try {
-      const result = await memberService.removeTagFromMultipleMembers(
+      const result = await acompanhamentoService.removeTagFromMultipleMembers(
+        currentMember,
         Array.from(selectedMemberIds),
         trimmedTag
       );
 
       if (result.success) {
         toast.success(
-          `Tag "${trimmedTag}" removida de ${selectedMemberIds.size} membro(s).`
+          'Tag "' +
+            trimmedTag +
+            '" removida de ' +
+            selectedMemberIds.size +
+            ' membro(s).'
         );
         setBulkTagName('');
         setSelectedMemberIds(new Set());
@@ -1210,12 +860,11 @@ export default function AcompanhamentoPage() {
       }
     } catch (error: any) {
       console.error('Erro ao remover tag em lote:', error);
-      toast.error('Não foi possível remover a tag.');
+      toast.error(error?.message ?? 'Nao foi possivel remover a tag.');
     } finally {
       setIsSavingBulkTag(false);
     }
   };
-
   return (
     <PageContainer
       pageTitle='Acompanhamento'

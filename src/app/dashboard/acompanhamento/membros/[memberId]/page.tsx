@@ -28,26 +28,7 @@ import {
 } from '@/components/ui/dialog';
 import { Calendar } from '@/components/ui/calendar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { firebaseDb } from '@/lib/firebase/client';
-import {
-  firestoreDateToDate,
-  firestoreDateToInput,
-  firestoreDateToLabel,
-  firestoreDateToTimestamp,
-  inputDateToTimestamp
-} from '@/lib/firestore-date';
-import type { FirestoreDateValue } from '@/lib/firestore-date';
-import {
-  collection,
-  collectionGroup,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where
-} from 'firebase/firestore';
+import { firestoreDateToDate, firestoreDateToInput } from '@/lib/firestore-date';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -61,50 +42,19 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import useMetadata from '@/hooks/use-metadata';
-
-type MemberTask = {
-  id: string;
-  activityId?: string;
-  projectId?: string;
-  projectName?: string;
-  source?: 'project' | 'agenda';
-  title: string;
-  due: string;
-  status: string;
-  priority: string;
-  owner?: string;
-  ownerId?: string;
-  description?: string;
-  updates?: ActivityUpdate[];
-};
-
-type ActivityUpdate = {
-  id: string;
-  author: string;
-  authorId?: string;
-  note: string;
-  time: string;
-};
-
-type MemberAlert = {
-  id: string;
-  title: string;
-  detail: string;
-  level: string;
-  time: string;
-};
-
-type MemberInfo = {
-  name: string;
-  email: string;
-  sector: string;
-  cpf: string;
-  role: string;
-  tags?: string[];
-};
+import { useFirebaseData } from '@/contexts/firebase-data-context';
+import acompanhamentoService from '@/services/acompanhamentoService';
+import type {
+  AcompanhamentoActivityFormState,
+  AcompanhamentoMemberAlert as MemberAlert,
+  AcompanhamentoMemberInfo as MemberInfo,
+  AcompanhamentoMemberOption as MemberOption,
+  AcompanhamentoMemberTask as MemberTask
+} from '@/types/acompanhamento/acompanhamento';
 
 const priorityStyles: Record<string, string> = {
   Alta: 'bg-red-500/10 text-red-700',
+  'Média': 'bg-amber-500/10 text-amber-700',
   Media: 'bg-amber-500/10 text-amber-700',
   Baixa: 'bg-emerald-500/10 text-emerald-700'
 };
@@ -133,13 +83,9 @@ const sectorOptions = [
   'Executivo'
 ];
 
-type MemberOption = {
-  id: string;
-  name: string;
-  role?: string;
-};
 const priorityRank: Record<string, number> = {
   Alta: 3,
+  'Média': 2,
   Media: 2,
   Baixa: 1
 };
@@ -188,6 +134,9 @@ export default function MembroPage() {
   const memberId = Array.isArray(params.memberId)
     ? params.memberId[0]
     : params.memberId;
+  const { currentMember } = useFirebaseData();
+  const canEditMemberInfo =
+    acompanhamentoService.canManageMemberInformation(currentMember, memberId);
   const [selectedDay, setSelectedDay] = React.useState<Date | undefined>(
     new Date()
   );
@@ -213,15 +162,16 @@ export default function MembroPage() {
   const editOwnerInputRef = React.useRef<HTMLInputElement | null>(null);
   const closeEditOwnerTimeout = React.useRef<NodeJS.Timeout | null>(null);
   const [isSavingEdit, setIsSavingEdit] = React.useState(false);
-  const [editTask, setEditTask] = React.useState({
-    name: '',
-    description: '',
-    dueDate: '',
-    owner: '',
-    ownerId: '',
-    status: statusOptions[1],
-    priority: priorityOptions[1]
-  });
+  const [editTask, setEditTask] =
+    React.useState<AcompanhamentoActivityFormState>({
+      name: '',
+      description: '',
+      dueDate: '',
+      owner: '',
+      ownerId: '',
+      status: statusOptions[1],
+      priority: priorityOptions[1]
+    });
   const [memberEditForm, setMemberEditForm] = React.useState({
     name: '',
     email: '',
@@ -266,7 +216,7 @@ export default function MembroPage() {
       }
       if (priority === 'Alta') {
         high.push(parsed);
-      } else if (priority === 'Media') {
+      } else if (priority === 'Media' || priority === 'Média') {
         medium.push(parsed);
       } else {
         low.push(parsed);
@@ -289,55 +239,31 @@ export default function MembroPage() {
   }, []);
 
   React.useEffect(() => {
-    const db = firebaseDb;
-    if (!db || !memberId) {
+    if (!memberId) {
       return;
     }
 
     let isActive = true;
     const loadMember = async () => {
-      if (!db) {
-        console.error('Firebase não inicializado');
-        return;
-      }
-
       try {
-        const snapshot = await getDoc(doc(db, 'members', memberId));
-        if (!snapshot.exists() || !isActive) {
+        const detail = await acompanhamentoService.getMemberDetail(memberId);
+        if (!detail || !isActive) {
           return;
         }
 
-        const data = snapshot.data() as Partial<MemberInfo> & {
-          tasks?: MemberTask[];
-          alerts?: MemberAlert[];
-          agendaTasks?: MemberTask[];
-        };
-
         setMemberInfo({
-          name: data.name ?? '',
-          email: data.email ?? '',
-          sector: data.sector ?? '',
-          cpf: data.cpf ?? '',
-          role: data.role ?? '',
-          tags: Array.isArray(data.tags) ? data.tags : []
+          name: detail.member.name ?? '',
+          email: detail.member.email ?? '',
+          sector: detail.member.sector ?? '',
+          cpf: detail.member.cpf ?? '',
+          role: detail.member.role ?? '',
+          tags: Array.isArray(detail.member.tags) ? detail.member.tags : []
         });
-
-        if (Array.isArray(data.agendaTasks)) {
-          setAgendaTasks(
-            data.agendaTasks.map((task) => ({
-              ...task,
-              source: 'agenda'
-            }))
-          );
-        } else {
-          setAgendaTasks([]);
-        }
-        if (Array.isArray(data.alerts)) {
-          setMemberAlerts(data.alerts);
-        }
+        setAgendaTasks(detail.agendaTasks);
+        setMemberAlerts(detail.alerts?.length ? detail.alerts : alerts);
       } catch (error) {
         console.error('Falha ao carregar membro:', error);
-        toast.error('Não foi possível carregar o membro.');
+        toast.error('Nao foi possivel carregar o membro.');
       }
     };
 
@@ -349,39 +275,17 @@ export default function MembroPage() {
   }, [memberId]);
 
   React.useEffect(() => {
-    const db = firebaseDb;
-    if (!db) {
-      return;
-    }
-
     let isActive = true;
     const loadMembers = async () => {
-      if (!db) {
-        console.error('Firebase não inicializado');
-        setIsMembersLoading(false);
-        return;
-      }
-
       setIsMembersLoading(true);
       try {
-        const snapshot = await getDocs(collection(db, 'members'));
-        if (!isActive) {
-          return;
+        const members = await acompanhamentoService.getMemberOptions();
+        if (isActive) {
+          setMemberOptions(members);
         }
-
-        setMemberOptions(
-          snapshot.docs.map((docSnapshot) => {
-            const data = docSnapshot.data() as Partial<MemberOption>;
-            return {
-              id: docSnapshot.id,
-              name: data.name ?? 'Sem nome',
-              role: data.role
-            };
-          })
-        );
       } catch (error) {
         console.error('Falha ao carregar membros:', error);
-        toast.error('Não foi possível carregar membros.');
+        toast.error('Nao foi possivel carregar membros.');
       } finally {
         if (isActive) {
           setIsMembersLoading(false);
@@ -397,61 +301,20 @@ export default function MembroPage() {
   }, []);
 
   React.useEffect(() => {
-    const db = firebaseDb;
-    if (!db || !memberId) {
+    if (!memberId) {
       return;
     }
 
     let isActive = true;
     const loadTasks = async () => {
-      if (!db) {
-        console.error('Firebase não inicializado');
-        return;
-      }
-
       try {
-        const q = query(
-          collectionGroup(db, 'activities'),
-          where('ownerId', '==', memberId)
-        );
-
-        const snap = await getDocs(q);
-
-        setProjectTasks(
-          snap.docs.map((d) => {
-            const data = d.data() as {
-              id?: string;
-              name?: string;
-              description?: string;
-              dueAt?: FirestoreDateValue;
-              owner?: string;
-              ownerId?: string;
-              status?: string;
-              priority?: string;
-              projectId?: string;
-              projectName?: string;
-            };
-            const parentProjectId = d.ref.parent?.parent?.id;
-
-            return {
-              id: d.id,
-              activityId: data.id ?? d.id,
-              projectId: data.projectId ?? parentProjectId,
-              projectName: data.projectName,
-              source: 'project' as const,
-              title: data.name ?? 'Atividade',
-              description: data.description ?? '',
-              due: firestoreDateToLabel(data.dueAt ?? ''),
-              owner: data.owner ?? '',
-              ownerId: data.ownerId,
-              status: data.status ?? statusOptions[1],
-              priority: data.priority ?? priorityOptions[1]
-            } satisfies MemberTask;
-          })
-        );
+        const tasks = await acompanhamentoService.getMemberProjectTasks(memberId);
+        if (isActive) {
+          setProjectTasks(tasks);
+        }
       } catch (error) {
         console.error('Falha ao carregar tarefas:', error);
-        toast.error('Não foi possível carregar tarefas.');
+        toast.error('Nao foi possivel carregar tarefas.');
       }
     };
 
@@ -481,120 +344,38 @@ export default function MembroPage() {
   );
 
   const handleUpdateTask = async () => {
-    if (!activeTask?.id) {
+    if (!activeTask) {
       toast.error('Atividade nao encontrada.');
-      return;
-    }
-    const db = firebaseDb;
-    if (!db) {
-      toast.error('Firebase nao configurado.');
-      return;
-    }
-    if (!editTask.name.trim()) {
-      toast.error('Informe o nome da atividade.');
-      return;
-    }
-    if (!editTask.owner.trim()) {
-      toast.error('Informe o responsável.');
-      return;
-    }
-    if (!activeTask.projectId) {
-      toast.error('Projeto da atividade nao encontrado.');
-      return;
-    }
-
-    const activityId = activeTask.activityId ?? activeTask.id;
-    if (!activityId) {
-      toast.error('Atividade inválida.');
       return;
     }
 
     setIsSavingEdit(true);
     try {
-      const activityRef = doc(
-        db,
-        'projects',
-        activeTask.projectId,
-        'activities',
-        activityId
+      const updatedTask = await acompanhamentoService.updateMemberProjectTask(
+        activeTask,
+        editTask
       );
-      const snapshot = await getDoc(activityRef);
-
-      if (!snapshot.exists()) {
-        toast.error('Atividade nao encontrada.');
-        return;
-      }
-
-      const dueAtValue = editTask.dueDate
-        ? inputDateToTimestamp(editTask.dueDate)
-        : null;
-      if (editTask.dueDate && !dueAtValue) {
-        toast.error('Data inválida.');
-        return;
-      }
-
-      const resolvedOwnerId = editTask.ownerId || activeTask.ownerId || null;
-      const dueAtLabel = editTask.dueDate
-        ? firestoreDateToLabel(dueAtValue ?? editTask.dueDate)
-        : '';
-
-      const updatePayload = {
-        name: editTask.name.trim(),
-        description: editTask.description.trim(),
-        owner: editTask.owner.trim(),
-        ownerId: resolvedOwnerId,
-        status: editTask.status,
-        priority: editTask.priority,
-        dueAt: editTask.dueDate ? dueAtValue : null,
-        updatedAt: serverTimestamp()
-      };
-
-      await updateDoc(activityRef, updatePayload);
 
       setProjectTasks((current) =>
-        current.map((task) =>
-          task.id === activeTask.id
-            ? {
-                ...task,
-                title: editTask.name.trim(),
-                description: editTask.description.trim(),
-                due: dueAtLabel,
-                owner: editTask.owner.trim(),
-                ownerId: resolvedOwnerId ?? undefined,
-                status: editTask.status,
-                priority: editTask.priority,
-                projectId: activeTask.projectId,
-                activityId
-              }
-            : task
-        )
+        current.map((task) => (task.id === activeTask.id ? updatedTask : task))
       );
-      setActiveTask((current) =>
-        current
-          ? {
-              ...current,
-              title: editTask.name.trim(),
-              description: editTask.description.trim(),
-              due: dueAtLabel,
-              owner: editTask.owner.trim(),
-              ownerId: resolvedOwnerId ?? undefined,
-              status: editTask.status,
-              priority: editTask.priority,
-              projectId: activeTask.projectId,
-              activityId
-            }
-          : current
-      );
+      setActiveTask(updatedTask);
       toast.success('Atividade atualizada.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Falha ao atualizar atividade:', error);
-      toast.error('Não foi possível atualizar a atividade.');
+      toast.error(error?.message ?? 'Nao foi possivel atualizar a atividade.');
     } finally {
       setIsSavingEdit(false);
     }
   };
 
   const openMemberEditInfo = () => {
+    if (!canEditMemberInfo) {
+      toast.error(
+        'Apenas Assessor ou Presidente do setor Executivo podem alterar informacoes de outros membros.'
+      );
+      return;
+    }
     setMemberEditForm({
       name: memberInfo.name ?? '',
       email: memberInfo.email ?? '',
@@ -624,50 +405,32 @@ export default function MembroPage() {
   };
 
   const handleSaveMemberInfo = async () => {
-    const db = firebaseDb;
-    if (!db || !memberId) {
+    if (!memberId) {
       toast.error('Membro nao encontrado.');
-      return;
-    }
-    if (!memberEditForm.name.trim()) {
-      toast.error('Informe o nome.');
-      return;
-    }
-    if (!memberEditForm.email.trim()) {
-      toast.error('Informe o email.');
       return;
     }
 
     setIsSavingMemberEdit(true);
     try {
-      const memberRef = doc(db, 'members', memberId);
-      await updateDoc(memberRef, {
-        name: memberEditForm.name.trim(),
-        email: memberEditForm.email.trim(),
-        sector: memberEditForm.sector.trim(),
-        cpf: memberEditForm.cpf.trim(),
-        role: memberEditForm.role.trim(),
-        tags: Array.isArray(memberEditForm.tags)
-          ? memberEditForm.tags.map((t: string) => t.trim())
-          : [],
-        updatedAt: serverTimestamp()
-      });
+      const updatedMember = await acompanhamentoService.updateMemberInfo(
+        currentMember,
+        memberId,
+        memberEditForm
+      );
 
       setMemberInfo({
-        name: memberEditForm.name.trim(),
-        email: memberEditForm.email.trim(),
-        sector: memberEditForm.sector.trim(),
-        cpf: memberEditForm.cpf.trim(),
-        role: memberEditForm.role.trim(),
-        tags: Array.isArray(memberEditForm.tags)
-          ? memberEditForm.tags.map((t: string) => t.trim())
-          : []
+        name: updatedMember.name,
+        email: updatedMember.email,
+        sector: updatedMember.sector,
+        cpf: updatedMember.cpf,
+        role: updatedMember.role,
+        tags: updatedMember.tags ?? []
       });
       setIsMemberEditOpen(false);
-      toast.success('Informações atualizadas.');
-    } catch (error) {
+      toast.success('Informacoes atualizadas.');
+    } catch (error: any) {
       console.error('Falha ao atualizar membro:', error);
-      toast.error('Não foi possível atualizar o membro.');
+      toast.error(error?.message ?? 'Nao foi possivel atualizar o membro.');
     } finally {
       setIsSavingMemberEdit(false);
     }
@@ -816,16 +579,18 @@ export default function MembroPage() {
                 <CardTitle>Informações</CardTitle>
                 <CardDescription>Dados do membro</CardDescription>
               </div>
-              <Button
-                type='button'
-                size='icon'
-                variant='ghost'
-                className='h-9 w-9 cursor-pointer self-center rounded-md border hover:bg-white/10 [&_svg]:!h-[1em] [&_svg]:!w-[1em]'
-                onClick={openMemberEditInfo}
-                aria-label='Editar informações do membro'
-              >
-                <FontAwesomeIcon icon={faPenToSquare} size='lg' />
-              </Button>
+              {canEditMemberInfo ? (
+                <Button
+                  type='button'
+                  size='icon'
+                  variant='ghost'
+                  className='h-9 w-9 cursor-pointer self-center rounded-md border hover:bg-white/10 [&_svg]:!h-[1em] [&_svg]:!w-[1em]'
+                  onClick={openMemberEditInfo}
+                  aria-label='Editar informacoes do membro'
+                >
+                  <FontAwesomeIcon icon={faPenToSquare} size='lg' />
+                </Button>
+              ) : null}
             </CardHeader>
             <CardContent>
               <div className='grid grid-cols-1 gap-3 text-sm sm:grid-cols-2'>
