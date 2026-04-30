@@ -55,7 +55,12 @@ export default async function RootLayout({
   const isScaled = activeThemeValue?.endsWith('-scaled');
 
   return (
-    <html lang='en' suppressHydrationWarning>
+    <html
+      lang='pt-BR'
+      translate='no'
+      className='notranslate'
+      suppressHydrationWarning
+    >
       <head>
         <script
           dangerouslySetInnerHTML={{
