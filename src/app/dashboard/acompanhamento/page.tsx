@@ -22,6 +22,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Popover,
   PopoverContent,
@@ -41,7 +42,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { PieGraph } from '@/features/overview/components/pie-graph';
 import { useFirebaseData } from '@/contexts/firebase-data-context';
 import { format } from 'date-fns';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPenToSquare } from '@fortawesome/free-regular-svg-icons';
@@ -49,36 +50,20 @@ import { faXmark, faTags } from '@fortawesome/free-solid-svg-icons';
 import { useRouter } from 'next/navigation';
 import useMetadata from '@/hooks/use-metadata';
 import acompanhamentoService from '@/services/acompanhamentoService';
+import feedbackService from '@/services/feedbackService';
 import type {
   AcompanhamentoMemberCard as Member,
   AcompanhamentoProjectCard as Project,
   AcompanhamentoProjectFormState as ProjectFormState
 } from '@/types/acompanhamento/acompanhamento';
+import {
+  FEEDBACK_TYPES,
+  type Feedback,
+  type FeedbackFormState,
+  type FeedbackStatus,
+  type FeedbackType
+} from '@/types/feedback/feedback';
 import { tiposAutomacao, tiposEletrica } from '@/constants/project-types';
-
-const alerts = [
-  {
-    id: 'alert-1',
-    title: 'API instável',
-    detail: 'Picos de erro no serviço de pedidos',
-    level: 'alto',
-    time: 'há 10 min'
-  },
-  {
-    id: 'alert-2',
-    title: 'Fila de e-mails',
-    detail: 'Processamento acima do esperado',
-    level: 'médio',
-    time: 'há 45 min'
-  },
-  {
-    id: 'alert-3',
-    title: 'Deploy pendente',
-    detail: 'Aguardando aprovação do time',
-    level: 'baixo',
-    time: 'há 2 horas'
-  }
-];
 
 const statusOptions = [
   'Todos',
@@ -101,10 +86,15 @@ const areaOptions = [
   'Marketing',
   'Executivo'
 ];
-const alertLevelStyles: Record<string, string> = {
-  alto: 'bg-red-500/10 text-red-700',
-  medio: 'bg-amber-500/10 text-amber-700',
-  baixo: 'bg-emerald-500/10 text-emerald-700'
+const feedbackStatusStyles: Record<FeedbackStatus, string> = {
+  Aberta: 'bg-muted text-muted-foreground',
+  'Em andamento': 'bg-amber-500/10 text-amber-700',
+  Resolvida: 'bg-emerald-500/10 text-emerald-700'
+};
+
+const formatFeedbackDate = (value?: Feedback['createdAt']): string => {
+  if (!value?.toDate) return '--';
+  return format(value.toDate(), 'dd/MM/yyyy HH:mm');
 };
 
 export default function AcompanhamentoPage() {
@@ -147,8 +137,23 @@ export default function AcompanhamentoPage() {
     new Set()
   );
   const [isSavingBulkTag, setIsSavingBulkTag] = React.useState(false);
+  const [feedbackForm, setFeedbackForm] =
+    React.useState<FeedbackFormState>({
+      type: FEEDBACK_TYPES[0],
+      title: '',
+      detail: ''
+    });
+  const [isSubmittingFeedback, setIsSubmittingFeedback] =
+    React.useState(false);
+  const [isIssuesDialogOpen, setIsIssuesDialogOpen] = React.useState(false);
+  const [feedbacks, setFeedbacks] = React.useState<Feedback[]>([]);
+  const [isLoadingFeedbacks, setIsLoadingFeedbacks] = React.useState(false);
+  const [updatingFeedbackId, setUpdatingFeedbackId] = React.useState<
+    string | null
+  >(null);
   const canManageOtherMembers =
     acompanhamentoService.canManageOtherMembers(currentMember);
+  const canManageFeedbacks = feedbackService.canManageFeedbacks(currentMember);
   const canManageMemberInfo = React.useCallback(
     (memberId: string) =>
       acompanhamentoService.canManageMemberInformation(currentMember, memberId),
@@ -663,34 +668,187 @@ export default function AcompanhamentoPage() {
     </Card>
   );
 
-  const alertsCard = (
+  const loadFeedbacks = async () => {
+    if (!canManageFeedbacks) return;
+
+    setIsLoadingFeedbacks(true);
+    try {
+      const data = await feedbackService.getFeedbacks(currentMember);
+      setFeedbacks(data);
+    } catch (error: any) {
+      console.error('Erro ao carregar issues:', error);
+      toast.error(error?.message ?? 'Nao foi possivel carregar as issues.');
+    } finally {
+      setIsLoadingFeedbacks(false);
+    }
+  };
+
+  const openIssuesDialog = async () => {
+    if (!canManageFeedbacks) {
+      toast.error(
+        'Apenas Presidente ou Assessor do setor Executivo podem gerenciar issues.'
+      );
+      return;
+    }
+
+    setIsIssuesDialogOpen(true);
+    await loadFeedbacks();
+  };
+
+  const handleFeedbackStatusChange = async (
+    feedbackId: string,
+    status: FeedbackStatus
+  ) => {
+    setUpdatingFeedbackId(feedbackId);
+    try {
+      await feedbackService.updateFeedbackStatus(
+        currentMember,
+        feedbackId,
+        status
+      );
+      setFeedbacks((current) =>
+        current.map((feedback) =>
+          feedback.id === feedbackId ? { ...feedback, status } : feedback
+        )
+      );
+      toast.success('Issue atualizada.');
+    } catch (error: any) {
+      console.error('Erro ao atualizar issue:', error);
+      toast.error(error?.message ?? 'Nao foi possivel atualizar a issue.');
+    } finally {
+      setUpdatingFeedbackId(null);
+    }
+  };
+
+  const handleSubmitFeedback = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+
+    setIsSubmittingFeedback(true);
+    try {
+      await feedbackService.submitFeedback({
+        ...feedbackForm,
+        member: currentMember
+      });
+      setFeedbackForm({
+        type: FEEDBACK_TYPES[0],
+        title: '',
+        detail: ''
+      });
+      toast.success('Feedback enviado com sucesso.');
+    } catch (error: any) {
+      console.error('Erro ao enviar feedback:', error);
+      toast.error(error?.message ?? 'Nao foi possivel enviar o feedback.');
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
+
+  const issuesCard = (
     <Card className='flex h-full flex-col lg:h-105'>
       <CardHeader>
-        <CardTitle>Alertas recentes</CardTitle>
-        <CardDescription>Eventos que exigem atenção</CardDescription>
-      </CardHeader>
-      <CardContent className='flex-1 overflow-auto'>
-        <div className='space-y-3'>
-          {alerts.map((alert) => (
-            <div
-              key={alert.id}
-              className='flex items-start justify-between gap-3 rounded-md border p-3'
+        <CardTitle>Central de issues</CardTitle>
+        <CardDescription>Feedbacks e solicitacoes do app</CardDescription>
+        {canManageFeedbacks ? (
+          <CardAction>
+            <Button
+              type='button'
+              size='sm'
+              variant='outline'
+              onClick={openIssuesDialog}
             >
-              <div className='flex flex-col'>
-                <span className='text-sm font-medium'>{alert.title}</span>
-                <span className='text-muted-foreground text-xs'>
-                  {alert.detail}
-                </span>
-                <span className='text-muted-foreground text-xs'>
-                  {alert.time}
-                </span>
-              </div>
-              <Badge className={alertLevelStyles[alert.level]}>
-                {alert.level}
-              </Badge>
+              Ver issues
+            </Button>
+          </CardAction>
+        ) : null}
+      </CardHeader>
+      <CardContent className='flex min-h-0 flex-1 flex-col'>
+        <ScrollArea className='-mr-3 min-h-0 flex-1 pr-3'>
+          <form className='space-y-4' onSubmit={handleSubmitFeedback}>
+            <div className='space-y-2'>
+              <label className='text-sm font-medium' htmlFor='feedbackType'>
+                Tipo
+              </label>
+              <Select
+                value={feedbackForm.type}
+                disabled={isSubmittingFeedback}
+                onValueChange={(value) =>
+                  setFeedbackForm((current) => ({
+                    ...current,
+                    type: value as FeedbackType
+                  }))
+                }
+              >
+                <SelectTrigger id='feedbackType'>
+                  <SelectValue placeholder='Selecione o tipo' />
+                </SelectTrigger>
+                <SelectContent>
+                  {FEEDBACK_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          ))}
-        </div>
+
+            <div className='space-y-2'>
+              <label className='text-sm font-medium' htmlFor='feedbackTitle'>
+                Titulo
+              </label>
+              <Input
+                id='feedbackTitle'
+                placeholder='Resumo da issue'
+                value={feedbackForm.title}
+                disabled={isSubmittingFeedback}
+                onChange={(event) =>
+                  setFeedbackForm((current) => ({
+                    ...current,
+                    title: event.target.value
+                  }))
+                }
+              />
+            </div>
+
+            <div className='space-y-2'>
+              <label className='text-sm font-medium' htmlFor='feedbackDetail'>
+                Detalhamento
+              </label>
+              <Textarea
+                id='feedbackDetail'
+                placeholder='Contexto, passos para reproduzir ou melhoria esperada'
+                value={feedbackForm.detail}
+                disabled={isSubmittingFeedback}
+                rows={4}
+                onChange={(event) =>
+                  setFeedbackForm((current) => ({
+                    ...current,
+                    detail: event.target.value
+                  }))
+                }
+              />
+            </div>
+
+            <div className='rounded-md border p-3 text-xs'>
+              <div className='font-medium'>
+                {currentMember?.name || 'Membro nao identificado'}
+              </div>
+              <div className='text-muted-foreground'>
+                ID: {currentMember?.id || 'indisponivel'}
+              </div>
+            </div>
+
+            <Button
+              type='submit'
+              className='w-full gap-2'
+              disabled={isSubmittingFeedback || !currentMember?.id}
+            >
+              <Send className='h-4 w-4' />
+              {isSubmittingFeedback ? 'Enviando...' : 'Enviar issue'}
+            </Button>
+          </form>
+        </ScrollArea>
       </CardContent>
     </Card>
   );
@@ -892,8 +1050,8 @@ export default function AcompanhamentoPage() {
               <TabsTrigger value='members' className='py-2 text-xs'>
                 Membros
               </TabsTrigger>
-              <TabsTrigger value='alerts' className='py-2 text-xs'>
-                Alertas
+              <TabsTrigger value='issues' className='py-2 text-xs'>
+                Issues
               </TabsTrigger>
             </TabsList>
             <TabsContent
@@ -915,10 +1073,10 @@ export default function AcompanhamentoPage() {
               {membersCard}
             </TabsContent>
             <TabsContent
-              value='alerts'
+              value='issues'
               className='mt-3 flex min-h-0 flex-1 flex-col'
             >
-              {alertsCard}
+              {issuesCard}
             </TabsContent>
           </Tabs>
         </div>
@@ -927,9 +1085,106 @@ export default function AcompanhamentoPage() {
           {projectsCardDesktop}
           {occupancyCard}
           {membersCard}
-          {alertsCard}
+          {issuesCard}
         </div>
       </div>
+      <Dialog
+        open={isIssuesDialogOpen}
+        onOpenChange={(open) => setIsIssuesDialogOpen(open)}
+      >
+        <DialogContent className='max-h-[90vh] max-w-[95vw] overflow-hidden sm:max-w-3xl'>
+          <DialogHeader>
+            <DialogTitle>Issues recebidas</DialogTitle>
+            <DialogDescription>
+              Classifique feedbacks e solicitações como em andamento ou
+              resolvidas.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className='max-h-[65vh] pr-3'>
+            <div className='space-y-3'>
+              {isLoadingFeedbacks ? (
+                <div className='space-y-3'>
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <div
+                      key={`feedback-skeleton-${index}`}
+                      className='rounded-md border p-4'
+                    >
+                      <Skeleton className='h-4 w-2/3' />
+                      <Skeleton className='mt-2 h-3 w-1/2' />
+                      <Skeleton className='mt-4 h-16 w-full' />
+                    </div>
+                  ))}
+                </div>
+              ) : feedbacks.length === 0 ? (
+                <div className='text-muted-foreground rounded-md border p-6 text-center text-sm'>
+                  Nenhuma issue registrada.
+                </div>
+              ) : (
+                feedbacks.map((feedback) => (
+                  <div key={feedback.id} className='rounded-md border p-4'>
+                    <div className='flex flex-wrap items-start justify-between gap-3'>
+                      <div className='min-w-0 flex-1'>
+                        <div className='flex flex-wrap items-center gap-2'>
+                          <Badge variant='outline'>{feedback.type}</Badge>
+                          <Badge className={feedbackStatusStyles[feedback.status]}>
+                            {feedback.status}
+                          </Badge>
+                        </div>
+                        <h3 className='mt-2 text-sm font-semibold'>
+                          {feedback.title}
+                        </h3>
+                        <p className='text-muted-foreground mt-1 text-xs'>
+                          {feedback.member.name || 'Membro sem nome'} - ID:{' '}
+                          {feedback.member.id || '--'} -{' '}
+                          {formatFeedbackDate(feedback.createdAt)}
+                        </p>
+                      </div>
+                      <div className='flex shrink-0 flex-wrap gap-2'>
+                        <Button
+                          type='button'
+                          size='sm'
+                          variant={
+                            feedback.status === 'Em andamento'
+                              ? 'default'
+                              : 'outline'
+                          }
+                          disabled={updatingFeedbackId === feedback.id}
+                          onClick={() =>
+                            handleFeedbackStatusChange(
+                              feedback.id,
+                              'Em andamento'
+                            )
+                          }
+                        >
+                          Em andamento
+                        </Button>
+                        <Button
+                          type='button'
+                          size='sm'
+                          variant={
+                            feedback.status === 'Resolvida'
+                              ? 'default'
+                              : 'outline'
+                          }
+                          disabled={updatingFeedbackId === feedback.id}
+                          onClick={() =>
+                            handleFeedbackStatusChange(feedback.id, 'Resolvida')
+                          }
+                        >
+                          Resolvida
+                        </Button>
+                      </div>
+                    </div>
+                    <p className='mt-3 whitespace-pre-wrap text-sm leading-relaxed'>
+                      {feedback.detail}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={isDialogOpen}
         onOpenChange={(open) => {
