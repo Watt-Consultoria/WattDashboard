@@ -3,15 +3,7 @@ import * as React from 'react';
 import PageContainer from '@/components/layout/page-container';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { firebaseDb } from '@/lib/firebase/client';
-import {
-  firestoreDateToDate,
-  firestoreDateToInput,
-  firestoreDateToLabel,
-  firestoreDateToTimestamp,
-  inputDateToTimestamp
-} from '@/lib/firestore-date';
-import type { FirestoreDateValue } from '@/lib/firestore-date';
+import { firestoreDateToInput } from '@/lib/firestore-date';
 import {
   Card,
   CardAction,
@@ -52,130 +44,27 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  arrayUnion,
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  orderBy,
-  query,
-  serverTimestamp,
-  Timestamp,
-  updateDoc,
-  setDoc,
-  deleteDoc
-} from 'firebase/firestore';
-import { format } from 'date-fns';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import useMetadata from '@/hooks/use-metadata';
+import acompanhamentoService from '@/services/acompanhamentoService';
+import type {
+  AcompanhamentoActivity as Activity,
+  AcompanhamentoActivityData as ActivityFirestore,
+  AcompanhamentoActivityFormState,
+  AcompanhamentoConflictingTask as ConflictingTask,
+  AcompanhamentoMemberOption as MemberOption,
+  AcompanhamentoProjectInfo as ProjectInfo
+} from '@/types/acompanhamento/acompanhamento';
 
 const priorities: Record<string, string> = {
   Alta: 'bg-red-500/10 text-red-700',
-  Média: 'bg-amber-500/10 text-amber-700',
+  Media: 'bg-amber-500/10 text-amber-700',
+  'Média': 'bg-amber-500/10 text-amber-700',
   Baixa: 'bg-emerald-500/10 text-emerald-700'
 };
 const priorityOptions = ['Alta', 'Média', 'Baixa'];
 const statusOptions = ['Planejado', 'Em andamento', 'Bloqueado', 'Concluído'];
-
-type Activity = {
-  id: string;
-  name: string;
-  issuedAt: string;
-  dueAt: string;
-  owner: string;
-  ownerId?: string;
-  status: string;
-  priority: keyof typeof priorities;
-  description: string;
-  updates?: ActivityUpdate[];
-};
-
-type ActivityFirestore = Omit<Activity, 'issuedAt' | 'dueAt'> & {
-  issuedAt?: FirestoreDateValue;
-  dueAt?: FirestoreDateValue;
-};
-
-type ActivityUpdate = {
-  id: string;
-  author: string;
-  authorId?: string;
-  note: string;
-  time: string;
-};
-type ProjectInfo = {
-  id: string;
-  name: string;
-  client?: string;
-  status?: string;
-  start?: string;
-  next?: string;
-  value?: string;
-  manager?: string;
-};
-
-type MemberOption = {
-  id: string;
-  name: string;
-  role?: string;
-};
-
-type ConflictingTask = {
-  title: string;
-  due: string;
-  source: string;
-};
-
-const normalizePriority = (value?: string): Activity['priority'] => {
-  if (value === 'Alta' || value === 'Baixa') {
-    return value;
-  }
-  return 'Média';
-};
-
-const normalizeActivityForUi = (
-  activity: Partial<ActivityFirestore>
-): Activity => ({
-  id: activity.id ?? '',
-  name: activity.name ?? '',
-  issuedAt: firestoreDateToLabel(activity.issuedAt),
-  dueAt: firestoreDateToLabel(activity.dueAt),
-  owner: activity.owner ?? '',
-  ownerId: activity.ownerId,
-  status: activity.status ?? statusOptions[0],
-  priority: normalizePriority(activity.priority),
-  description: activity.description ?? '',
-  updates: Array.isArray(activity.updates) ? activity.updates : []
-});
-
-const formatProjectValue = (value?: string | number) => {
-  if (!value) {
-    return 'R$ --';
-  }
-  const stringValue = typeof value === 'number' ? value.toString() : value;
-  const trimmed = stringValue.trim();
-  if (!trimmed) {
-    return 'R$ --';
-  }
-  const normalized = trimmed.replace(/[^0-9.,]/g, '');
-  if (!normalized) {
-    return 'R$ --';
-  }
-  const numericValue = normalized.includes(',')
-    ? Number.parseFloat(normalized.replace(/\./g, '').replace(',', '.'))
-    : Number.parseFloat(normalized);
-  if (Number.isNaN(numericValue)) {
-    return 'R$ --';
-  }
-  return (
-    'R$ ' +
-    new Intl.NumberFormat('pt-BR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(numericValue)
-  );
-};
 
 export default function ProjetoPage() {
   const params = useParams();
@@ -206,15 +95,16 @@ export default function ProjetoPage() {
   const [isEditOpen, setIsEditOpen] = React.useState(false);
   const [isSavingEdit, setIsSavingEdit] = React.useState(false);
 
-  const [newActivity, setNewActivity] = React.useState({
-    name: '',
-    description: '',
-    dueDate: '',
-    owner: '',
-    ownerId: '',
-    status: statusOptions[1],
-    priority: priorityOptions[1]
-  });
+  const [newActivity, setNewActivity] =
+    React.useState<AcompanhamentoActivityFormState>({
+      name: '',
+      description: '',
+      dueDate: '',
+      owner: '',
+      ownerId: '',
+      status: statusOptions[1],
+      priority: priorityOptions[1]
+    });
   const [conflictWarning, setConflictWarning] = React.useState<{
     show: boolean;
     message: string;
@@ -223,51 +113,29 @@ export default function ProjetoPage() {
   }>({ show: false, message: '', tasksCount: 0, tasks: [] });
   const [pendingActivity, setPendingActivity] =
     React.useState<ActivityFirestore | null>(null);
-  const [editActivity, setEditActivity] = React.useState({
-    name: '',
-    description: '',
-    dueDate: '',
-    owner: '',
-    ownerId: '',
-    status: statusOptions[1],
-    priority: priorityOptions[1]
-  });
+  const [editActivity, setEditActivity] =
+    React.useState<AcompanhamentoActivityFormState>({
+      name: '',
+      description: '',
+      dueDate: '',
+      owner: '',
+      ownerId: '',
+      status: statusOptions[1],
+      priority: priorityOptions[1]
+    });
 
   React.useEffect(() => {
-    if (!firebaseDb) {
-      return;
-    }
-
     let isActive = true;
     const loadMembers = async () => {
-      if (!firebaseDb) {
-        console.error('Firebase não inicializado');
-        setIsMembersLoading(false);
-        return;
-      }
-
       setIsMembersLoading(true);
       try {
-        const snapshot = await getDocs(
-          query(collection(firebaseDb, 'members'), orderBy('name', 'asc'))
-        );
-        if (!isActive) {
-          return;
+        const members = await acompanhamentoService.getMemberOptions();
+        if (isActive) {
+          setMemberOptions(members);
         }
-
-        setMemberOptions(
-          snapshot.docs.map((docSnapshot) => {
-            const data = docSnapshot.data() as Partial<MemberOption>;
-            return {
-              id: docSnapshot.id,
-              name: data.name ?? 'Sem nome',
-              role: data.role
-            };
-          })
-        );
       } catch (error) {
         console.error('Falha ao carregar membros:', error);
-        toast.error('Não foi possível carregar membros.');
+        toast.error('Nao foi possivel carregar membros.');
       } finally {
         if (isActive) {
           setIsMembersLoading(false);
@@ -292,52 +160,14 @@ export default function ProjetoPage() {
           return;
         }
 
-        if (!firebaseDb) {
-          toast.error('Firebase não inicializado');
-          return;
-        }
+        const detail = await acompanhamentoService.getProjectDetail(projectId);
+        if (!detail || !isActive) return;
 
-        const projectRef = doc(firebaseDb, 'projects', projectId);
-        const projectSnapshot = await getDoc(projectRef);
-
-        const activitiesRef = collection(
-          firebaseDb,
-          'projects',
-          projectId,
-          'activities'
-        );
-        const snapshot = await getDocs(activitiesRef);
-
-        if (!isActive) return;
-
-        const projectData = projectSnapshot.data();
-
-        const startLabel =
-          projectData?.start instanceof Timestamp
-            ? format(projectData.start.toDate(), 'dd/MM/yyyy')
-            : '';
-
-        setProjectInfo({
-          id: projectSnapshot.id,
-          name: projectData?.name ?? 'Projeto',
-          client: projectData?.client,
-          status: projectData?.status,
-          start: startLabel,
-          next: projectData?.next,
-          value: projectData?.value,
-          manager: projectData?.manager
-        });
-
-        // ✅ atividades vêm da subcoleção
-        const activities = snapshot.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any)
-        }));
-
-        setActivityList(activities.map(normalizeActivityForUi));
+        setProjectInfo(detail.project);
+        setActivityList(detail.activities);
       } catch (error) {
         console.error('Falha ao carregar atividades:', error);
-        toast.error('Não foi possível carregar atividades.');
+        toast.error('Nao foi possivel carregar atividades.');
       }
     };
 
@@ -345,7 +175,7 @@ export default function ProjetoPage() {
     return () => {
       isActive = false;
     };
-  }, [firebaseDb, projectId]);
+  }, [projectId]);
 
   React.useEffect(() => {
     if (activityList.length === 0) {
@@ -369,213 +199,47 @@ export default function ProjetoPage() {
     member.name.toLowerCase().includes(editActivity.owner.toLowerCase().trim())
   );
 
-  const checkMemberConflicts = async (
-    ownerId: string,
-    dueDate: string
-  ): Promise<{
-    hasConflict: boolean;
-    message: string;
-    tasksCount: number;
-    tasks: ConflictingTask[];
-  }> => {
-    if (!firebaseDb || !ownerId || !dueDate) {
-      return { hasConflict: false, message: '', tasksCount: 0, tasks: [] };
-    }
-
-    try {
-      const dueDateTime = firestoreDateToDate(dueDate);
-      if (!dueDateTime) {
-        return { hasConflict: false, message: '', tasksCount: 0, tasks: [] };
-      }
-
-      const now = new Date();
-      const next7Days = new Date(now);
-      next7Days.setDate(now.getDate() + 7);
-
-      const dueMinus3 = new Date(dueDateTime);
-      dueMinus3.setDate(dueDateTime.getDate() - 3);
-      const duePlus3 = new Date(dueDateTime);
-      duePlus3.setDate(dueDateTime.getDate() + 3);
-
-      // Carregar tarefas da agenda do membro
-      const memberDoc = await getDoc(doc(firebaseDb, 'members', ownerId));
-      const agendaTasks: Array<{ title: string; due: string; source: string }> =
-        [];
-      if (memberDoc.exists()) {
-        const memberData = memberDoc.data() as {
-          agendaTasks?: Array<{ title: string; due: string }>;
-        };
-        if (Array.isArray(memberData.agendaTasks)) {
-          agendaTasks.push(
-            ...memberData.agendaTasks.map((task) => ({
-              title: task.title,
-              due: task.due,
-              source: 'Agenda pessoal'
-            }))
-          );
-        }
-      }
-
-      // Carregar tarefas de projetos
-      const projectsSnapshot = await getDocs(
-        collection(firebaseDb, 'projects')
-      );
-      const projectTasks: Array<{
-        title: string;
-        due: string;
-        source: string;
-      }> = [];
-      projectsSnapshot.docs.forEach((docSnapshot) => {
-        const data = docSnapshot.data() as {
-          name?: string;
-          Activities?: Array<{
-            ownerId?: string;
-            name?: string;
-            dueAt?: FirestoreDateValue;
-          }>;
-        };
-        if (Array.isArray(data.Activities)) {
-          data.Activities.forEach((activity) => {
-            const dueLabel = firestoreDateToLabel(activity.dueAt);
-            if (activity.ownerId === ownerId && dueLabel) {
-              projectTasks.push({
-                title: activity.name || 'Tarefa',
-                due: dueLabel,
-                source: `Projeto: ${data.name || 'Sem nome'}`
-              });
-            }
-          });
-        }
-      });
-
-      const allTasks = [...agendaTasks, ...projectTasks];
-      const tasksNext7Days: ConflictingTask[] = [];
-      const tasksNearDueDate: ConflictingTask[] = [];
-      const allConflictingTasks: ConflictingTask[] = [];
-
-      allTasks.forEach((task) => {
-        const taskDate = firestoreDateToDate(task.due);
-        if (!taskDate) return;
-
-        const isNext7Days = taskDate >= now && taskDate <= next7Days;
-        const isNearDueDate = taskDate >= dueMinus3 && taskDate <= duePlus3;
-
-        if (isNext7Days || isNearDueDate) {
-          const conflictTask: ConflictingTask = {
-            title: task.title,
-            due: task.due,
-            source: task.source
-          };
-          allConflictingTasks.push(conflictTask);
-
-          if (isNext7Days) tasksNext7Days.push(conflictTask);
-          if (isNearDueDate) tasksNearDueDate.push(conflictTask);
-        }
-      });
-
-      const totalConflicts = allConflictingTasks.length;
-
-      if (totalConflicts > 0) {
-        let message = '';
-
-        if (tasksNext7Days.length > 0 && tasksNearDueDate.length > 0) {
-          message = `O responsável possui ${tasksNext7Days.length} tarefa(s) nos próximos 7 dias e ${tasksNearDueDate.length} tarefa(s) próximas ao prazo desta atividade (±3 dias).`;
-        } else if (tasksNext7Days.length > 0) {
-          message = `O responsável possui ${tasksNext7Days.length} tarefa(s) nos próximos 7 dias.`;
-        } else {
-          message = `O responsável possui ${tasksNearDueDate.length} tarefa(s) próximas ao prazo desta atividade (±3 dias).`;
-        }
-
-        return {
-          hasConflict: true,
-          message,
-          tasksCount: totalConflicts,
-          tasks: allConflictingTasks
-        };
-      }
-
-      return { hasConflict: false, message: '', tasksCount: 0, tasks: [] };
-    } catch (error) {
-      console.error('Erro ao verificar conflitos:', error);
-      return { hasConflict: false, message: '', tasksCount: 0, tasks: [] };
-    }
-  };
-
-  const handleDeleteActivity = async (
-    event: React.MouseEvent<HTMLButtonElement>
-  ) => {
-    if (!projectId) {
-      toast.error('Projeto nao encontrado.');
-      return;
-    }
-
-    if (!firebaseDb) {
-      toast.error('Firebase nao configurado.');
+  const handleDeleteActivity = async () => {
+    if (!projectId || !selectedActivity) {
+      toast.error('Projeto ou atividade nao encontrado.');
       return;
     }
 
     setIsDeletingActivity(true);
-
     try {
-      const activityRef = doc(
-        firebaseDb,
-        'projects',
+      await acompanhamentoService.deleteProjectActivity(
         projectId,
-        'activities',
         selectedActivity.id
       );
-
-      await deleteDoc(activityRef);
-
-      setActivityList(
-        activityList.filter((activity) => activity.id !== selectedActivity.id)
+      setActivityList((current) =>
+        current.filter((activity) => activity.id !== selectedActivity.id)
       );
       setIsDeletingActivityOpen(false);
       toast.success('Atividade deletada.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao deletar atividade:', error);
-      toast.error('Não foi possível deletar a atividade.');
+      toast.error(error?.message ?? 'Nao foi possivel deletar a atividade.');
+    } finally {
+      setIsDeletingActivity(false);
     }
   };
 
   const handleCreateActivity = async () => {
-    if (!newActivity.name.trim()) {
-      toast.error('Informe o nome da atividade.');
-      return;
-    }
-    if (!newActivity.owner.trim()) {
-      toast.error('Informe o responsável.');
-      return;
-    }
     if (!projectId) {
       toast.error('Projeto nao encontrado.');
       return;
     }
-    if (!firebaseDb) {
-      toast.error('Firebase nao configurado.');
+
+    let activityPayload: ActivityFirestore;
+    try {
+      activityPayload = acompanhamentoService.createActivityPayload(newActivity);
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Nao foi possivel preparar a atividade.');
       return;
     }
 
-    const activityId =
-      typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `activity-${Date.now()}`;
-    const activityPayload: ActivityFirestore = {
-      id: activityId,
-      name: newActivity.name.trim(),
-      issuedAt: Timestamp.now(),
-      dueAt: inputDateToTimestamp(newActivity.dueDate),
-      owner: newActivity.owner.trim(),
-      ownerId: newActivity.ownerId || undefined,
-      status: newActivity.status,
-      priority: newActivity.priority as Activity['priority'],
-      description: newActivity.description.trim(),
-      updates: []
-    };
-
-    // Verificar conflitos se tiver ownerId
     if (newActivity.ownerId && newActivity.dueDate) {
-      const conflict = await checkMemberConflicts(
+      const conflict = await acompanhamentoService.checkMemberConflicts(
         newActivity.ownerId,
         newActivity.dueDate
       );
@@ -595,22 +259,15 @@ export default function ProjetoPage() {
   };
 
   const saveActivity = async (activityPayload: ActivityFirestore) => {
-    if (!projectId || !firebaseDb) return;
+    if (!projectId) return;
 
     setIsSavingActivity(true);
     try {
-      const activitiesRef = doc(
-        firebaseDb,
-        'projects',
+      const savedActivity = await acompanhamentoService.saveProjectActivity(
         projectId,
-        'activities',
-        activityPayload.id
+        activityPayload
       );
-      await setDoc(activitiesRef, activityPayload);
-      setActivityList((current) => [
-        normalizeActivityForUi(activityPayload),
-        ...current
-      ]);
+      setActivityList((current) => [savedActivity, ...current]);
       setSelectedId(activityPayload.id);
       setNewActivity({
         name: '',
@@ -622,9 +279,9 @@ export default function ProjetoPage() {
         priority: priorityOptions[1]
       });
       toast.success('Atividade adicionada.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Falha ao salvar atividade:', error);
-      toast.error('Não foi possível salvar a atividade.');
+      toast.error(error?.message ?? 'Nao foi possivel salvar a atividade.');
     } finally {
       setIsSavingActivity(false);
     }
@@ -661,78 +318,28 @@ export default function ProjetoPage() {
   };
 
   const handleUpdateActivity = async () => {
-    if (!selectedActivity) {
-      return;
-    }
-    if (!editActivity.name.trim()) {
-      toast.error('Informe o nome da atividade.');
-      return;
-    }
-    if (!editActivity.owner.trim()) {
-      toast.error('Informe o responsável.');
-      return;
-    }
-    if (!projectId) {
-      toast.error('Projeto nao encontrado.');
-      return;
-    }
-    if (!firebaseDb) {
-      toast.error('Firebase nao configurado.');
+    if (!projectId || !selectedActivity) {
+      toast.error('Projeto ou atividade nao encontrado.');
       return;
     }
 
     setIsSavingEdit(true);
     try {
-      const activityRef = doc(
-        firebaseDb,
-        'projects',
+      const updatedActivity = await acompanhamentoService.updateProjectActivity(
         projectId,
-        'activities',
-        selectedActivity.id
+        selectedActivity,
+        editActivity
       );
-      const snapshot = await getDoc(activityRef);
-      if (!snapshot.exists()) {
-        toast.error('Projeto nao encontrado.');
-        return;
-      }
-
-      const currentData = snapshot.data() as {
-        Activities?: ActivityFirestore[];
-      };
-
-      await updateDoc(activityRef, {
-        name: editActivity.name.trim(),
-        description: editActivity.description.trim(),
-        dueAt: inputDateToTimestamp(editActivity.dueDate),
-        owner: editActivity.owner.trim(),
-        ownerId: editActivity.ownerId || undefined,
-        status: editActivity.status,
-        priority: editActivity.priority as Activity['priority'],
-        updatedAt: serverTimestamp()
-      });
       setActivityList((current) =>
         current.map((activity) =>
-          activity.id === selectedActivity.id
-            ? {
-                ...activity,
-                name: editActivity.name.trim(),
-                description: editActivity.description.trim(),
-                dueAt: firestoreDateToLabel(
-                  inputDateToTimestamp(editActivity.dueDate)
-                ),
-                owner: editActivity.owner.trim(),
-                ownerId: editActivity.ownerId || undefined,
-                status: editActivity.status,
-                priority: editActivity.priority as Activity['priority']
-              }
-            : activity
+          activity.id === selectedActivity.id ? updatedActivity : activity
         )
       );
       setIsEditOpen(false);
       toast.success('Atividade atualizada.');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Falha ao atualizar atividade:', error);
-      toast.error('Não foi possível atualizar a atividade.');
+      toast.error(error?.message ?? 'Nao foi possivel atualizar a atividade.');
     } finally {
       setIsSavingEdit(false);
     }
@@ -746,7 +353,7 @@ export default function ProjetoPage() {
       }
       pageHeaderAction={
         <span className='text-foreground text-3xl font-semibold'>
-          {formatProjectValue(projectInfo.value)}
+          {acompanhamentoService.formatProjectValue(projectInfo.value)}
         </span>
       }
     >
@@ -1071,7 +678,10 @@ export default function ProjetoPage() {
                         Próximo: {projectInfo.next || '--'}
                       </DropdownMenuItem>
                       <DropdownMenuItem>
-                        Valor: {formatProjectValue(projectInfo.value)}
+                        Valor:{' '}
+                        {acompanhamentoService.formatProjectValue(
+                          projectInfo.value
+                        )}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

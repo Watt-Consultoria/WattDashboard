@@ -18,4 +18,5 @@ export default interface IReinbursementRepository {
     id: string,
     status: ReinbursementStatus
   ): Promise<void>;
+  excludeReinbursementFromManagement(id: string): Promise<void>;
 }

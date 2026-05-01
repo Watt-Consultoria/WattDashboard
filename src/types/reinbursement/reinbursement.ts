@@ -8,7 +8,11 @@ export type ReinbursementCategory =
   | 'Eventos'
   | 'Outros';
 
-export type ReinbursementStatus = 'Pendente' | 'Aprovado' | 'Recusado';
+export type ReinbursementStatus =
+  | 'Pendente'
+  | 'Aprovado'
+  | 'Recusado'
+  | 'Excluída';
 
 export const REINBURSEMENT_CATEGORIES: ReinbursementCategory[] = [
   'Transporte',

@@ -126,6 +126,9 @@ const statusStyles: Record<string, string> = {
 };
 const statusOptions = ['Planejado', 'Em andamento', 'Bloqueado', 'Concluído'];
 
+const PONTO_ENTRY_TYPE = 'Entrada';
+const PONTO_EXIT_TYPE = 'Sa\u00edda';
+
 const priorityRank: Record<string, number> = {
   Alta: 3,
   Média: 2,
@@ -165,6 +168,7 @@ type TasksCachePayload = {
   memberId: string;
   tasks: MemberTask[];
 };
+type PontoRecord = { id: string; type: string; timestamp: any };
 
 const readFromStorage = <T,>(key: string): T | null => {
   if (typeof window === 'undefined') return null;
@@ -292,9 +296,9 @@ const calculateWorkedHours = (records: { type: string; timestamp: any }[]) => {
 
     const recordDate = record.timestamp.toDate();
 
-    if (record.type === 'Entrada') {
+    if (record.type === PONTO_ENTRY_TYPE) {
       lastEntrada = recordDate;
-    } else if (record.type === 'Saída' && lastEntrada) {
+    } else if (record.type === PONTO_EXIT_TYPE && lastEntrada) {
       const diff = recordDate.getTime() - lastEntrada.getTime();
       totalMinutes += diff / (1000 * 60);
       lastEntrada = null;
@@ -303,6 +307,22 @@ const calculateWorkedHours = (records: { type: string; timestamp: any }[]) => {
 
   return totalMinutes / 60;
 };
+
+const getPontoRecordTime = (record: { timestamp: any }) =>
+  record.timestamp?.toDate ? record.timestamp.toDate().getTime() : 0;
+
+const sortPontoRecordsDesc = (records: PontoRecord[]) =>
+  [...records].sort((a, b) => getPontoRecordTime(b) - getPontoRecordTime(a));
+
+const getLatestPontoRecord = (records: PontoRecord[]) =>
+  records.reduce<PontoRecord | null>((latest, record) => {
+    if (!latest) {
+      return record;
+    }
+    return getPontoRecordTime(record) > getPontoRecordTime(latest)
+      ? record
+      : latest;
+  }, null);
 
 function NotFoundMember() {
   const router = useRouter();
@@ -367,16 +387,14 @@ export default function IndividualPage() {
   const [agendaTaskToEdit, setAgendaTaskToEdit] =
     React.useState<MemberTask | null>(null);
   const [isSavingAgendaEdit, setIsSavingAgendaEdit] = React.useState(false);
-  const [timeRecords, setTimeRecords] = React.useState<
-    { id: string; type: string; timestamp: any }[]
-  >([]);
+  const [timeRecords, setTimeRecords] = React.useState<PontoRecord[]>([]);
   const [isBatingPonto, setIsBatingPonto] = React.useState(false);
   const [editStatus, setEditStatus] = React.useState(statusOptions[1]);
   const [updateNote, setUpdateNote] = React.useState('');
   const [isSavingAgenda, setIsSavingAgenda] = React.useState(false);
-  const [weekTimeRecords, setWeekTimeRecords] = React.useState<
-    { id: string; type: string; timestamp: any }[]
-  >([]);
+  const [weekTimeRecords, setWeekTimeRecords] = React.useState<PontoRecord[]>(
+    []
+  );
   const [currentRunningTime, setCurrentRunningTime] = React.useState(0);
   const [hoveredTaskId, setHoveredTaskId] = React.useState<string | null>(null);
   const [hoveredEditTaskId, setHoveredEditTaskId] = React.useState<
@@ -446,6 +464,15 @@ export default function IndividualPage() {
     () => [...agendaTasks, ...projectTasks],
     [agendaTasks, projectTasks]
   );
+  const todayTimeRecords = React.useMemo(
+    () => sortPontoRecordsDesc(timeRecords),
+    [timeRecords]
+  );
+  const latestTodayRecord = React.useMemo(
+    () => getLatestPontoRecord(timeRecords),
+    [timeRecords]
+  );
+  const isClockedIn = latestTodayRecord?.type === PONTO_ENTRY_TYPE;
   const selectedDayLabel = selectedDay ? format(selectedDay, 'dd/MM/yyyy') : '';
   const tasksForDay = selectedDayLabel
     ? allTasks.filter((task) => task.due === selectedDayLabel)
@@ -767,22 +794,17 @@ export default function IndividualPage() {
   }, [memberId]);
 
   React.useEffect(() => {
-    const hasActiveEntry =
-      timeRecords.length > 0 &&
-      timeRecords[timeRecords.length - 1].type === 'Entrada';
-
-    if (!hasActiveEntry) {
+    if (!isClockedIn || !latestTodayRecord) {
       setCurrentRunningTime(0);
       return;
     }
 
-    const lastEntry = timeRecords[timeRecords.length - 1];
-    if (!lastEntry.timestamp?.toDate) {
+    if (!latestTodayRecord.timestamp?.toDate) {
       setCurrentRunningTime(0);
       return;
     }
 
-    const entryTime = lastEntry.timestamp.toDate();
+    const entryTime = latestTodayRecord.timestamp.toDate();
 
     const interval = setInterval(() => {
       const now = new Date();
@@ -792,7 +814,7 @@ export default function IndividualPage() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [timeRecords]);
+  }, [isClockedIn, latestTodayRecord]);
 
   const handleTaskClick = (task: MemberTask) => {
     setActiveTask(task);
@@ -1137,12 +1159,7 @@ export default function IndividualPage() {
 
     setIsBatingPonto(true);
     try {
-      const type =
-        timeRecords.length === 0 ||
-        timeRecords[timeRecords.length - 1].type === 'Saída'
-          ? 'Entrada'
-          : 'Saída';
-
+      const type = isClockedIn ? PONTO_EXIT_TYPE : PONTO_ENTRY_TYPE;
       const newRecord = {
         id: `${Date.now()}`,
         type,
@@ -1701,16 +1718,6 @@ export default function IndividualPage() {
                 <CardContent>
                   <div className='flex flex-col gap-4'>
                     {(() => {
-                      timeRecords.sort((a, b) => {
-                        const aTime = a.timestamp?.toDate
-                          ? a.timestamp.toDate().getTime()
-                          : 0;
-                        const bTime = b.timestamp?.toDate
-                          ? b.timestamp.toDate().getTime()
-                          : 0;
-                        return -(bTime - aTime);
-                      });
-
                       const baseWorkedHours =
                         calculateWorkedHours(weekTimeRecords);
                       const runningHours = currentRunningTime / 3600;
@@ -1720,9 +1727,7 @@ export default function IndividualPage() {
                         (workedHours / minWeeklyHours) * 100,
                         100
                       );
-                      const hasActiveEntry =
-                        timeRecords.length > 0 &&
-                        timeRecords[timeRecords.length - 1].type === 'Entrada';
+                      const hasActiveEntry = isClockedIn;
 
                       return (
                         <>
@@ -1778,24 +1783,22 @@ export default function IndividualPage() {
                           >
                             {isBatingPonto
                               ? 'Registrando...'
-                              : timeRecords.length === 0 ||
-                                  timeRecords[timeRecords.length - 1].type ===
-                                    'Saída'
-                                ? 'Registrar Entrada'
-                                : 'Registrar Saída'}
+                              : isClockedIn
+                                ? 'Registrar Sa\u00edda'
+                                : 'Registrar Entrada'}
                           </Button>
 
                           <div className='mt-4 space-y-2'>
                             <div className='text-muted-foreground text-xs font-medium uppercase'>
                               Registros de Hoje
                             </div>
-                            {timeRecords.length === 0 ? (
+                            {todayTimeRecords.length === 0 ? (
                               <div className='text-muted-foreground rounded-lg border py-6 text-center text-sm'>
                                 Nenhum registro hoje
                               </div>
                             ) : (
                               <div className='space-y-2'>
-                                {timeRecords.map((record) => (
+                                {todayTimeRecords.map((record) => (
                                   <div
                                     key={record.id}
                                     className='flex items-center justify-between rounded-lg border p-3'
@@ -2219,9 +2222,7 @@ export default function IndividualPage() {
                     (workedHours / 4) * 100,
                     100
                   );
-                  const hasActiveEntry =
-                    timeRecords.length > 0 &&
-                    timeRecords[timeRecords.length - 1].type === 'Entrada';
+                  const hasActiveEntry = isClockedIn;
 
                   return (
                     <>
@@ -2285,11 +2286,9 @@ export default function IndividualPage() {
                           >
                             {isBatingPonto
                               ? 'Registrando...'
-                              : timeRecords.length === 0 ||
-                                  timeRecords[timeRecords.length - 1].type ===
-                                    'Saída'
-                                ? 'Registrar Entrada'
-                                : 'Registrar Saída'}
+                              : isClockedIn
+                                ? 'Registrar Sa\u00edda'
+                                : 'Registrar Entrada'}
                           </Button>
 
                           <div className='text-center'>
@@ -2316,12 +2315,12 @@ export default function IndividualPage() {
                           <div className='text-muted-foreground text-xs font-medium'>
                             Hoje
                           </div>
-                          {timeRecords.length === 0 ? (
+                          {todayTimeRecords.length === 0 ? (
                             <div className='text-muted-foreground py-4 text-center text-xs'>
                               Nenhum registro hoje
                             </div>
                           ) : (
-                            timeRecords.map((record) => (
+                            todayTimeRecords.map((record) => (
                               <div
                                 key={record.id}
                                 className='flex items-center justify-between rounded-md border p-2'

@@ -33,7 +33,8 @@ const statusColors: Record<
 > = {
   Pendente: 'default',
   Aprovado: 'secondary',
-  Recusado: 'destructive'
+  Recusado: 'destructive',
+  Excluída: 'outline'
 };
 
 const formatCurrency = (cents: number): string => {
