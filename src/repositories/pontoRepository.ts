@@ -19,7 +19,8 @@ import {
 } from '@/errors/repositoryErrors';
 import type { Member, TimeRecord } from '@/types/member/member';
 import type IPontoRepository from '@/types/ponto/ponto-repository';
-import type { PontoCacheEntry } from '@/types/ponto/ponto';
+import type { PontoCacheEntry, PontoSession } from '@/types/ponto/ponto';
+import { PONTO_MAX_SESSION_MINUTES } from '@/lib/ponto-sessions';
 
 class PontoRepository implements IPontoRepository {
 	async getCacheEntryByCardId(cardId: string): Promise<PontoCacheEntry | null> {
@@ -102,6 +103,124 @@ class PontoRepository implements IPontoRepository {
 			weekSchedule: memberData.weekSchedule ?? undefined,
 			tags: Array.isArray(memberData.tags) ? memberData.tags : []
 		};
+	}
+
+	async getOpenSessionByCardId(cardId: string): Promise<PontoSession | null> {
+		if (!firebaseDb) throw new FirebaseError('Firebase nÃƒÂ£o estÃƒÂ¡ configurado');
+		if (!cardId) throw new MissingParameterError(['cardId']);
+
+		const sessionsRef = collection(firebaseDb, 'pontoSessions');
+		const q = query(
+			sessionsRef,
+			where('cardId', '==', cardId),
+			where('endedAt', '==', null),
+			limit(1)
+		);
+		const sessionsSnap = await getDocs(q);
+
+		if (sessionsSnap.empty) {
+			return null;
+		}
+
+		const sessionDoc = sessionsSnap.docs[0];
+		return {
+			id: sessionDoc.id,
+			...sessionDoc.data()
+		} as PontoSession;
+	}
+
+	async getOpenSessionByMemberId(
+		memberId: string
+	): Promise<PontoSession | null> {
+		if (!firebaseDb) throw new FirebaseError('Firebase nÃƒÆ’Ã‚Â£o estÃƒÆ’Ã‚Â¡ configurado');
+		if (!memberId) throw new MissingParameterError(['memberId']);
+
+		const sessionsRef = collection(firebaseDb, 'pontoSessions');
+		const q = query(
+			sessionsRef,
+			where('memberId', '==', memberId),
+			where('endedAt', '==', null),
+			limit(1)
+		);
+		const sessionsSnap = await getDocs(q);
+
+		if (sessionsSnap.empty) {
+			return null;
+		}
+
+		const sessionDoc = sessionsSnap.docs[0];
+		return {
+			id: sessionDoc.id,
+			...sessionDoc.data()
+		} as PontoSession;
+	}
+
+	async createOpenSession(
+		memberId: string,
+		memberName: string,
+		cardId: string,
+		startedAt: Timestamp
+	): Promise<PontoSession> {
+		if (!firebaseDb) throw new FirebaseError('Firebase nÃƒÂ£o estÃƒÂ¡ configurado');
+		if (!memberId || !memberName || !cardId || !startedAt)
+			throw new MissingParameterError([
+				'memberId',
+				'memberName',
+				'cardId',
+				'startedAt'
+			]);
+
+		const sessionRef = doc(collection(firebaseDb, 'pontoSessions'));
+		const now = Timestamp.now();
+		const session: PontoSession = {
+			id: sessionRef.id,
+			memberId,
+			memberName,
+			cardId,
+			startedAt,
+			endedAt: null,
+			durationMinutes: 0,
+			status: 'invalid',
+			invalidReason: 'missing_exit',
+			createdAt: now,
+			updatedAt: now
+		};
+
+		await setDoc(sessionRef, session);
+		return session;
+	}
+
+	async closeSession(
+		session: PontoSession,
+		endedAt: Timestamp
+	): Promise<PontoSession> {
+		if (!firebaseDb) throw new FirebaseError('Firebase nÃƒÂ£o estÃƒÂ¡ configurado');
+		if (!session?.id || !endedAt)
+			throw new MissingParameterError(['session', 'endedAt']);
+
+		const durationMinutes = Math.max(
+			0,
+			Math.floor((endedAt.toMillis() - session.startedAt.toMillis()) / 60000)
+		);
+		const isInvalid = durationMinutes > PONTO_MAX_SESSION_MINUTES;
+		const nextSession: PontoSession = {
+			...session,
+			endedAt,
+			durationMinutes: isInvalid ? 0 : durationMinutes,
+			status: isInvalid ? 'invalid' : 'closed',
+			invalidReason: isInvalid ? 'exceeded_12h' : undefined,
+			updatedAt: Timestamp.now()
+		};
+
+		await updateDoc(doc(firebaseDb, 'pontoSessions', session.id), {
+			endedAt: nextSession.endedAt,
+			durationMinutes: nextSession.durationMinutes,
+			status: nextSession.status,
+			invalidReason: nextSession.invalidReason ?? null,
+			updatedAt: nextSession.updatedAt
+		});
+
+		return nextSession;
 	}
 
 	async appendMemberTimeRecords(
