@@ -17,3 +17,9 @@ export const isExecutiveAssessor = (member?: {
     sector === 'executivo'
   );
 };
+
+export const isDiretoria = (member?: { role?: string | null } | null) => {
+  const role = normalizePermissionValue(member?.role);
+
+  return role === 'diretor' || role === 'presidente';
+};

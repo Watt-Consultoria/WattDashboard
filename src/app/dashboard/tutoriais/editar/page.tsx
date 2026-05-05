@@ -45,7 +45,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { firebaseDb, firebaseStorage } from '@/lib/firebase/client';
 import { useFirebaseData } from '@/contexts/firebase-data-context';
-import { isExecutiveAssessor } from '@/lib/executive-permissions';
+import { isDiretoria, isExecutiveAssessor } from '@/lib/executive-permissions';
 import useMetadata from '@/hooks/use-metadata';
 import type { Tutorial } from '@/types/tutorial/tutorial';
 import { MarkdownViewer } from '@/components/tutorials/markdown-viewer';
@@ -79,13 +79,16 @@ export default function EditTutoriaisPage() {
 
   useMetadata({ title: 'Editar tutoriais' });
 
-  const canManageTutorials = isExecutiveAssessor(currentMember);
+  const canManageTutorials =
+    isExecutiveAssessor(currentMember) || isDiretoria(currentMember);
   const selectedTutorial =
     tutorials.find((tutorial) => tutorial.id === selectedTutorialId) ?? null;
 
   React.useEffect(() => {
     if (!isLoading && !canManageTutorials) {
-      toast.error('Apenas Assessor do Executivo pode editar tutoriais.');
+      toast.error(
+        'Apenas Assessor do Executivo, Diretor ou Presidente pode editar tutoriais.'
+      );
       router.push('/dashboard/tutoriais');
     }
   }, [canManageTutorials, isLoading, router]);
