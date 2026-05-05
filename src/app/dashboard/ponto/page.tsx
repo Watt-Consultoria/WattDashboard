@@ -13,8 +13,15 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { firebaseDb } from '@/lib/firebase/client';
-import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import {
+  Timestamp,
+  collection,
+  doc,
+  onSnapshot,
+  setDoc
+} from 'firebase/firestore';
 import { toast } from 'sonner';
 import { format, subWeeks, startOfWeek, endOfWeek } from 'date-fns';
 import {
@@ -23,9 +30,11 @@ import {
   CheckCircle2,
   XCircle,
   Save,
+  Send,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Clock3
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useFirebaseData } from '@/contexts/firebase-data-context';
@@ -37,7 +46,35 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import useMetadata from '@/hooks/use-metadata';
+import type { PontoSession } from '@/types/ponto/ponto';
+import {
+  PONTO_MAX_SESSION_MINUTES,
+  calculatePontoSummary,
+  formatMinutesAsHours,
+  getSessionEndDate,
+  getSessionStartDate,
+  isPontoSessionOpen
+} from '@/lib/ponto-sessions';
+import faltaService from '@/services/faltaService';
+import { rules } from '@/config/code_of_conduct';
+import type { RuleCode } from '@/types/code-of-conduct';
 
 type Member = {
   id: string;
@@ -55,10 +92,18 @@ type Member = {
 
 type MemberStatus = {
   isWorking: boolean;
+  lastSession: PontoSession | null;
   lastRecord: { type: string; timestamp: Date } | null;
   hoursWeek: number;
   hoursLastWeek: number;
 };
+
+const normalizePermissionValue = (value?: string | null) =>
+  (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
 
 export default function PontoPage() {
   const {
@@ -77,9 +122,17 @@ export default function PontoPage() {
   const [minWeeklyHours, setMinWeeklyHours] = React.useState<number>(0);
   const [newMinHours, setNewMinHours] = React.useState<string>('');
   const [isSavingHours, setIsSavingHours] = React.useState(false);
-  const [openPontoCardIds, setOpenPontoCardIds] = React.useState<Set<string>>(
-    () => new Set()
-  );
+  const [pontoSessions, setPontoSessions] = React.useState<PontoSession[]>([]);
+  const [isFaltaDialogOpen, setIsFaltaDialogOpen] = React.useState(false);
+  const [selectedFaltaRuleCode, setSelectedFaltaRuleCode] =
+    React.useState<RuleCode>('AN13');
+  const [faltaDescription, setFaltaDescription] = React.useState('');
+  const [isSendingFaltas, setIsSendingFaltas] = React.useState(false);
+  const [isManualHoursDialogOpen, setIsManualHoursDialogOpen] =
+    React.useState(false);
+  const [manualHoursMemberId, setManualHoursMemberId] = React.useState('');
+  const [manualHoursAmount, setManualHoursAmount] = React.useState('');
+  const [isAddingManualHours, setIsAddingManualHours] = React.useState(false);
 
   useMetadata({ title: 'Ponto Digital' });
 
@@ -87,6 +140,15 @@ export default function PontoPage() {
     return (
       currentMember?.role &&
       ['Diretor', 'Presidente', 'Assessor'].includes(currentMember.role)
+    );
+  }, [currentMember]);
+
+  const canAddManualHours = React.useMemo(() => {
+    const role = normalizePermissionValue(currentMember?.role);
+    const sector = normalizePermissionValue(currentMember?.sector);
+    return (
+      (role === 'assessor' || role === 'asessor' || role === 'acessor') &&
+      sector === 'executivo'
     );
   }, [currentMember]);
 
@@ -139,18 +201,16 @@ export default function PontoPage() {
   React.useEffect(() => {
     if (!firebaseDb) return;
 
-    const pontoCacheRef = collection(firebaseDb, 'pontoCache');
-    const unsubscribe = onSnapshot(pontoCacheRef, (snapshot) => {
-      const activeCards = new Set<string>();
-
-      snapshot.forEach((docSnapshot) => {
-        const data = docSnapshot.data();
-        if (data?.cardId) {
-          activeCards.add(String(data.cardId));
-        }
-      });
-
-      setOpenPontoCardIds(activeCards);
+    const sessionsRef = collection(firebaseDb, 'pontoSessions');
+    const unsubscribe = onSnapshot(sessionsRef, (snapshot) => {
+      const sessions = snapshot.docs.map(
+        (docSnapshot) =>
+          ({
+            id: docSnapshot.id,
+            ...docSnapshot.data()
+          }) as PontoSession
+      );
+      setPontoSessions(sessions);
     });
 
     return () => unsubscribe();
@@ -178,7 +238,7 @@ export default function PontoPage() {
     }
   };
 
-  const calculateMemberStatus = (member: Member): MemberStatus => {
+  const calculateMemberStatusLegacy = (member: Member): any => {
     const records = (member.timeRecords || [])
       .filter((r) => r.timestamp)
       .sort((a, b) => {
@@ -261,6 +321,45 @@ export default function PontoPage() {
     return n;
   };
 
+  const sessionsByMemberId = React.useMemo(() => {
+    const map = new Map<string, PontoSession[]>();
+    for (const session of pontoSessions) {
+      const current = map.get(session.memberId) ?? [];
+      current.push(session);
+      map.set(session.memberId, current);
+    }
+    return map;
+  }, [pontoSessions]);
+
+  const calculateMemberStatus = React.useCallback(
+    (member: Member): MemberStatus => {
+      const summary = calculatePontoSummary(
+        sessionsByMemberId.get(member.id) ?? []
+      );
+      return {
+        isWorking: summary.isWorking,
+        lastSession: summary.lastSession,
+        lastRecord: summary.lastSession
+          ? {
+              type:
+                isPontoSessionOpen(summary.lastSession)
+                  ? 'Entrada'
+                  : summary.lastSession.status === 'closed'
+                    ? 'Saida'
+                    : 'Invalidada',
+              timestamp:
+                getSessionEndDate(summary.lastSession) ??
+                getSessionStartDate(summary.lastSession) ??
+                new Date()
+            }
+          : null,
+        hoursWeek: formatMinutesAsHours(summary.currentWeekMinutes),
+        hoursLastWeek: formatMinutesAsHours(summary.lastWeekMinutes)
+      };
+    },
+    [sessionsByMemberId]
+  );
+
   const filteredMembers = members.filter(
     (member) =>
       member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -291,7 +390,7 @@ export default function PontoPage() {
     });
 
     return sortOrder === 'asc' ? sorted : sorted.reverse();
-  }, [filteredMembers, sortOrder, orderBy]);
+  }, [filteredMembers, sortOrder, orderBy, calculateMemberStatus]);
 
   const stats = React.useMemo(() => {
     let working = 0;
@@ -300,14 +399,9 @@ export default function PontoPage() {
       if (status.isWorking) working++;
     });
     return { working, total: members.length };
-  }, [members]);
+  }, [members, calculateMemberStatus]);
 
-  const hasOpenPontoCache = React.useCallback(
-    (member: Member) => {
-      return Boolean(member.cardId && openPontoCardIds.has(member.cardId));
-    },
-    [openPontoCardIds]
-  );
+  const hasOpenPontoCache = React.useCallback((_member: Member) => false, []);
 
   // Force re-render periodically
   const [tick, setTick] = React.useState(0);
@@ -315,6 +409,190 @@ export default function PontoPage() {
     const interval = setInterval(() => setTick((t) => t + 1), 60000);
     return () => clearInterval(interval);
   }, []);
+
+  const lastWeekRange = React.useMemo(() => {
+    const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const previousWeekStart = startOfWeek(subWeeks(new Date(), 1), {
+      weekStartsOn: 1
+    });
+
+    return {
+      start: previousWeekStart,
+      end: currentWeekStart
+    };
+  }, [tick]);
+
+  const faltaEligibleMembers = React.useMemo(() => {
+    if (minWeeklyHours <= 0) return [];
+
+    return members
+      .map((member) => {
+        const status = calculateMemberStatus(member);
+        return {
+          member,
+          hoursLastWeek: status.hoursLastWeek
+        };
+      })
+      .filter(({ hoursLastWeek }) => hoursLastWeek < minWeeklyHours)
+      .sort((a, b) =>
+        a.member.name.localeCompare(b.member.name, 'pt-BR', {
+          sensitivity: 'base'
+        })
+      );
+  }, [members, calculateMemberStatus, minWeeklyHours]);
+
+  const selectedFaltaRule = rules[selectedFaltaRuleCode];
+
+  const selectedManualHoursMember = React.useMemo(
+    () => members.find((member) => member.id === manualHoursMemberId) ?? null,
+    [manualHoursMemberId, members]
+  );
+
+  const handleAddManualHours = async () => {
+    if (!firebaseDb) return;
+    const db = firebaseDb;
+
+    if (!canAddManualHours || !currentMember?.id) {
+      toast.error('Voce nao tem permissao para adicionar horas manualmente.');
+      return;
+    }
+
+    if (!selectedManualHoursMember) {
+      toast.error('Selecione um membro.');
+      return;
+    }
+
+    const hours = Number(manualHoursAmount.replace(',', '.'));
+    if (!Number.isFinite(hours) || hours <= 0) {
+      toast.error('Informe uma quantidade de horas valida.');
+      return;
+    }
+
+    const totalMinutes = Math.round(hours * 60);
+    if (totalMinutes <= 0) {
+      toast.error('Informe uma quantidade de tempo maior que zero.');
+      return;
+    }
+
+    setIsAddingManualHours(true);
+    try {
+      const now = new Date();
+      const createdAt = Timestamp.fromDate(now);
+      let remainingMinutes = totalMinutes;
+      const sessions: Array<PontoSession & { manualAdjustment: unknown }> = [];
+
+      while (remainingMinutes > 0) {
+        const durationMinutes = Math.min(
+          remainingMinutes,
+          PONTO_MAX_SESSION_MINUTES
+        );
+        const sessionRef = doc(collection(db, 'pontoSessions'));
+        const endedAt = Timestamp.fromDate(now);
+        const startedAt = Timestamp.fromDate(
+          new Date(now.getTime() - durationMinutes * 60000)
+        );
+
+        sessions.push({
+          id: sessionRef.id,
+          memberId: selectedManualHoursMember.id,
+          memberName: selectedManualHoursMember.name,
+          ...(selectedManualHoursMember.cardId
+            ? { cardId: selectedManualHoursMember.cardId }
+            : {}),
+          startedAt,
+          endedAt,
+          durationMinutes,
+          status: 'closed',
+          createdAt,
+          updatedAt: createdAt,
+          manualAdjustment: {
+            createdByMemberId: currentMember.id,
+            createdByMemberName: currentMember.name ?? '',
+            totalMinutes,
+            createdAt
+          }
+        });
+
+        remainingMinutes -= durationMinutes;
+      }
+
+      await Promise.all(
+        sessions.map((session) =>
+          setDoc(doc(db, 'pontoSessions', session.id), session)
+        )
+      );
+
+      toast.success(
+        `${(totalMinutes / 60).toFixed(2)}h adicionadas para ${selectedManualHoursMember.name}.`
+      );
+      setManualHoursMemberId('');
+      setManualHoursAmount('');
+      setIsManualHoursDialogOpen(false);
+    } catch (error) {
+      console.error('Erro ao adicionar horas manualmente:', error);
+      toast.error('Nao foi possivel adicionar as horas.');
+    } finally {
+      setIsAddingManualHours(false);
+    }
+  };
+
+  const handleSendFaltas = async () => {
+    if (!currentMember?.id) {
+      toast.error('Nao foi possivel identificar o usuario atual.');
+      return;
+    }
+
+    if (!canAddManualHours) {
+      toast.error('Voce nao tem permissao para enviar faltas por ponto.');
+      return;
+    }
+
+    if (faltaEligibleMembers.length === 0) {
+      toast.message('Nenhum membro abaixo da meta na ultima semana.');
+      return;
+    }
+
+    setIsSendingFaltas(true);
+    try {
+      const periodText = `${format(lastWeekRange.start, 'dd/MM/yyyy')} a ${format(lastWeekRange.end, 'dd/MM/yyyy')}`;
+
+      await Promise.all(
+        faltaEligibleMembers.map(({ member, hoursLastWeek }) => {
+          const details = [
+            `Registro automatico por nao cumprir a meta semanal de ponto no periodo ${periodText}.`,
+            `Horas registradas: ${hoursLastWeek.toFixed(2)}h de ${minWeeklyHours}h minimas.`,
+            faltaDescription.trim()
+          ]
+            .filter(Boolean)
+            .join('\n\n');
+
+          return faltaService.addFalta(
+            member.id,
+            {
+              ruleCode: selectedFaltaRuleCode,
+              description: details
+            },
+            currentMember.id
+          );
+        })
+      );
+
+      toast.success(
+        `${faltaEligibleMembers.length} falta(s) registrada(s) e notificacao enviada por email.`
+      );
+      setIsFaltaDialogOpen(false);
+      setFaltaDescription('');
+    } catch (error) {
+      console.error('Erro ao enviar faltas por ponto:', error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Nao foi possivel registrar as faltas.'
+      );
+    } finally {
+      setIsSendingFaltas(false);
+    }
+  };
 
   return (
     <PageContainer>
@@ -425,7 +703,33 @@ export default function PontoPage() {
                   Acompanhamento de metas da semana atual e anterior.
                 </CardDescription>
               </div>
-              <div className='flex w-full gap-2 md:w-auto'>
+              <div className='flex w-full flex-col gap-2 md:w-auto md:flex-row'>
+                {canAddManualHours && (
+                  <Button
+                    type='button'
+                    variant='outline'
+                    onClick={() => setIsManualHoursDialogOpen(true)}
+                    className='justify-center gap-2'
+                  >
+                    <Clock3 className='h-4 w-4' />
+                    Adicionar horas
+                  </Button>
+                )}
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() => setIsFaltaDialogOpen(true)}
+                  disabled={!canAddManualHours || minWeeklyHours <= 0}
+                  className='justify-center gap-2'
+                >
+                  <Send className='h-4 w-4' />
+                  Enviar falta
+                  {faltaEligibleMembers.length > 0 && (
+                    <Badge variant='secondary' className='ml-1'>
+                      {faltaEligibleMembers.length}
+                    </Badge>
+                  )}
+                </Button>
                 <div className='relative w-full md:w-72'>
                   <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
                   <Input
@@ -635,14 +939,20 @@ export default function PontoPage() {
                             </TableCell>
 
                             <TableCell className='text-right'>
-                              {status.lastRecord ? (
+                              {status.lastSession ? (
                                 <div className='text-sm'>
                                   <span className='font-medium'>
-                                    {status.lastRecord.type}
+                                    {isPontoSessionOpen(status.lastSession)
+                                      ? 'Entrada'
+                                      : status.lastSession.status === 'closed'
+                                        ? 'Saida'
+                                        : 'Invalidada'}
                                   </span>
                                   <div className='text-muted-foreground text-xs'>
                                     {format(
-                                      status.lastRecord.timestamp,
+                                      getSessionEndDate(status.lastSession) ??
+                                        getSessionStartDate(status.lastSession) ??
+                                        new Date(),
                                       'dd/MM HH:mm'
                                     )}
                                   </div>
@@ -743,10 +1053,15 @@ export default function PontoPage() {
                           </div>
                         </div>
 
-                        {status.lastRecord && (
+                        {status.lastSession && status.lastRecord && (
                           <div className='text-muted-foreground mt-3 text-right text-xs'>
                             Último registro: {status.lastRecord.type} em{' '}
-                            {format(status.lastRecord.timestamp, 'dd/MM HH:mm')}
+                            {format(
+                              getSessionEndDate(status.lastSession) ??
+                                getSessionStartDate(status.lastSession) ??
+                                new Date(),
+                              'dd/MM HH:mm'
+                            )}
                           </div>
                         )}
                       </div>
@@ -758,6 +1073,221 @@ export default function PontoPage() {
           </CardContent>
         </Card>
       </div>
+      <Dialog
+        open={isManualHoursDialogOpen}
+        onOpenChange={setIsManualHoursDialogOpen}
+      >
+        <DialogContent className='max-w-md'>
+          <DialogHeader>
+            <DialogTitle>Adicionar horas</DialogTitle>
+            <DialogDescription>
+              Registre manualmente tempo fechado para um membro especifico.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='space-y-4 py-2'>
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium'>Membro</label>
+              <Select
+                value={manualHoursMemberId}
+                onValueChange={setManualHoursMemberId}
+                disabled={isAddingManualHours}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder='Selecione um membro' />
+                </SelectTrigger>
+                <SelectContent className='max-h-72'>
+                  {members
+                    .slice()
+                    .sort((a, b) =>
+                      a.name.localeCompare(b.name, 'pt-BR', {
+                        sensitivity: 'base'
+                      })
+                    )
+                    .map((member) => (
+                      <SelectItem key={member.id} value={member.id}>
+                        {member.name} - {member.sector || 'Geral'}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className='grid gap-2'>
+              <label
+                htmlFor='manual-hours-amount'
+                className='text-sm font-medium'
+              >
+                Quantidade de horas
+              </label>
+              <div className='relative'>
+                <Input
+                  id='manual-hours-amount'
+                  type='number'
+                  min='0'
+                  step='0.25'
+                  inputMode='decimal'
+                  value={manualHoursAmount}
+                  onChange={(event) =>
+                    setManualHoursAmount(event.target.value)
+                  }
+                  placeholder='2.5'
+                  disabled={isAddingManualHours}
+                  className='pr-10'
+                />
+                <span className='text-muted-foreground absolute top-2.5 right-3 text-xs'>
+                  h
+                </span>
+              </div>
+              <p className='text-muted-foreground text-xs'>
+                O tempo sera somado a semana atual do membro selecionado.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setIsManualHoursDialogOpen(false)}
+              disabled={isAddingManualHours}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type='button'
+              onClick={handleAddManualHours}
+              disabled={
+                isAddingManualHours ||
+                !manualHoursMemberId ||
+                !manualHoursAmount.trim()
+              }
+              className='gap-2'
+            >
+              <Clock3 className='h-4 w-4' />
+              {isAddingManualHours ? 'Adicionando...' : 'Adicionar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isFaltaDialogOpen} onOpenChange={setIsFaltaDialogOpen}>
+        <DialogContent className='flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-2xl flex-col overflow-hidden p-0 sm:max-h-[90vh]'>
+          <DialogHeader className='shrink-0 border-b px-4 py-3 sm:px-6 sm:py-4'>
+            <DialogTitle>Enviar falta por ponto</DialogTitle>
+            <DialogDescription className='text-xs sm:text-sm'>
+              Membros abaixo de {minWeeklyHours}h entre{' '}
+              {format(lastWeekRange.start, 'dd/MM/yyyy')} e{' '}
+              {format(lastWeekRange.end, 'dd/MM/yyyy')}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6'>
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium'>Regra da falta</label>
+              <Select
+                value={selectedFaltaRuleCode}
+                onValueChange={(value) =>
+                  setSelectedFaltaRuleCode(value as RuleCode)
+                }
+                disabled={isSendingFaltas}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder='Selecione a regra' />
+                </SelectTrigger>
+                <SelectContent className='max-h-72'>
+                  {Object.entries(rules).map(([code, rule]) => (
+                    <SelectItem key={code} value={code}>
+                      {code} - {rule.rule}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedFaltaRule && (
+                <p className='text-muted-foreground text-xs'>
+                  {selectedFaltaRule.rule}
+                </p>
+              )}
+            </div>
+
+            <div className='grid gap-2'>
+              <label className='text-sm font-medium'>Descricao adicional</label>
+              <Textarea
+                value={faltaDescription}
+                onChange={(event) => setFaltaDescription(event.target.value)}
+                placeholder='Opcional: detalhe o contexto que deve aparecer no registro e no email.'
+                disabled={isSendingFaltas}
+                className='min-h-24 resize-none'
+              />
+            </div>
+
+            <div className='grid gap-2'>
+              <div className='flex items-center justify-between gap-3'>
+                <span className='min-w-0 text-sm font-medium'>
+                  Membros que receberao falta
+                </span>
+                <Badge variant='secondary' className='shrink-0'>
+                  {faltaEligibleMembers.length} membro(s)
+                </Badge>
+              </div>
+
+              <ScrollArea className='h-[32vh] min-h-40 rounded-md border sm:max-h-72'>
+                {faltaEligibleMembers.length === 0 ? (
+                  <div className='text-muted-foreground px-4 py-10 text-center text-sm'>
+                    Nenhum membro abaixo da meta na ultima semana.
+                  </div>
+                ) : (
+                  <div className='divide-y'>
+                    {faltaEligibleMembers.map(({ member, hoursLastWeek }) => (
+                      <div
+                        key={member.id}
+                        className='flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4'
+                      >
+                        <div className='min-w-0'>
+                          <div className='break-words text-sm font-medium leading-snug'>
+                            {member.name}
+                          </div>
+                          <div className='text-muted-foreground break-words text-xs leading-snug'>
+                            {member.role} - {member.sector || 'Geral'}
+                          </div>
+                        </div>
+                        <div className='shrink-0 text-sm sm:text-right'>
+                          <span className='font-medium'>
+                            {hoursLastWeek.toFixed(2)}h
+                          </span>
+                          <span className='text-muted-foreground'>
+                            {' '}
+                            / {minWeeklyHours}h
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+          </div>
+
+          <DialogFooter className='shrink-0 gap-2 border-t px-4 py-3 sm:px-6 sm:py-4'>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setIsFaltaDialogOpen(false)}
+              disabled={isSendingFaltas}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type='button'
+              onClick={handleSendFaltas}
+              disabled={isSendingFaltas || faltaEligibleMembers.length === 0}
+              className='gap-2'
+            >
+              <Send className='h-4 w-4' />
+              {isSendingFaltas ? 'Enviando...' : 'Registrar e enviar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

@@ -1,6 +1,27 @@
 import type { Timestamp } from 'firebase/firestore';
 
-export type PontoRecordType = 'Entrada' | 'Saída';
+export type PontoRecordType = 'Entrada' | 'Saida';
+
+export type PontoSessionStatus = 'open' | 'closed' | 'invalid';
+
+export type PontoSessionInvalidReason =
+  | 'missing_exit'
+  | 'exceeded_12h'
+  | 'manual_cancelled';
+
+export type PontoSession = {
+  id: string;
+  memberId: string;
+  memberName: string;
+  cardId?: string;
+  startedAt: Timestamp;
+  endedAt: Timestamp | null;
+  durationMinutes: number;
+  status: PontoSessionStatus;
+  invalidReason?: PontoSessionInvalidReason;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
 
 export type PontoCacheEntry = {
   cardId: string;

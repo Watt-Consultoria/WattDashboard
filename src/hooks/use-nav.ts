@@ -39,7 +39,10 @@ export function useFilteredNavItems(items: NavItem[]) {
       currentMember?.tags?.map((tag) => tag.toLowerCase().trim()) ?? [];
     const sector = currentMember?.sector?.toLowerCase().trim() ?? '';
 
-    const allowedUrls = new Set(['/dashboard/individual']);
+    const allowedUrls = new Set([
+      '/dashboard/individual',
+      '/dashboard/tutoriais'
+    ]);
 
     const allowAcompanhamento = [
       'diretor',

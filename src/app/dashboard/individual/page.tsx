@@ -31,6 +31,7 @@ import { firebaseDb } from '@/lib/firebase/client';
 import { firestoreDateToLabel } from '@/lib/firestore-date';
 import type { FirestoreDateValue } from '@/lib/firestore-date';
 import {
+  collection,
   collectionGroup,
   doc,
   getDoc,
@@ -38,6 +39,7 @@ import {
   onSnapshot,
   query,
   serverTimestamp,
+  setDoc,
   Timestamp,
   updateDoc,
   where
@@ -70,6 +72,16 @@ import {
   WeekScheduleEditor,
   WeekScheduleEditorSkeleton
 } from '@/components/week-schedule-editor';
+import type { PontoSession } from '@/types/ponto/ponto';
+import {
+  calculatePontoSummary,
+  formatMinutesAsHours,
+  getRunningSessionMinutes,
+  getSessionEndDate,
+  getSessionStartDate,
+  isPontoSessionOpen,
+  PONTO_MAX_SESSION_MINUTES
+} from '@/lib/ponto-sessions';
 
 type MemberTask = {
   id: string;
@@ -388,6 +400,7 @@ export default function IndividualPage() {
     React.useState<MemberTask | null>(null);
   const [isSavingAgendaEdit, setIsSavingAgendaEdit] = React.useState(false);
   const [timeRecords, setTimeRecords] = React.useState<PontoRecord[]>([]);
+  const [pontoSessions, setPontoSessions] = React.useState<PontoSession[]>([]);
   const [isBatingPonto, setIsBatingPonto] = React.useState(false);
   const [editStatus, setEditStatus] = React.useState(statusOptions[1]);
   const [updateNote, setUpdateNote] = React.useState('');
@@ -464,6 +477,31 @@ export default function IndividualPage() {
     () => [...agendaTasks, ...projectTasks],
     [agendaTasks, projectTasks]
   );
+  const pontoSummary = React.useMemo(
+    () => calculatePontoSummary(pontoSessions),
+    [pontoSessions]
+  );
+  const activePontoSession = pontoSummary.activeSession;
+  const isClockedIn = Boolean(activePontoSession);
+  const todayPontoSessions = React.useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    return [...pontoSessions]
+      .filter((session) => {
+        const date = getSessionEndDate(session) ?? getSessionStartDate(session);
+        return date ? date >= today && date < tomorrow : false;
+      })
+      .sort((a, b) => {
+        const timeA =
+          (getSessionEndDate(a) ?? getSessionStartDate(a))?.getTime() ?? 0;
+        const timeB =
+          (getSessionEndDate(b) ?? getSessionStartDate(b))?.getTime() ?? 0;
+        return timeB - timeA;
+      });
+  }, [pontoSessions]);
   const todayTimeRecords = React.useMemo(
     () => sortPontoRecordsDesc(timeRecords),
     [timeRecords]
@@ -472,7 +510,6 @@ export default function IndividualPage() {
     () => getLatestPontoRecord(timeRecords),
     [timeRecords]
   );
-  const isClockedIn = latestTodayRecord?.type === PONTO_ENTRY_TYPE;
   const selectedDayLabel = selectedDay ? format(selectedDay, 'dd/MM/yyyy') : '';
   const tasksForDay = selectedDayLabel
     ? allTasks.filter((task) => task.due === selectedDayLabel)
@@ -647,6 +684,32 @@ export default function IndividualPage() {
 
   React.useEffect(() => {
     if (!firebaseDb || !memberId) {
+      setPontoSessions([]);
+      return;
+    }
+
+    const sessionsQuery = query(
+      collection(firebaseDb, 'pontoSessions'),
+      where('memberId', '==', memberId)
+    );
+
+    const unsubscribe = onSnapshot(sessionsQuery, (snapshot) => {
+      setPontoSessions(
+        snapshot.docs.map(
+          (docSnapshot) =>
+            ({
+              id: docSnapshot.id,
+              ...docSnapshot.data()
+            }) as PontoSession
+        )
+      );
+    });
+
+    return () => unsubscribe();
+  }, [memberId]);
+
+  React.useEffect(() => {
+    if (!firebaseDb || !memberId) {
       return;
     }
     const db = firebaseDb;
@@ -794,27 +857,20 @@ export default function IndividualPage() {
   }, [memberId]);
 
   React.useEffect(() => {
-    if (!isClockedIn || !latestTodayRecord) {
+    if (!activePontoSession) {
       setCurrentRunningTime(0);
       return;
     }
-
-    if (!latestTodayRecord.timestamp?.toDate) {
-      setCurrentRunningTime(0);
-      return;
-    }
-
-    const entryTime = latestTodayRecord.timestamp.toDate();
 
     const interval = setInterval(() => {
-      const now = new Date();
-      const diffMs = now.getTime() - entryTime.getTime();
-      const diffSeconds = Math.floor(diffMs / 1000);
+      const diffSeconds = Math.floor(
+        getRunningSessionMinutes(activePontoSession) * 60
+      );
       setCurrentRunningTime(diffSeconds);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isClockedIn, latestTodayRecord]);
+  }, [activePontoSession]);
 
   const handleTaskClick = (task: MemberTask) => {
     setActiveTask(task);
@@ -1159,37 +1215,47 @@ export default function IndividualPage() {
 
     setIsBatingPonto(true);
     try {
-      const type = isClockedIn ? PONTO_EXIT_TYPE : PONTO_ENTRY_TYPE;
-      const newRecord = {
-        id: `${Date.now()}`,
-        type,
-        timestamp: Timestamp.now()
-      };
+      const now = Timestamp.now();
 
-      const memberRef = doc(firebaseDb, 'members', memberId);
-      const memberDoc = await getDoc(memberRef);
-      const currentRecords = (memberDoc.data()?.timeRecords || []) as any[];
+      if (!activePontoSession) {
+        const sessionRef = doc(collection(firebaseDb, 'pontoSessions'));
+        await setDoc(sessionRef, {
+          id: sessionRef.id,
+          memberId,
+          memberName: memberInfo.name || 'Membro',
+          startedAt: now,
+          endedAt: null,
+          durationMinutes: 0,
+          status: 'invalid',
+          invalidReason: 'missing_exit',
+          createdAt: now,
+          updatedAt: now
+        } satisfies PontoSession);
+        toast.success('Entrada registrada');
+        return;
+      }
 
-      await updateDoc(memberRef, {
-        timeRecords: [...currentRecords, newRecord],
-        updatedAt: serverTimestamp()
+      const durationMinutes = Math.max(
+        0,
+        Math.floor(
+          (now.toMillis() - activePontoSession.startedAt.toMillis()) / 60000
+        )
+      );
+      const exceededLimit = durationMinutes > PONTO_MAX_SESSION_MINUTES;
+
+      await updateDoc(doc(firebaseDb, 'pontoSessions', activePontoSession.id), {
+        endedAt: now,
+        durationMinutes: exceededLimit ? 0 : durationMinutes,
+        status: exceededLimit ? 'invalid' : 'closed',
+        invalidReason: exceededLimit ? 'exceeded_12h' : null,
+        updatedAt: now
       });
 
-      const localRecord = {
-        ...newRecord,
-        timestamp: { toDate: () => newRecord.timestamp.toDate() }
-      };
-
-      const nextTimeRecords = [...timeRecords, localRecord];
-      const nextWeekRecords = [...weekTimeRecords, localRecord];
-
-      setTimeRecords(nextTimeRecords);
-      setWeekTimeRecords(nextWeekRecords);
-      storeMemberCache(
-        memberId,
-        buildMemberCache({ timeRecords: nextWeekRecords })
-      );
-      toast.success(`${type} registrada`);
+      if (exceededLimit) {
+        toast.warning('Sessao invalidada por ultrapassar 12 horas.');
+      } else {
+        toast.success('Saida registrada');
+      }
     } catch (error) {
       console.error('Erro ao bater ponto:', error);
       toast.error('Erro ao registrar ponto');
@@ -1718,8 +1784,9 @@ export default function IndividualPage() {
                 <CardContent>
                   <div className='flex flex-col gap-4'>
                     {(() => {
-                      const baseWorkedHours =
-                        calculateWorkedHours(weekTimeRecords);
+                      const baseWorkedHours = formatMinutesAsHours(
+                        pontoSummary.currentWeekMinutes
+                      );
                       const runningHours = currentRunningTime / 3600;
                       const workedHours = baseWorkedHours + runningHours;
                       const isPaid = workedHours >= minWeeklyHours;
@@ -1728,6 +1795,11 @@ export default function IndividualPage() {
                         100
                       );
                       const hasActiveEntry = isClockedIn;
+                      const activeMinutes =
+                        getRunningSessionMinutes(activePontoSession);
+                      const activeHours = formatMinutesAsHours(activeMinutes);
+                      const hasExceededSessionLimit =
+                        activeMinutes > PONTO_MAX_SESSION_MINUTES;
 
                       return (
                         <>
@@ -1751,14 +1823,39 @@ export default function IndividualPage() {
                             </div>
                           </div>
 
-                          {isPaid && hasActiveEntry && (
-                            <div className='rounded-lg border border-amber-500 bg-amber-500/10 p-3 text-center'>
-                              <div className='text-sm font-semibold text-amber-600'>
-                                ⚠ Entrada ativa com {minWeeklyHours}h+
-                                trabalhadas
+                          {hasExceededSessionLimit && hasActiveEntry && (
+                            <div className='rounded-lg border border-red-500 bg-red-500/10 p-3 text-center'>
+                              <div className='text-sm font-semibold text-red-600'>
+                                Tempo ultrapassado
                               </div>
                               <div className='text-muted-foreground mt-1 text-xs'>
-                                Registre a saída para contabilizar
+                                Sessao aberta ha {activeHours.toFixed(2)}h.
+                                Registre a saida para invalidar.
+                              </div>
+                            </div>
+                          )}
+
+                          {!hasExceededSessionLimit &&
+                            isPaid &&
+                            hasActiveEntry && (
+                              <div className='rounded-lg border border-amber-500 bg-amber-500/10 p-3 text-center'>
+                                <div className='text-sm font-semibold text-amber-600'>
+                                  ⚠ Entrada ativa com {minWeeklyHours}h+
+                                  trabalhadas
+                                </div>
+                                <div className='text-muted-foreground mt-1 text-xs'>
+                                  Registre a saída para contabilizar
+                                </div>
+                              </div>
+                            )}
+
+                          {hasActiveEntry && (
+                            <div className='rounded-lg border p-3 text-center'>
+                              <div className='text-sm font-semibold'>
+                                Sessao aberta
+                              </div>
+                              <div className='text-muted-foreground mt-1 text-xs'>
+                                Duracao atual: {activeHours.toFixed(2)}h
                               </div>
                             </div>
                           )}
@@ -1792,24 +1889,31 @@ export default function IndividualPage() {
                             <div className='text-muted-foreground text-xs font-medium uppercase'>
                               Registros de Hoje
                             </div>
-                            {todayTimeRecords.length === 0 ? (
+                            {todayPontoSessions.length === 0 ? (
                               <div className='text-muted-foreground rounded-lg border py-6 text-center text-sm'>
                                 Nenhum registro hoje
                               </div>
                             ) : (
                               <div className='space-y-2'>
-                                {todayTimeRecords.map((record) => (
+                                {todayPontoSessions.map((session) => (
                                   <div
-                                    key={record.id}
+                                    key={session.id}
                                     className='flex items-center justify-between rounded-lg border p-3'
                                   >
                                     <span className='text-sm font-medium'>
-                                      {record.type}
+                                      {isPontoSessionOpen(session)
+                                        ? 'Aberta'
+                                        : session.status === 'closed'
+                                          ? 'Fechada'
+                                          : 'Invalidada'}
                                     </span>
                                     <span className='text-muted-foreground font-mono text-sm'>
-                                      {record.timestamp?.toDate
+                                      {getSessionEndDate(session) ||
+                                      getSessionStartDate(session)
                                         ? format(
-                                            record.timestamp.toDate(),
+                                            getSessionEndDate(session) ??
+                                              getSessionStartDate(session) ??
+                                              new Date(),
                                             'HH:mm:ss'
                                           )
                                         : '--:--:--'}
@@ -2214,19 +2318,50 @@ export default function IndividualPage() {
             <CardContent>
               <div className='flex flex-col gap-4'>
                 {(() => {
-                  const baseWorkedHours = calculateWorkedHours(weekTimeRecords);
+                  const baseWorkedHours = formatMinutesAsHours(
+                    pontoSummary.currentWeekMinutes
+                  );
                   const runningHours = currentRunningTime / 3600;
                   const workedHours = baseWorkedHours + runningHours;
-                  const isPaid = workedHours >= 4;
+                  const isPaid = workedHours >= minWeeklyHours;
                   const progressPercent = Math.min(
-                    (workedHours / 4) * 100,
+                    (workedHours / minWeeklyHours) * 100,
                     100
                   );
                   const hasActiveEntry = isClockedIn;
+                  const activeMinutes =
+                    getRunningSessionMinutes(activePontoSession);
+                  const activeHours = formatMinutesAsHours(activeMinutes);
+                  const hasExceededSessionLimit =
+                    activeMinutes > PONTO_MAX_SESSION_MINUTES;
 
                   return (
                     <>
-                      {isPaid && hasActiveEntry ? (
+                      {hasExceededSessionLimit && hasActiveEntry ? (
+                        <>
+                          <div className='rounded-md border border-red-500 bg-red-500/10 p-4 text-center'>
+                            <div className='text-sm font-semibold text-red-600'>
+                              Tempo ultrapassado
+                            </div>
+                            <div className='text-muted-foreground mt-1 text-xs'>
+                              Sessao aberta ha {activeHours.toFixed(2)}h.
+                              Registre a saida para invalidar.
+                            </div>
+                          </div>
+
+                          <Button
+                            onClick={handleBaterPonto}
+                            disabled={isBatingPonto}
+                            className='w-full'
+                            size='lg'
+                            variant='default'
+                          >
+                            {isBatingPonto
+                              ? 'Registrando...'
+                              : 'Registrar Saida'}
+                          </Button>
+                        </>
+                      ) : isPaid && hasActiveEntry ? (
                         <>
                           <div className='rounded-md border border-amber-500 bg-amber-500/10 p-4 text-center'>
                             <div className='text-sm font-semibold text-amber-600'>
@@ -2254,7 +2389,7 @@ export default function IndividualPage() {
                               {workedHours.toFixed(2)}h
                             </div>
                             <div className='text-muted-foreground text-xs'>
-                              de 4h trabalhadas
+                              de {minWeeklyHours}h trabalhadas
                             </div>
                           </div>
 
@@ -2262,7 +2397,7 @@ export default function IndividualPage() {
                             <Progress value={progressPercent} className='h-3' />
                             <div className='text-muted-foreground flex justify-between text-xs'>
                               <span>0h</span>
-                              <span>4h</span>
+                              <span>{minWeeklyHours}h</span>
                             </div>
                           </div>
                         </>
@@ -2296,7 +2431,7 @@ export default function IndividualPage() {
                               {workedHours.toFixed(2)}h
                             </div>
                             <div className='text-muted-foreground text-xs'>
-                              de 4h trabalhadas
+                              de {minWeeklyHours}h trabalhadas
                             </div>
                           </div>
 
@@ -2304,34 +2439,52 @@ export default function IndividualPage() {
                             <Progress value={progressPercent} className='h-3' />
                             <div className='text-muted-foreground flex justify-between text-xs'>
                               <span>0h</span>
-                              <span>4h</span>
+                              <span>{minWeeklyHours}h</span>
                             </div>
                           </div>
                         </>
                       )}
 
-                      <ScrollArea className='h-32'>
+                      {hasActiveEntry && (
+                        <div className='rounded-md border p-3 text-center'>
+                          <div className='text-sm font-semibold'>
+                            Sessao aberta
+                          </div>
+                          <div className='text-muted-foreground mt-1 text-xs'>
+                            Duracao atual: {activeHours.toFixed(2)}h
+                          </div>
+                        </div>
+                      )}
+
+                      {/* <ScrollArea className='h-32'>
                         <div className='space-y-2'>
                           <div className='text-muted-foreground text-xs font-medium'>
                             Hoje
                           </div>
-                          {todayTimeRecords.length === 0 ? (
+                          {todayPontoSessions.length === 0 ? (
                             <div className='text-muted-foreground py-4 text-center text-xs'>
                               Nenhum registro hoje
                             </div>
                           ) : (
-                            todayTimeRecords.map((record) => (
+                            todayPontoSessions.map((session) => (
                               <div
-                                key={record.id}
+                                key={session.id}
                                 className='flex items-center justify-between rounded-md border p-2'
                               >
                                 <span className='text-sm font-medium'>
-                                  {record.type}
+                                  {isPontoSessionOpen(session)
+                                    ? 'Aberta'
+                                    : session.status === 'closed'
+                                      ? 'Fechada'
+                                      : 'Invalidada'}
                                 </span>
                                 <span className='text-muted-foreground text-xs'>
-                                  {record.timestamp?.toDate
+                                  {getSessionEndDate(session) ||
+                                  getSessionStartDate(session)
                                     ? format(
-                                        record.timestamp.toDate(),
+                                        getSessionEndDate(session) ??
+                                          getSessionStartDate(session) ??
+                                          new Date(),
                                         'HH:mm:ss'
                                       )
                                     : '--:--:--'}
@@ -2340,7 +2493,7 @@ export default function IndividualPage() {
                             ))
                           )}
                         </div>
-                      </ScrollArea>
+                      </ScrollArea>*/}
                     </>
                   );
                 })()}

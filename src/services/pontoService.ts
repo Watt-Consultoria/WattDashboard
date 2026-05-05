@@ -1,8 +1,8 @@
 import { Timestamp } from 'firebase/firestore';
 import pontoRepository from '@/repositories/pontoRepository';
 import { MissingParameterError, ValidationError } from '@/errors/serviceErrors';
-import type { TimeRecord } from '@/types/member/member';
 import type { PontoOperationResult } from '@/types/ponto/ponto';
+import { PONTO_MAX_SESSION_MINUTES } from '@/lib/ponto-sessions';
 
 class PontoService {
   async registerCardRead(cardId: string): Promise<PontoOperationResult> {
@@ -12,74 +12,50 @@ class PontoService {
 
     const normalizedCardId = cardId.trim();
     const now = Timestamp.now();
-    const cacheEntry =
-      await pontoRepository.getCacheEntryByCardId(normalizedCardId);
+    const member = await pontoRepository.getMemberByCardId(normalizedCardId);
 
-    if (!cacheEntry) {
-      await pontoRepository.createCacheEntry(normalizedCardId, now);
+    if (!member) {
+      throw new ValidationError('Nenhum membro encontrado para este cardId.');
+    }
 
-      const member = await pontoRepository.getMemberByCardId(normalizedCardId);
+    const openSession = await pontoRepository.getOpenSessionByMemberId(
+      member.id
+    );
+
+    if (!openSession) {
+      await pontoRepository.createOpenSession(
+        member.id,
+        member.name,
+        normalizedCardId,
+        now
+      );
 
       return {
         success: true,
         action: 'started',
         message: 'Entrada registrada com sucesso.',
-        label:
-          'Bem vindo ' +
-          (member ? member.name.split(' ')[0] : 'colaborador') +
-          '!',
+        label: 'Bem vindo ' + member.name.split(' ')[0] + '!',
         cardId: normalizedCardId,
-        memberId: member?.id
+        memberId: member.id
       };
     }
 
-    const totalTime = now.toMillis() - cacheEntry.startTime.toMillis();
-    const member = await pontoRepository.getMemberByCardId(normalizedCardId);
-    if (!member) {
-      throw new ValidationError('Nenhum membro encontrado para este cardId.');
-    }
-
-    if (totalTime > 12 * 60 * 60 * 1000) {
-      await pontoRepository.deleteCacheEntry(normalizedCardId);
-
-      return {
-        success: false,
-        action: 'finished',
-        label: 'Registro inválido você excedeu o tempo máximo',
-        message: 'Tempo máximo de trabalho excedido.',
-        cardId: normalizedCardId,
-        memberId: member?.id
-      };
-    }
-
-    const saidaRecord: TimeRecord = {
-      id: Date.now().toString(),
-      timestamp: now,
-      type: 'Saída'
-    };
-
-    const entradaRecord: TimeRecord = {
-      id: (Date.now() + 1).toString(),
-      timestamp: cacheEntry.startTime,
-      type: 'Entrada'
-    };
-
-    await pontoRepository.appendMemberTimeRecords(member.id, [
-      entradaRecord,
-      saidaRecord
-    ]);
-
-    await pontoRepository.deleteCacheEntry(normalizedCardId);
+    const closedSession = await pontoRepository.closeSession(openSession, now);
+    const totalTime = now.toMillis() - openSession.startedAt.toMillis();
+    const isInvalid = closedSession.status === 'invalid';
 
     return {
-      success: true,
+      success: !isInvalid,
       action: 'finished',
-      totalTime: this.formatTime(totalTime),
-      message: 'Ponto finalizado e registros adicionados ao membro.',
+      totalTime: isInvalid ? undefined : this.formatTime(totalTime),
+      message: isInvalid
+        ? 'Sessao invalidada por ultrapassar 12 horas.'
+        : 'Ponto finalizado e sessao fechada.',
       cardId: normalizedCardId,
       memberId: member.id,
-      label:
-        'Até logo ' + (member ? member.name.split(' ')[0] : 'colaborador') + '!'
+      label: isInvalid
+        ? `Sessao invalidada por ultrapassar ${PONTO_MAX_SESSION_MINUTES / 60} horas.`
+        : 'Ate logo ' + member.name.split(' ')[0] + '!'
     };
   }
 
