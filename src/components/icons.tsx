@@ -41,7 +41,8 @@ import {
   IconMessageCircle2,
   IconCreditCardRefund,
   IconClipboardList,
-  IconTrophy
+  IconTrophy,
+  IconBook2
 } from '@tabler/icons-react';
 import { ref } from 'firebase/storage';
 
@@ -90,5 +91,6 @@ export const Icons = {
   feedback: IconMessageCircle2,
   refund: IconCreditCardRefund,
   faltas: IconClipboardList,
-  hogwatts: IconTrophy
+  hogwatts: IconTrophy,
+  book: IconBook2
 };

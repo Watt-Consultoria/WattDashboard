@@ -97,6 +97,13 @@ export const navItems: NavItem[] = [
     items: []
   },
   {
+    title: 'Tutoriais',
+    url: '/dashboard/tutoriais',
+    icon: 'book',
+    isActive: false,
+    items: []
+  },
+  {
     title: 'Hogwatts',
     url: '/dashboard/hogwatts',
     icon: 'hogwatts',
