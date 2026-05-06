@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { firebaseDb } from '@/lib/firebase/client';
 import { useFirebaseData } from '@/contexts/firebase-data-context';
-import { isExecutiveAssessor } from '@/lib/executive-permissions';
+import { isDiretoria, isExecutiveAssessor } from '@/lib/executive-permissions';
 import useMetadata from '@/hooks/use-metadata';
 import type { Tutorial } from '@/types/tutorial/tutorial';
 import { MarkdownViewer } from '@/components/tutorials/markdown-viewer';
@@ -41,7 +41,8 @@ export default function TutoriaisPage() {
 
   useMetadata({ title: 'Tutoriais' });
 
-  const canManageTutorials = isExecutiveAssessor(currentMember);
+  const canManageTutorials =
+    isExecutiveAssessor(currentMember) || isDiretoria(currentMember);
 
   React.useEffect(() => {
     if (!firebaseDb) {
