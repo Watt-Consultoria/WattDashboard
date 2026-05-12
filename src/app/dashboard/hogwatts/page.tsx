@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
-import { Plus, UserPlus } from 'lucide-react';
+import { Plus, Save, UserPlus } from 'lucide-react';
 import { useAuth } from '@/features/auth/components/auth-provider';
 import hogwattsService from '@/services/hogwattsService';
+import memberService from '@/services/memberService';
+import { normalizePermissionValue } from '@/lib/executive-permissions';
 import type {
   HogwattsHouse,
   HogwattsHouseName,
@@ -13,7 +15,8 @@ import type {
   HogwattsSubmission,
   HogwattsTask
 } from '@/types/hogwatts/hogwatts';
-import type { MemberRoleEnum } from '@/types/member/member';
+import { HOGWATTS_HOUSES } from '@/types/hogwatts/hogwatts';
+import type { Member, MemberRoleEnum } from '@/types/member/member';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -32,6 +35,13 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import PageContainer from '@/components/layout/page-container';
 import useMetadata from '@/hooks/use-metadata';
 
@@ -56,6 +66,26 @@ const formatDate = (timestamp: any): string => {
   return new Intl.DateTimeFormat('pt-BR').format(timestamp.toDate());
 };
 
+const canManageHogwattsHouses = (
+  member?: {
+    role?: string | null;
+    sector?: string | null;
+  } | null
+) => {
+  const role = normalizePermissionValue(member?.role);
+  const sector = normalizePermissionValue(member?.sector);
+
+  return (
+    role === 'presidente executivo' ||
+    role === 'assessor executivo' ||
+    ((role === 'presidente' ||
+      role === 'assessor' ||
+      role === 'asessor' ||
+      role === 'acessor') &&
+      sector === 'executivo')
+  );
+};
+
 export default function HogwattsPage() {
   const { user } = useAuth();
 
@@ -74,7 +104,15 @@ export default function HogwattsPage() {
   const [memberProfiles, setMemberProfiles] = useState<HogwattsMemberProfile[]>(
     []
   );
+  const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [memberRole, setMemberRole] = useState<MemberRoleEnum | null>(null);
+  const [canManageHouseAssignments, setCanManageHouseAssignments] =
+    useState(false);
+  const [selectedHouseByMemberId, setSelectedHouseByMemberId] = useState<
+    Partial<Record<string, HogwattsHouseName>>
+  >({});
+  const [isSavingHouseAssignments, setIsSavingHouseAssignments] =
+    useState(false);
   const [topMembers, setTopMembers] = useState<
     Record<HogwattsHouseName, HogwattsHouseTopMember[]>
   >({} as Record<HogwattsHouseName, HogwattsHouseTopMember[]>);
@@ -85,32 +123,87 @@ export default function HogwattsPage() {
 
   useMetadata({ title: 'Hogwatts' });
 
+  const memberHouseAssignments = useMemo(() => {
+    const profileByMemberId = new Map(
+      memberProfiles.map((profile) => [profile.memberId, profile])
+    );
+
+    return allMembers
+      .map((member) => ({
+        member,
+        profile: profileByMemberId.get(member.id) ?? null
+      }))
+      .sort((a, b) => a.member.name.localeCompare(b.member.name, 'pt-BR'));
+  }, [allMembers, memberProfiles]);
+
+  const membersWithoutHouse = memberHouseAssignments.filter(
+    ({ profile }) => !profile
+  ).length;
+
+  const pendingHouseUpdates = useMemo(() => {
+    const updates: { memberId: string; houseName: HogwattsHouseName }[] = [];
+
+    memberHouseAssignments.forEach(({ member, profile }) => {
+      const houseName = selectedHouseByMemberId[member.id];
+      if (houseName && houseName !== profile?.houseName) {
+        updates.push({ memberId: member.id, houseName });
+      }
+    });
+
+    return updates;
+  }, [memberHouseAssignments, selectedHouseByMemberId]);
+
   const loadData = useCallback(async () => {
     if (!user?.uid) return;
     setIsLoading(true);
     try {
-      // Busca papel do membro primeiro para determinar visibilidade
-      const role = await hogwattsService.getMemberRole(user.uid);
+      // Busca o membro atual primeiro para determinar visibilidade.
+      const currentMember = await memberService.getMemberProfile(user.uid);
+      const role = currentMember?.role ?? null;
+      const canManageHouses = canManageHogwattsHouses(currentMember);
       setMemberRole(role);
+      setCanManageHouseAssignments(canManageHouses);
 
       const resolvedRole = role ?? 'Consultor';
 
-      const [rankingData, tasksData, historySubs, pendingSubs, profiles] =
-        await Promise.all([
-          hogwattsService.getRanking(),
-          hogwattsService.getTasks(),
-          hogwattsService.getHistorySubmissions(user.uid, resolvedRole),
-          hogwattsService.isCoordinator(resolvedRole)
-            ? hogwattsService.getPendingSubmissions()
-            : Promise.resolve([]),
-          hogwattsService.getMemberProfiles()
-        ]);
+      const [
+        rankingData,
+        tasksData,
+        historySubs,
+        pendingSubs,
+        profiles,
+        members
+      ] = await Promise.all([
+        hogwattsService.getRanking(),
+        hogwattsService.getTasks(),
+        hogwattsService.getHistorySubmissions(user.uid, resolvedRole),
+        hogwattsService.isCoordinator(resolvedRole)
+          ? hogwattsService.getPendingSubmissions()
+          : Promise.resolve([]),
+        hogwattsService.getMemberProfiles(),
+        canManageHouses ? memberService.getAllMembers() : Promise.resolve([])
+      ]);
       setHouses(rankingData.houses);
       setTopMembers(rankingData.topMembers);
       setTasks(tasksData);
       setAllSubmissions(historySubs);
       setPendingSubmissions(pendingSubs);
       setMemberProfiles(profiles);
+      setAllMembers(members);
+
+      const profileByMemberId = new Map(
+        profiles.map((profile) => [profile.memberId, profile.houseName])
+      );
+      const nextSelectedHouseByMemberId: Partial<
+        Record<string, HogwattsHouseName>
+      > = {};
+      members.forEach((member) => {
+        const houseName = profileByMemberId.get(member.id);
+        if (houseName) {
+          nextSelectedHouseByMemberId[member.id] = houseName;
+        }
+      });
+      setSelectedHouseByMemberId(nextSelectedHouseByMemberId);
     } catch (error) {
       const message =
         error instanceof Error
@@ -121,6 +214,42 @@ export default function HogwattsPage() {
       setIsLoading(false);
     }
   }, [user?.uid]);
+
+  const handleHouseChange = (
+    memberId: string,
+    houseName: HogwattsHouseName
+  ) => {
+    setSelectedHouseByMemberId((current) => ({
+      ...current,
+      [memberId]: houseName
+    }));
+  };
+
+  const handleSaveHouseAssignments = async () => {
+    if (pendingHouseUpdates.length === 0) {
+      toast.message('Nenhuma alteração para salvar.');
+      return;
+    }
+
+    setIsSavingHouseAssignments(true);
+    try {
+      await Promise.all(
+        pendingHouseUpdates.map(({ memberId, houseName }) =>
+          hogwattsService.assignMemberToHouse({ memberId, houseName })
+        )
+      );
+      toast.success('Casas dos membros atualizadas com sucesso!');
+      await loadData();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Erro ao salvar as casas dos membros.';
+      toast.error(message);
+    } finally {
+      setIsSavingHouseAssignments(false);
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -162,7 +291,9 @@ export default function HogwattsPage() {
             </TabsTrigger>
           )}
           <TabsTrigger value='history'>Histórico</TabsTrigger>
-          {isCoordinator && <TabsTrigger value='members'>Membros</TabsTrigger>}
+          {(isCoordinator || canManageHouseAssignments) && (
+            <TabsTrigger value='members'>Membros</TabsTrigger>
+          )}
         </TabsList>
 
         {/* ── Ranking ──────────────────────────────────────────────── */}
@@ -297,88 +428,142 @@ export default function HogwattsPage() {
         </TabsContent>
 
         {/* ── Membros e suas casas ─────────────────────────────────── */}
-        {isCoordinator && (
+        {(isCoordinator || canManageHouseAssignments) && (
           <TabsContent value='members' className='space-y-4'>
-            <Card className='overflow-hidden'>
-              <CardHeader className='px-3 pt-3 pb-2 sm:px-6 sm:pt-6 sm:pb-3'>
-                <div className='flex items-center justify-between'>
-                  <div>
-                    <CardTitle className='text-sm sm:text-base'>
-                      Membros das Casas
-                    </CardTitle>
-                    <CardDescription className='text-xs'>
-                      {memberProfiles.length} membro(s) atribuído(s)
-                    </CardDescription>
+            {canManageHouseAssignments && (
+              <Card className='overflow-hidden'>
+                <CardHeader className='px-3 pt-3 pb-2 sm:px-6 sm:pt-6 sm:pb-3'>
+                  <div className='flex items-center justify-between gap-3'>
+                    <div>
+                      <CardTitle className='text-sm sm:text-base'>
+                        Gerenciar Casas dos Membros
+                      </CardTitle>
+                      <CardDescription className='text-xs'>
+                        {allMembers.length} membro(s) no sistema,{' '}
+                        {membersWithoutHouse} sem casa definida
+                      </CardDescription>
+                    </div>
+                    <Button
+                      onClick={handleSaveHouseAssignments}
+                      disabled={
+                        isSavingHouseAssignments ||
+                        pendingHouseUpdates.length === 0
+                      }
+                      size='sm'
+                      className='h-8 gap-1'
+                    >
+                      <Save className='h-4 w-4' />
+                      <span className='hidden sm:inline'>
+                        {isSavingHouseAssignments
+                          ? 'Salvando...'
+                          : `Salvar (${pendingHouseUpdates.length})`}
+                      </span>
+                      <span className='sm:hidden'>Salvar</span>
+                    </Button>
                   </div>
-                  <Button
-                    onClick={() => setIsAssignOpen(true)}
-                    size='sm'
-                    className='h-8 gap-1'
-                  >
-                    <UserPlus className='h-4 w-4' />
-                    <span className='hidden sm:inline'>Atribuir membro</span>
-                    <span className='sm:hidden'>Atribuir</span>
-                  </Button>
-                </div>
-              </CardHeader>
+                </CardHeader>
 
-              {memberProfiles.length === 0 ? (
-                <CardContent>
-                  <p className='text-muted-foreground py-6 text-center text-sm'>
-                    Nenhum membro atribuído a uma casa ainda.
-                  </p>
-                </CardContent>
-              ) : (
-                <>
-                  {/* Desktop */}
-                  <CardContent className='hidden p-0 sm:block md:p-6'>
-                    <div className='overflow-x-auto'>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Membro</TableHead>
-                            <TableHead>Casa</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {memberProfiles
-                            .sort((a, b) =>
-                              a.memberName.localeCompare(b.memberName)
-                            )
-                            .map((profile) => (
-                              <TableRow key={profile.id}>
-                                <TableCell>{profile.memberName}</TableCell>
+                {memberHouseAssignments.length === 0 ? (
+                  <CardContent>
+                    <p className='text-muted-foreground py-6 text-center text-sm'>
+                      Nenhum membro encontrado.
+                    </p>
+                  </CardContent>
+                ) : (
+                  <>
+                    <CardContent className='hidden p-0 sm:block md:p-6'>
+                      <div className='overflow-x-auto'>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Membro</TableHead>
+                              <TableHead>Cargo</TableHead>
+                              <TableHead>Setor</TableHead>
+                              <TableHead className='w-[220px]'>Casa</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {memberHouseAssignments.map(({ member }) => (
+                              <TableRow key={member.id}>
+                                <TableCell className='font-medium'>
+                                  {member.name}
+                                </TableCell>
+                                <TableCell>{member.role || '-'}</TableCell>
+                                <TableCell>{member.sector || '-'}</TableCell>
                                 <TableCell>
-                                  <Badge variant='outline'>
-                                    {profile.houseName}
-                                  </Badge>
+                                  <Select
+                                    value={selectedHouseByMemberId[member.id]}
+                                    disabled={isSavingHouseAssignments}
+                                    onValueChange={(value) =>
+                                      handleHouseChange(
+                                        member.id,
+                                        value as HogwattsHouseName
+                                      )
+                                    }
+                                  >
+                                    <SelectTrigger className='w-[180px]'>
+                                      <SelectValue placeholder='Sem casa' />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {HOGWATTS_HOUSES.map((house) => (
+                                        <SelectItem key={house} value={house}>
+                                          {house}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                 </TableCell>
                               </TableRow>
                             ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
 
-                  {/* Mobile */}
-                  <CardContent className='block p-2 sm:hidden'>
-                    <div className='space-y-2'>
-                      {memberProfiles.map((profile) => (
-                        <div
-                          key={profile.id}
-                          className='flex items-center justify-between rounded-lg border p-3'
-                        >
-                          <span className='text-sm font-medium'>
-                            {profile.memberName}
-                          </span>
-                          <Badge variant='outline'>{profile.houseName}</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </>
-              )}
-            </Card>
+                    <CardContent className='block p-2 sm:hidden'>
+                      <div className='space-y-2'>
+                        {memberHouseAssignments.map(({ member }) => (
+                          <div
+                            key={member.id}
+                            className='rounded-lg border p-3'
+                          >
+                            <div className='mb-3 min-w-0'>
+                              <p className='truncate text-sm font-medium'>
+                                {member.name}
+                              </p>
+                              <p className='text-muted-foreground text-xs'>
+                                {member.role || '-'} - {member.sector || '-'}
+                              </p>
+                            </div>
+                            <Select
+                              value={selectedHouseByMemberId[member.id]}
+                              disabled={isSavingHouseAssignments}
+                              onValueChange={(value) =>
+                                handleHouseChange(
+                                  member.id,
+                                  value as HogwattsHouseName
+                                )
+                              }
+                            >
+                              <SelectTrigger className='w-full'>
+                                <SelectValue placeholder='Sem casa' />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {HOGWATTS_HOUSES.map((house) => (
+                                  <SelectItem key={house} value={house}>
+                                    {house}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </>
+                )}
+              </Card>
+            )}
           </TabsContent>
         )}
       </Tabs>
